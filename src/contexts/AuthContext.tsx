@@ -10,6 +10,7 @@ interface AuthContextType {
   role: UserRole | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, profileData: { cedula: string; nombre_completo: string; telefono?: string }) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
 }
@@ -38,8 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProfile(null);
           setRole(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -59,20 +60,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      // For now, we'll set a default role since tables don't exist yet
-      // This will be updated once the database is set up
-      setProfile({
-        id: userId,
-        user_id: userId,
-        cedula: '',
-        nombre_completo: user?.email || 'Usuario',
-        activo: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-      setRole('asesor_comercial');
+      // Fetch profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      // Fetch role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error('Error fetching role:', roleError);
+      }
+
+      if (profileData) {
+        setProfile({
+          id: profileData.id,
+          user_id: profileData.user_id,
+          cedula: profileData.cedula,
+          nombre_completo: profileData.nombre_completo,
+          telefono: profileData.telefono,
+          zona: profileData.zona,
+          activo: profileData.activo,
+          created_at: profileData.created_at,
+          updated_at: profileData.updated_at,
+        });
+      } else {
+        // Fallback profile from user metadata
+        const user = (await supabase.auth.getUser()).data.user;
+        setProfile({
+          id: userId,
+          user_id: userId,
+          cedula: user?.user_metadata?.cedula || '',
+          nombre_completo: user?.user_metadata?.nombre_completo || user?.email || 'Usuario',
+          activo: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      if (roleData) {
+        setRole(roleData.role as UserRole);
+      } else {
+        setRole('asesor_comercial'); // Default role
+      }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error in fetchUserProfile:', error);
     } finally {
       setLoading(false);
     }
@@ -85,6 +127,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
       return { error };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const signUp = async (
+    email: string, 
+    password: string, 
+    profileData: { cedula: string; nombre_completo: string; telefono?: string }
+  ) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+          data: {
+            cedula: profileData.cedula,
+            nombre_completo: profileData.nombre_completo,
+          }
+        }
+      });
+
+      if (error) return { error };
+
+      // Profile will be created by admin or trigger
+      return { error: null };
     } catch (error) {
       return { error: error as Error };
     }
@@ -121,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         loading,
         signIn,
+        signUp,
         signOut,
         hasPermission,
       }}

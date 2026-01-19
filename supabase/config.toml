@@ -1,1 +1,10 @@
 project_id = "flafgqrxmrtfibydeuog"
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.bootstrap-admin]
+verify_jwt = false
+
+[functions.seed-test-users]
+verify_jwt = false
