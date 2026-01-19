@@ -14,16 +14,344 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      carga_archivos: {
+        Row: {
+          cargado_por: string | null
+          created_at: string
+          estado: string | null
+          id: string
+          mensaje_error: string | null
+          nombre_archivo: string
+          registros_procesados: number | null
+          tipo: string
+        }
+        Insert: {
+          cargado_por?: string | null
+          created_at?: string
+          estado?: string | null
+          id?: string
+          mensaje_error?: string | null
+          nombre_archivo: string
+          registros_procesados?: number | null
+          tipo: string
+        }
+        Update: {
+          cargado_por?: string | null
+          created_at?: string
+          estado?: string | null
+          id?: string
+          mensaje_error?: string | null
+          nombre_archivo?: string
+          registros_procesados?: number | null
+          tipo?: string
+        }
+        Relationships: []
+      }
+      historial_ediciones: {
+        Row: {
+          campo_editado: string
+          created_at: string
+          id: string
+          modificado_por: string | null
+          registro_id: string
+          tabla: string
+          valor_anterior: string | null
+          valor_nuevo: string | null
+        }
+        Insert: {
+          campo_editado: string
+          created_at?: string
+          id?: string
+          modificado_por?: string | null
+          registro_id: string
+          tabla: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Update: {
+          campo_editado?: string
+          created_at?: string
+          id?: string
+          modificado_por?: string | null
+          registro_id?: string
+          tabla?: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Relationships: []
+      }
+      metas: {
+        Row: {
+          anio: number
+          cargado_por: string | null
+          codigo_asesor: string
+          created_at: string
+          id: string
+          mes: number
+          tipo_meta: string | null
+          updated_at: string
+          user_id: string | null
+          valor_meta: number
+        }
+        Insert: {
+          anio: number
+          cargado_por?: string | null
+          codigo_asesor: string
+          created_at?: string
+          id?: string
+          mes: number
+          tipo_meta?: string | null
+          updated_at?: string
+          user_id?: string | null
+          valor_meta: number
+        }
+        Update: {
+          anio?: number
+          cargado_por?: string | null
+          codigo_asesor?: string
+          created_at?: string
+          id?: string
+          mes?: number
+          tipo_meta?: string | null
+          updated_at?: string
+          user_id?: string | null
+          valor_meta?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          activo: boolean | null
+          cedula: string
+          created_at: string
+          id: string
+          nombre_completo: string
+          telefono: string | null
+          updated_at: string
+          user_id: string
+          zona: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Insert: {
+          activo?: boolean | null
+          cedula: string
+          created_at?: string
+          id?: string
+          nombre_completo: string
+          telefono?: string | null
+          updated_at?: string
+          user_id: string
+          zona?: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Update: {
+          activo?: boolean | null
+          cedula?: string
+          created_at?: string
+          id?: string
+          nombre_completo?: string
+          telefono?: string | null
+          updated_at?: string
+          user_id?: string
+          zona?: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Relationships: []
+      }
+      programacion: {
+        Row: {
+          creado_por: string | null
+          created_at: string
+          fecha: string
+          hora_fin: string | null
+          hora_inicio: string | null
+          id: string
+          latitud: number | null
+          longitud: number | null
+          municipio: string
+          tipo_actividad: Database["public"]["Enums"]["activity_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          creado_por?: string | null
+          created_at?: string
+          fecha: string
+          hora_fin?: string | null
+          hora_inicio?: string | null
+          id?: string
+          latitud?: number | null
+          longitud?: number | null
+          municipio: string
+          tipo_actividad: Database["public"]["Enums"]["activity_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          creado_por?: string | null
+          created_at?: string
+          fecha?: string
+          hora_fin?: string | null
+          hora_inicio?: string | null
+          id?: string
+          latitud?: number | null
+          longitud?: number | null
+          municipio?: string
+          tipo_actividad?: Database["public"]["Enums"]["activity_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reportes_diarios: {
+        Row: {
+          consultas: number | null
+          created_at: string
+          fecha: string
+          foto_url: string | null
+          gps_latitud: number | null
+          gps_longitud: number | null
+          hora_registro: string
+          id: string
+          notas: string | null
+          solicitudes: number | null
+          user_id: string
+        }
+        Insert: {
+          consultas?: number | null
+          created_at?: string
+          fecha?: string
+          foto_url?: string | null
+          gps_latitud?: number | null
+          gps_longitud?: number | null
+          hora_registro?: string
+          id?: string
+          notas?: string | null
+          solicitudes?: number | null
+          user_id: string
+        }
+        Update: {
+          consultas?: number | null
+          created_at?: string
+          fecha?: string
+          foto_url?: string | null
+          gps_latitud?: number | null
+          gps_longitud?: number | null
+          hora_registro?: string
+          id?: string
+          notas?: string | null
+          solicitudes?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ventas: {
+        Row: {
+          cargado_por: string | null
+          celular_cliente: string | null
+          codigo_asesor: string
+          created_at: string
+          fecha: string
+          forma_pago: string | null
+          id: string
+          producto: string | null
+          regional: string | null
+          tipo_cliente: string | null
+          user_id: string | null
+          valor_venta: number
+          zona: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Insert: {
+          cargado_por?: string | null
+          celular_cliente?: string | null
+          codigo_asesor: string
+          created_at?: string
+          fecha: string
+          forma_pago?: string | null
+          id?: string
+          producto?: string | null
+          regional?: string | null
+          tipo_cliente?: string | null
+          user_id?: string | null
+          valor_venta: number
+          zona?: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Update: {
+          cargado_por?: string | null
+          celular_cliente?: string | null
+          codigo_asesor?: string
+          created_at?: string
+          fecha?: string
+          forma_pago?: string | null
+          id?: string
+          producto?: string | null
+          regional?: string | null
+          tipo_cliente?: string | null
+          user_id?: string | null
+          valor_venta?: number
+          zona?: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      profiles_with_roles: {
+        Row: {
+          activo: boolean | null
+          cedula: string | null
+          created_at: string | null
+          id: string | null
+          nombre_completo: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          telefono: string | null
+          updated_at: string | null
+          user_id: string | null
+          zona: Database["public"]["Enums"]["zone_type"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      activity_type: "punto" | "correria" | "libre"
+      app_role:
+        | "asesor_comercial"
+        | "jefe_ventas"
+        | "lider_zona"
+        | "coordinador_comercial"
+        | "administrativo"
+        | "administrador"
+      zone_type: "norte" | "sur" | "centro" | "oriente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +478,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      activity_type: ["punto", "correria", "libre"],
+      app_role: [
+        "asesor_comercial",
+        "jefe_ventas",
+        "lider_zona",
+        "coordinador_comercial",
+        "administrativo",
+        "administrador",
+      ],
+      zone_type: ["norte", "sur", "centro", "oriente"],
+    },
   },
 } as const
