@@ -47,6 +47,69 @@ export type Database = {
         }
         Relationships: []
       }
+      coordinadores: {
+        Row: {
+          activo: boolean | null
+          cedula: string
+          correo: string | null
+          created_at: string
+          id: string
+          nombre: string
+          telefono: string | null
+          user_id: string | null
+          zona: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          cedula: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre: string
+          telefono?: string | null
+          user_id?: string | null
+          zona?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          cedula?: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre?: string
+          telefono?: string | null
+          user_id?: string | null
+          zona?: string | null
+        }
+        Relationships: []
+      }
+      formas_pago: {
+        Row: {
+          activo: boolean | null
+          codigo: string
+          created_at: string
+          id: string
+          nombre: string
+          tipo_venta: string
+        }
+        Insert: {
+          activo?: boolean | null
+          codigo: string
+          created_at?: string
+          id?: string
+          nombre: string
+          tipo_venta: string
+        }
+        Update: {
+          activo?: boolean | null
+          codigo?: string
+          created_at?: string
+          id?: string
+          nombre?: string
+          tipo_venta?: string
+        }
+        Relationships: []
+      }
       historial_ediciones: {
         Row: {
           campo_editado: string
@@ -79,6 +142,97 @@ export type Database = {
           valor_nuevo?: string | null
         }
         Relationships: []
+      }
+      jefes_ventas: {
+        Row: {
+          activo: boolean | null
+          cedula: string
+          codigo: string
+          correo: string | null
+          created_at: string
+          id: string
+          nombre: string
+          regional_id: string | null
+          telefono: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          cedula: string
+          codigo: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre: string
+          regional_id?: string | null
+          telefono?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          cedula?: string
+          codigo?: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre?: string
+          regional_id?: string | null
+          telefono?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jefes_ventas_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lideres_zona: {
+        Row: {
+          activo: boolean | null
+          cedula: string
+          correo: string | null
+          created_at: string
+          id: string
+          nombre: string
+          regional_id: string | null
+          telefono: string | null
+          user_id: string | null
+          zona: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          cedula: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre: string
+          regional_id?: string | null
+          telefono?: string | null
+          user_id?: string | null
+          zona?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          cedula?: string
+          correo?: string | null
+          created_at?: string
+          id?: string
+          nombre?: string
+          regional_id?: string | null
+          telefono?: string | null
+          user_id?: string | null
+          zona?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lideres_zona_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       metas: {
         Row: {
@@ -122,38 +276,64 @@ export type Database = {
       profiles: {
         Row: {
           activo: boolean | null
+          ccosto_asesor: string | null
           cedula: string
+          codigo_asesor: string | null
+          codigo_jefe: string | null
+          correo: string | null
           created_at: string
           id: string
           nombre_completo: string
+          regional_id: string | null
           telefono: string | null
+          tipo_asesor: string | null
           updated_at: string
           user_id: string
-          zona: Database["public"]["Enums"]["zone_type"] | null
+          zona: string | null
         }
         Insert: {
           activo?: boolean | null
+          ccosto_asesor?: string | null
           cedula: string
+          codigo_asesor?: string | null
+          codigo_jefe?: string | null
+          correo?: string | null
           created_at?: string
           id?: string
           nombre_completo: string
+          regional_id?: string | null
           telefono?: string | null
+          tipo_asesor?: string | null
           updated_at?: string
           user_id: string
-          zona?: Database["public"]["Enums"]["zone_type"] | null
+          zona?: string | null
         }
         Update: {
           activo?: boolean | null
+          ccosto_asesor?: string | null
           cedula?: string
+          codigo_asesor?: string | null
+          codigo_jefe?: string | null
+          correo?: string | null
           created_at?: string
           id?: string
           nombre_completo?: string
+          regional_id?: string | null
           telefono?: string | null
+          tipo_asesor?: string | null
           updated_at?: string
           user_id?: string
-          zona?: Database["public"]["Enums"]["zone_type"] | null
+          zona?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       programacion: {
         Row: {
@@ -197,6 +377,33 @@ export type Database = {
           tipo_actividad?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      regionales: {
+        Row: {
+          activo: boolean | null
+          codigo: number
+          created_at: string
+          id: string
+          nombre: string
+          zona: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          codigo: number
+          created_at?: string
+          id?: string
+          nombre: string
+          zona?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          codigo?: number
+          created_at?: string
+          id?: string
+          nombre?: string
+          zona?: string | null
         }
         Relationships: []
       }
@@ -265,68 +472,200 @@ export type Database = {
       }
       ventas: {
         Row: {
+          asesor_nombre: string | null
+          cantidad: number | null
+          carga_id: string | null
           cargado_por: string | null
-          celular_cliente: string | null
+          categoria: string | null
+          cedula_asesor: string | null
+          cliente_direccion: string | null
+          cliente_email: string | null
+          cliente_identificacion: string | null
+          cliente_nombre: string | null
+          cliente_telefono: string | null
+          cod_forma_pago: string | null
+          cod_linea: string | null
+          cod_marca: string | null
+          cod_region: number | null
           codigo_asesor: string
+          codigo_cco: string | null
+          codigo_ean: string | null
+          codigo_jefe: string | null
           created_at: string
+          destino: string | null
+          destino_nombre: string | null
           fecha: string
           forma_pago: string | null
+          forma1_pago: string | null
           id: string
+          iva: number | null
+          jefe_ventas: string | null
+          linea: string | null
+          lote: string | null
+          marca: string | null
+          mcn_clase: string | null
+          motivo_dev: string | null
+          nombre_cco: string | null
+          nombre_corto: string | null
+          numero_doc: string | null
           producto: string | null
+          referencia: string | null
           regional: string | null
-          tipo_cliente: string | null
+          sede: string | null
+          serial: string | null
+          subtotal: number | null
+          tipo_docum: string | null
+          tipo_documento: string | null
+          tipo_venta: string | null
+          total: number | null
           user_id: string | null
-          valor_venta: number
-          zona: Database["public"]["Enums"]["zone_type"] | null
+          vtas_ant_i: number
+          zona: string | null
         }
         Insert: {
+          asesor_nombre?: string | null
+          cantidad?: number | null
+          carga_id?: string | null
           cargado_por?: string | null
-          celular_cliente?: string | null
+          categoria?: string | null
+          cedula_asesor?: string | null
+          cliente_direccion?: string | null
+          cliente_email?: string | null
+          cliente_identificacion?: string | null
+          cliente_nombre?: string | null
+          cliente_telefono?: string | null
+          cod_forma_pago?: string | null
+          cod_linea?: string | null
+          cod_marca?: string | null
+          cod_region?: number | null
           codigo_asesor: string
+          codigo_cco?: string | null
+          codigo_ean?: string | null
+          codigo_jefe?: string | null
           created_at?: string
+          destino?: string | null
+          destino_nombre?: string | null
           fecha: string
           forma_pago?: string | null
+          forma1_pago?: string | null
           id?: string
+          iva?: number | null
+          jefe_ventas?: string | null
+          linea?: string | null
+          lote?: string | null
+          marca?: string | null
+          mcn_clase?: string | null
+          motivo_dev?: string | null
+          nombre_cco?: string | null
+          nombre_corto?: string | null
+          numero_doc?: string | null
           producto?: string | null
+          referencia?: string | null
           regional?: string | null
-          tipo_cliente?: string | null
+          sede?: string | null
+          serial?: string | null
+          subtotal?: number | null
+          tipo_docum?: string | null
+          tipo_documento?: string | null
+          tipo_venta?: string | null
+          total?: number | null
           user_id?: string | null
-          valor_venta: number
-          zona?: Database["public"]["Enums"]["zone_type"] | null
+          vtas_ant_i: number
+          zona?: string | null
         }
         Update: {
+          asesor_nombre?: string | null
+          cantidad?: number | null
+          carga_id?: string | null
           cargado_por?: string | null
-          celular_cliente?: string | null
+          categoria?: string | null
+          cedula_asesor?: string | null
+          cliente_direccion?: string | null
+          cliente_email?: string | null
+          cliente_identificacion?: string | null
+          cliente_nombre?: string | null
+          cliente_telefono?: string | null
+          cod_forma_pago?: string | null
+          cod_linea?: string | null
+          cod_marca?: string | null
+          cod_region?: number | null
           codigo_asesor?: string
+          codigo_cco?: string | null
+          codigo_ean?: string | null
+          codigo_jefe?: string | null
           created_at?: string
+          destino?: string | null
+          destino_nombre?: string | null
           fecha?: string
           forma_pago?: string | null
+          forma1_pago?: string | null
           id?: string
+          iva?: number | null
+          jefe_ventas?: string | null
+          linea?: string | null
+          lote?: string | null
+          marca?: string | null
+          mcn_clase?: string | null
+          motivo_dev?: string | null
+          nombre_cco?: string | null
+          nombre_corto?: string | null
+          numero_doc?: string | null
           producto?: string | null
+          referencia?: string | null
           regional?: string | null
-          tipo_cliente?: string | null
+          sede?: string | null
+          serial?: string | null
+          subtotal?: number | null
+          tipo_docum?: string | null
+          tipo_documento?: string | null
+          tipo_venta?: string | null
+          total?: number | null
           user_id?: string | null
-          valor_venta?: number
-          zona?: Database["public"]["Enums"]["zone_type"] | null
+          vtas_ant_i?: number
+          zona?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ventas_carga_id_fkey"
+            columns: ["carga_id"]
+            isOneToOne: false
+            referencedRelation: "carga_archivos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       profiles_with_roles: {
         Row: {
           activo: boolean | null
+          ccosto_asesor: string | null
           cedula: string | null
+          codigo_asesor: string | null
+          codigo_jefe: string | null
+          correo: string | null
           created_at: string | null
           id: string | null
           nombre_completo: string | null
+          regional_codigo: number | null
+          regional_id: string | null
+          regional_nombre: string | null
           role: Database["public"]["Enums"]["app_role"] | null
           telefono: string | null
+          tipo_asesor: string | null
           updated_at: string | null
           user_id: string | null
-          zona: Database["public"]["Enums"]["zone_type"] | null
+          zona: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -351,7 +690,6 @@ export type Database = {
         | "coordinador_comercial"
         | "administrativo"
         | "administrador"
-      zone_type: "norte" | "sur" | "centro" | "oriente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -488,7 +826,6 @@ export const Constants = {
         "administrativo",
         "administrador",
       ],
-      zone_type: ["norte", "sur", "centro", "oriente"],
     },
   },
 } as const
