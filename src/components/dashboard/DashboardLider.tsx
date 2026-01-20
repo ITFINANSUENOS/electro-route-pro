@@ -74,24 +74,40 @@ export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
 
-  // Fetch real sales data
+  // Fetch real sales data - filter by regional for lider_zona
   const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales'],
+    queryKey: ['dashboard-sales', profile?.regional_id, role],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('ventas')
         .select('*')
         .gte('fecha', '2026-01-01')
         .lte('fecha', '2026-01-31');
       
+      // If lider_zona, filter by their regional code
+      if (role === 'lider_zona' && profile?.regional_id) {
+        // Get regional code from regional_id
+        const { data: regional } = await supabase
+          .from('regionales')
+          .select('codigo')
+          .eq('id', profile.regional_id)
+          .maybeSingle();
+        
+        if (regional?.codigo) {
+          query = query.eq('cod_region', regional.codigo);
+        }
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!profile,
   });
 
-  // Fetch metas
+  // Fetch metas - for lider, could filter by their asesores
   const { data: metasData } = useQuery({
-    queryKey: ['dashboard-metas'],
+    queryKey: ['dashboard-metas', role],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('metas')
