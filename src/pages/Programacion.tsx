@@ -1,22 +1,36 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock, Users, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
-
-interface ScheduledActivity {
-  id: string;
-  date: Date;
-  type: ActivityType;
-  advisor: string;
-  location: string;
-  timeRange: string;
-}
 
 const activityColors: Record<ActivityType, string> = {
   punto: 'bg-primary text-primary-foreground',
@@ -30,30 +44,133 @@ const activityLabels: Record<ActivityType, string> = {
   libre: 'Libre',
 };
 
-// Mock data
-const mockActivities: ScheduledActivity[] = [
-  { id: '1', date: new Date(2026, 0, 20), type: 'punto', advisor: 'María López', location: 'Popayán Centro', timeRange: '8:00 - 17:00' },
-  { id: '2', date: new Date(2026, 0, 20), type: 'correria', advisor: 'Carlos Ruiz', location: 'Santander de Q.', timeRange: '7:00 - 16:00' },
-  { id: '3', date: new Date(2026, 0, 21), type: 'punto', advisor: 'Ana Martínez', location: 'Almacén Norte', timeRange: '8:00 - 17:00' },
-  { id: '4', date: new Date(2026, 0, 22), type: 'libre', advisor: 'Pedro Santos', location: 'Sin asignar', timeRange: '-' },
-  { id: '5', date: new Date(2026, 0, 23), type: 'correria', advisor: 'María López', location: 'Timbío', timeRange: '6:00 - 15:00' },
-];
-
 export default function Programacion() {
+  const { role, user, profile } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  
+  // Form state for new programming
+  const [newActivity, setNewActivity] = useState({
+    tipo_actividad: 'punto' as ActivityType,
+    municipio: '',
+    hora_inicio: '08:00',
+    hora_fin: '17:00',
+    user_id: '',
+  });
+
+  const canEdit = role === 'lider_zona' || role === 'coordinador_comercial' || role === 'administrador';
+  const isReadOnly = role === 'asesor_comercial' || role === 'jefe_ventas';
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
+  // Fetch programacion data
+  const { data: programacion = [], refetch: refetchProgramacion } = useQuery({
+    queryKey: ['programacion', format(currentMonth, 'yyyy-MM')],
+    queryFn: async () => {
+      const startDate = format(monthStart, 'yyyy-MM-dd');
+      const endDate = format(monthEnd, 'yyyy-MM-dd');
+      
+      let query = supabase
+        .from('programacion')
+        .select('*')
+        .gte('fecha', startDate)
+        .lte('fecha', endDate);
+
+      // For asesor, only show their own
+      if (role === 'asesor_comercial' && user?.id) {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch profiles for assigning asesores
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles-programacion'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: canEdit,
+  });
+
+  // Get profile name by user_id
+  const getProfileName = (userId: string) => {
+    const profile = profiles.find((p) => p.user_id === userId);
+    return profile?.nombre_completo || 'Sin asignar';
+  };
+
   const getActivitiesForDate = (date: Date) => {
-    return mockActivities.filter(
-      (a) => format(a.date, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    return programacion.filter(
+      (a) => a.fecha === format(date, 'yyyy-MM-dd')
     );
   };
 
   const selectedActivities = selectedDate ? getActivitiesForDate(selectedDate) : [];
+
+  const handleDateClick = (day: Date) => {
+    if (canEdit) {
+      // Toggle selection for multi-select
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const isSelected = selectedDates.some((d) => format(d, 'yyyy-MM-dd') === dateStr);
+      
+      if (isSelected) {
+        setSelectedDates(selectedDates.filter((d) => format(d, 'yyyy-MM-dd') !== dateStr));
+      } else {
+        setSelectedDates([...selectedDates, day]);
+      }
+    }
+    setSelectedDate(day);
+  };
+
+  const handleCreateProgramacion = async () => {
+    if (!newActivity.user_id || !newActivity.municipio || selectedDates.length === 0) {
+      toast.error('Por favor completa todos los campos requeridos');
+      return;
+    }
+
+    try {
+      const insertData = selectedDates.map((date) => ({
+        fecha: format(date, 'yyyy-MM-dd'),
+        user_id: newActivity.user_id,
+        tipo_actividad: newActivity.tipo_actividad,
+        municipio: newActivity.municipio,
+        hora_inicio: newActivity.hora_inicio,
+        hora_fin: newActivity.hora_fin,
+        creado_por: user?.id,
+      }));
+
+      const { error } = await supabase.from('programacion').insert(insertData);
+
+      if (error) throw error;
+
+      toast.success(`Programación creada para ${selectedDates.length} día(s)`);
+      setIsDialogOpen(false);
+      setSelectedDates([]);
+      setNewActivity({
+        tipo_actividad: 'punto',
+        municipio: '',
+        hora_inicio: '08:00',
+        hora_fin: '17:00',
+        user_id: '',
+      });
+      refetchProgramacion();
+    } catch (error) {
+      console.error('Error creating programacion:', error);
+      toast.error('Error al crear la programación');
+    }
+  };
 
   return (
     <motion.div
@@ -66,14 +183,150 @@ export default function Programacion() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Programación</h1>
           <p className="text-muted-foreground mt-1">
-            Planifica las actividades del equipo comercial
+            {canEdit 
+              ? 'Planifica las actividades del equipo comercial'
+              : 'Visualiza tu programación de actividades'}
           </p>
         </div>
-        <Button className="btn-brand">
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva Programación
-        </Button>
+        
+        {canEdit && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="btn-brand" disabled={selectedDates.length === 0}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Programación {selectedDates.length > 0 && `(${selectedDates.length} días)`}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Nueva Programación</DialogTitle>
+                <DialogDescription>
+                  Crear programación para {selectedDates.length} día(s) seleccionado(s)
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid gap-4 py-4">
+                {/* Fechas seleccionadas */}
+                <div className="space-y-2">
+                  <Label>Fechas seleccionadas</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDates.map((date) => (
+                      <Badge key={date.toISOString()} variant="secondary">
+                        {format(date, 'd MMM', { locale: es })}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Asesor */}
+                <div className="space-y-2">
+                  <Label>Asesor *</Label>
+                  <Select
+                    value={newActivity.user_id}
+                    onValueChange={(value) => setNewActivity({ ...newActivity, user_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar asesor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((p) => (
+                        <SelectItem key={p.user_id} value={p.user_id}>
+                          {p.nombre_completo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Tipo actividad */}
+                <div className="space-y-2">
+                  <Label>Tipo de Actividad *</Label>
+                  <Select
+                    value={newActivity.tipo_actividad}
+                    onValueChange={(value) => setNewActivity({ ...newActivity, tipo_actividad: value as ActivityType })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="punto">Punto Fijo</SelectItem>
+                      <SelectItem value="correria">Correría</SelectItem>
+                      <SelectItem value="libre">Libre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Municipio/Lugar */}
+                <div className="space-y-2">
+                  <Label>Municipio / Lugar *</Label>
+                  <Input
+                    placeholder="Ej: Popayán Centro"
+                    value={newActivity.municipio}
+                    onChange={(e) => setNewActivity({ ...newActivity, municipio: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    <MapPin className="inline h-3 w-3 mr-1" />
+                    La integración con Google Maps estará disponible próximamente
+                  </p>
+                </div>
+
+                {/* Horario */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Hora Inicio</Label>
+                    <Input
+                      type="time"
+                      value={newActivity.hora_inicio}
+                      onChange={(e) => setNewActivity({ ...newActivity, hora_inicio: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hora Fin</Label>
+                    <Input
+                      type="time"
+                      value={newActivity.hora_fin}
+                      onChange={(e) => setNewActivity({ ...newActivity, hora_fin: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreateProgramacion}>
+                  Crear Programación
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
+
+      {/* Read-only notice */}
+      {isReadOnly && (
+        <Card className="border-warning/50 bg-warning/10">
+          <CardContent className="py-3 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-warning" />
+            <span className="text-sm text-warning">
+              Solo tienes permisos de lectura. Contacta a tu líder de zona para modificaciones.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Multi-select hint for editors */}
+      {canEdit && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="py-3 flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            <span className="text-sm text-primary">
+              Haz clic en múltiples días para seleccionarlos, luego presiona "Nueva Programación"
+            </span>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Calendar */}
@@ -119,15 +372,17 @@ export default function Programacion() {
               {days.map((day) => {
                 const activities = getActivitiesForDate(day);
                 const isSelected = selectedDate && format(day, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+                const isMultiSelected = selectedDates.some((d) => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
 
                 return (
                   <button
                     key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
+                    onClick={() => handleDateClick(day)}
                     className={cn(
                       'h-24 p-1 rounded-lg border text-left transition-all hover:border-primary',
                       isToday(day) && 'ring-2 ring-primary',
                       isSelected && 'border-primary bg-accent',
+                      isMultiSelected && canEdit && 'bg-primary/20 border-primary',
                       !isSameMonth(day, currentMonth) && 'opacity-50'
                     )}
                   >
@@ -143,10 +398,10 @@ export default function Programacion() {
                           key={activity.id}
                           className={cn(
                             'text-xs px-1 py-0.5 rounded truncate',
-                            activityColors[activity.type]
+                            activityColors[activity.tipo_actividad as ActivityType]
                           )}
                         >
-                          {activity.advisor.split(' ')[0]}
+                          {getProfileName(activity.user_id).split(' ')[0]}
                         </div>
                       ))}
                       {activities.length > 2 && (
@@ -184,6 +439,11 @@ export default function Programacion() {
                 'Selecciona un día'
               )}
             </CardTitle>
+            {selectedDate && selectedActivities.length > 0 && (
+              <CardDescription>
+                {selectedActivities.length} actividad(es) programada(s)
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent>
             {selectedDate ? (
@@ -197,23 +457,25 @@ export default function Programacion() {
                       <div className="flex items-center justify-between mb-3">
                         <span className={cn(
                           'text-xs font-medium px-2 py-1 rounded',
-                          activityColors[activity.type]
+                          activityColors[activity.tipo_actividad as ActivityType]
                         )}>
-                          {activityLabels[activity.type]}
+                          {activityLabels[activity.tipo_actividad as ActivityType]}
                         </span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{activity.advisor}</span>
+                          <span className="font-medium">{getProfileName(activity.user_id)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <MapPin className="h-4 w-4" />
-                          <span>{activity.location}</span>
+                          <span>{activity.municipio}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Clock className="h-4 w-4" />
-                          <span>{activity.timeRange}</span>
+                          <span>
+                            {activity.hora_inicio ? activity.hora_inicio.slice(0, 5) : '00:00'} - {activity.hora_fin ? activity.hora_fin.slice(0, 5) : '00:00'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -222,10 +484,11 @@ export default function Programacion() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No hay actividades programadas</p>
-                  <Button variant="outline" className="mt-4">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Agregar actividad
-                  </Button>
+                  {canEdit && (
+                    <p className="text-sm mt-2">
+                      Selecciona este día y otros para crear programación
+                    </p>
+                  )}
                 </div>
               )
             ) : (
