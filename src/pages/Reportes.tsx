@@ -1,12 +1,16 @@
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart3,
   Download,
   Filter,
   Calendar,
   TrendingUp,
   Users,
   ShoppingCart,
+  AlertTriangle,
+  Camera,
+  MapPin,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,44 +22,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { KpiCard } from '@/components/ui/kpi-card';
+import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
+  Legend,
 } from 'recharts';
-
-const monthlyData = [
-  { name: 'Ene', ventas: 45000000, meta: 50000000 },
-  { name: 'Feb', ventas: 48000000, meta: 50000000 },
-  { name: 'Mar', ventas: 52000000, meta: 55000000 },
-  { name: 'Abr', ventas: 49000000, meta: 55000000 },
-  { name: 'May', ventas: 58000000, meta: 60000000 },
-  { name: 'Jun', ventas: 62000000, meta: 60000000 },
-];
-
-const zoneData = [
-  { name: 'Norte', value: 35, color: 'hsl(var(--primary))' },
-  { name: 'Sur', value: 28, color: 'hsl(var(--secondary))' },
-  { name: 'Centro', value: 22, color: 'hsl(var(--success))' },
-  { name: 'Oriente', value: 15, color: 'hsl(var(--warning))' },
-];
-
-const advisorPerformance = [
-  { name: 'María López', ventas: 12500000, meta: 10000000, cumplimiento: 125 },
-  { name: 'Carlos Ruiz', ventas: 9800000, meta: 10000000, cumplimiento: 98 },
-  { name: 'Ana Martínez', ventas: 8500000, meta: 10000000, cumplimiento: 85 },
-  { name: 'Pedro Santos', ventas: 7200000, meta: 10000000, cumplimiento: 72 },
-  { name: 'Laura Gómez', ventas: 6800000, meta: 10000000, cumplimiento: 68 },
-];
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('es-CO', {
@@ -66,7 +46,225 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const tiposVentaLabels: Record<string, string> = {
+  CONTADO: 'Contado',
+  CREDICONTADO: 'Credi Contado',
+  CREDITO: 'Crédito',
+  CONVENIO: 'Convenio',
+};
+
+const tiposVentaColors: Record<string, string> = {
+  CONTADO: '#10b981',
+  CREDICONTADO: '#f59e0b',
+  CREDITO: '#3b82f6',
+  CONVENIO: '#8b5cf6',
+};
+
 export default function Reportes() {
+  const { role, profile } = useAuth();
+  const [selectedAsesor, setSelectedAsesor] = useState<string>('all');
+  const [selectedTipoVenta, setSelectedTipoVenta] = useState<string>('all');
+  const [selectedRegional, setSelectedRegional] = useState<string>('all');
+
+  // Fetch ventas data
+  const { data: ventas = [] } = useQuery({
+    queryKey: ['ventas-reportes'],
+    queryFn: async () => {
+      const startDate = '2026-01-01';
+      const endDate = '2026-01-31';
+      const { data, error } = await supabase
+        .from('ventas')
+        .select('*')
+        .gte('fecha', startDate)
+        .lte('fecha', endDate);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch metas
+  const { data: metas = [] } = useQuery({
+    queryKey: ['metas-reportes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('metas')
+        .select('*')
+        .eq('mes', 1)
+        .eq('anio', 2026);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch profiles
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles-reportes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch reportes diarios
+  const { data: reportesDiarios = [] } = useQuery({
+    queryKey: ['reportes-diarios'],
+    queryFn: async () => {
+      const startDate = '2026-01-01';
+      const endDate = '2026-01-31';
+      const { data, error } = await supabase
+        .from('reportes_diarios')
+        .select('*')
+        .gte('fecha', startDate)
+        .lte('fecha', endDate);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch regionales for coordinador filter
+  const { data: regionales = [] } = useQuery({
+    queryKey: ['regionales'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('regionales')
+        .select('*')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: role === 'coordinador_comercial' || role === 'administrador',
+  });
+
+  // Get unique asesores from ventas
+  const asesores = useMemo(() => {
+    const uniqueAsesores = new Map();
+    ventas.forEach((v) => {
+      if (v.codigo_asesor && v.asesor_nombre) {
+        uniqueAsesores.set(v.codigo_asesor, v.asesor_nombre);
+      }
+    });
+    return Array.from(uniqueAsesores.entries()).map(([codigo, nombre]) => ({
+      codigo,
+      nombre,
+    }));
+  }, [ventas]);
+
+  // Filter ventas based on selections
+  const filteredVentas = useMemo(() => {
+    let filtered = ventas;
+
+    if (selectedAsesor !== 'all') {
+      filtered = filtered.filter((v) => v.codigo_asesor === selectedAsesor);
+    }
+
+    if (selectedTipoVenta !== 'all') {
+      filtered = filtered.filter((v) => v.tipo_venta === selectedTipoVenta);
+    }
+
+    if (selectedRegional !== 'all') {
+      filtered = filtered.filter((v) => v.cod_region?.toString() === selectedRegional);
+    }
+
+    // For jefe_ventas, filter by codigo_jefe
+    if (role === 'jefe_ventas' && profile?.codigo_jefe) {
+      filtered = filtered.filter((v) => v.codigo_jefe === profile.codigo_jefe);
+    }
+
+    return filtered;
+  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, role, profile]);
+
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const totalVentas = filteredVentas.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalMetas = metas.reduce((sum, m) => sum + m.valor_meta, 0);
+    const cumplimiento = totalMetas > 0 ? (totalVentas / totalMetas) * 100 : 0;
+    const asesoresActivos = new Set(filteredVentas.map((v) => v.codigo_asesor)).size;
+
+    // Ventas por tipo
+    const ventasPorTipo: Record<string, number> = {};
+    filteredVentas.forEach((v) => {
+      const tipo = v.tipo_venta || 'OTRO';
+      ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + (v.total || 0);
+    });
+
+    return {
+      totalVentas,
+      totalMetas,
+      cumplimiento,
+      asesoresActivos,
+      ventasPorTipo,
+    };
+  }, [filteredVentas, metas]);
+
+  // Calculate incompliance data
+  const incumplimientos = useMemo(() => {
+    const asesoresMap = new Map<string, {
+      nombre: string;
+      sinFoto: number;
+      sinGPS: number;
+      sinConsultas: number;
+      diasReportados: number;
+    }>();
+
+    // Initialize with all profiles
+    profiles.forEach((p) => {
+      if (p.codigo_asesor) {
+        asesoresMap.set(p.codigo_asesor, {
+          nombre: p.nombre_completo,
+          sinFoto: 0,
+          sinGPS: 0,
+          sinConsultas: 0,
+          diasReportados: 0,
+        });
+      }
+    });
+
+    // Count incompliances from reportes_diarios
+    reportesDiarios.forEach((r) => {
+      const profile = profiles.find((p) => p.user_id === r.user_id);
+      if (profile?.codigo_asesor) {
+        const data = asesoresMap.get(profile.codigo_asesor);
+        if (data) {
+          data.diasReportados++;
+          if (!r.foto_url) data.sinFoto++;
+          if (!r.gps_latitud || !r.gps_longitud) data.sinGPS++;
+          if ((r.consultas || 0) === 0 && (r.solicitudes || 0) === 0) data.sinConsultas++;
+        }
+      }
+    });
+
+    return Array.from(asesoresMap.values()).filter(
+      (a) => a.sinFoto > 0 || a.sinGPS > 0 || a.sinConsultas > 0
+    );
+  }, [profiles, reportesDiarios]);
+
+  // Budget vs Executed chart data
+  const budgetVsExecuted = useMemo(() => {
+    const tipos = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    return tipos.map((tipo) => {
+      const ventasTipo = filteredVentas
+        .filter((v) => v.tipo_venta === tipo)
+        .reduce((sum, v) => sum + (v.total || 0), 0);
+      const metasTipo = metas
+        .filter((m) => m.tipo_meta === tipo)
+        .reduce((sum, m) => sum + m.valor_meta, 0);
+
+      return {
+        tipo: tiposVentaLabels[tipo] || tipo,
+        ejecutado: ventasTipo,
+        presupuesto: metasTipo,
+      };
+    });
+  }, [filteredVentas, metas]);
+
+  // Consultas y solicitudes totales
+  const totalConsultas = reportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
+  const totalSolicitudes = reportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -81,16 +279,10 @@ export default function Reportes() {
             Visualiza el rendimiento comercial con métricas detalladas
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Filtros
-          </Button>
-          <Button className="btn-brand">
-            <Download className="mr-2 h-4 w-4" />
-            Exportar
-          </Button>
-        </div>
+        <Button className="btn-brand">
+          <Download className="mr-2 h-4 w-4" />
+          Exportar
+        </Button>
       </div>
 
       {/* Filters */}
@@ -98,34 +290,64 @@ export default function Reportes() {
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Período:</span>
-              <Select defaultValue="month">
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week">Esta semana</SelectItem>
-                  <SelectItem value="month">Este mes</SelectItem>
-                  <SelectItem value="quarter">Este trimestre</SelectItem>
-                  <SelectItem value="year">Este año</SelectItem>
-                </SelectContent>
-              </Select>
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Filtros:</span>
             </div>
+
+            {/* Asesor filter */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Zona:</span>
-              <Select defaultValue="all">
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
+              <span className="text-sm text-muted-foreground">Asesor:</span>
+              <Select value={selectedAsesor} onValueChange={setSelectedAsesor}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="norte">Norte</SelectItem>
-                  <SelectItem value="sur">Sur</SelectItem>
-                  <SelectItem value="centro">Centro</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {asesores.map((a) => (
+                    <SelectItem key={a.codigo} value={a.codigo}>
+                      {a.nombre}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tipo venta filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tipo:</span>
+              <Select value={selectedTipoVenta} onValueChange={setSelectedTipoVenta}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="CONTADO">Contado</SelectItem>
+                  <SelectItem value="CREDICONTADO">Credi Contado</SelectItem>
+                  <SelectItem value="CREDITO">Crédito</SelectItem>
+                  <SelectItem value="CONVENIO">Convenio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Regional filter for coordinador */}
+            {(role === 'coordinador_comercial' || role === 'administrador') && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Regional:</span>
+                <Select value={selectedRegional} onValueChange={setSelectedRegional}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {regionales.map((r) => (
+                      <SelectItem key={r.id} value={r.codigo.toString()}>
+                        {r.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -134,51 +356,51 @@ export default function Reportes() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Ventas Totales"
-          value={formatCurrency(314000000)}
-          subtitle="Año actual"
+          value={formatCurrency(metrics.totalVentas)}
+          subtitle="Enero 2026"
           icon={ShoppingCart}
-          trend={{ value: 15.2, label: 'vs año anterior' }}
           status="success"
         />
         <KpiCard
           title="Cumplimiento Global"
-          value="89%"
-          subtitle="Promedio general"
+          value={`${metrics.cumplimiento.toFixed(1)}%`}
+          subtitle="vs Meta"
           icon={TrendingUp}
-          status="success"
+          status={metrics.cumplimiento >= 80 ? 'success' : metrics.cumplimiento >= 60 ? 'warning' : 'danger'}
         />
         <KpiCard
-          title="Asesores Activos"
-          value="24"
-          subtitle="De 26 totales"
+          title="Consultas"
+          value={totalConsultas.toString()}
+          subtitle="Total del mes"
+          icon={MessageSquare}
+        />
+        <KpiCard
+          title="Solicitudes"
+          value={totalSolicitudes.toString()}
+          subtitle="Total del mes"
           icon={Users}
-        />
-        <KpiCard
-          title="Promedio Mensual"
-          value={formatCurrency(52300000)}
-          subtitle="Por mes"
-          icon={BarChart3}
         />
       </div>
 
       {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Monthly Trend */}
+        {/* Budget vs Executed */}
         <Card className="card-elevated">
           <CardHeader>
-            <CardTitle>Tendencia de Ventas vs Meta</CardTitle>
-            <CardDescription>Comparativo mensual del semestre</CardDescription>
+            <CardTitle>Presupuesto vs Ejecutado</CardTitle>
+            <CardDescription>Comparativo por tipo de venta</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData}>
+                <BarChart data={budgetVsExecuted} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" className="text-xs" />
-                  <YAxis
-                    className="text-xs"
+                  <XAxis
+                    type="number"
                     tickFormatter={(value) => `$${(value / 1000000).toFixed(0)}M`}
+                    className="text-xs"
                   />
+                  <YAxis type="category" dataKey="tipo" className="text-xs" width={100} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
@@ -187,131 +409,141 @@ export default function Reportes() {
                     }}
                     formatter={(value: number) => [formatCurrency(value), '']}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="ventas"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={3}
-                    name="Ventas"
-                    dot={{ fill: 'hsl(var(--primary))' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="meta"
-                    stroke="hsl(var(--secondary))"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    name="Meta"
-                    dot={false}
-                  />
-                </LineChart>
+                  <Legend />
+                  <Bar dataKey="presupuesto" name="Presupuesto" fill="hsl(var(--muted-foreground))" />
+                  <Bar dataKey="ejecutado" name="Ejecutado" fill="hsl(var(--primary))" />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        {/* Zone Distribution */}
+        {/* Ventas por tipo */}
         <Card className="card-elevated">
           <CardHeader>
-            <CardTitle>Distribución por Zona</CardTitle>
-            <CardDescription>Participación en ventas totales</CardDescription>
+            <CardTitle>Distribución de Ventas</CardTitle>
+            <CardDescription>Por tipo de venta</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center">
-              <ResponsiveContainer width="50%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={zoneData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {zoneData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: 'var(--radius)',
-                    }}
-                    formatter={(value: number) => [`${value}%`, 'Participación']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-3">
-                {zoneData.map((zone) => (
-                  <div key={zone.name} className="flex items-center gap-3">
-                    <div
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: zone.color }}
-                    />
-                    <span className="text-sm text-foreground">{zone.name}</span>
-                    <span className="text-sm font-semibold text-foreground ml-auto">
-                      {zone.value}%
-                    </span>
+            <div className="space-y-4">
+              {Object.entries(metrics.ventasPorTipo).map(([tipo, valor]) => {
+                const porcentaje =
+                  metrics.totalVentas > 0 ? (valor / metrics.totalVentas) * 100 : 0;
+                return (
+                  <div key={tipo} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {tiposVentaLabels[tipo] || tipo}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {formatCurrency(valor)} ({porcentaje.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${porcentaje}%`,
+                          backgroundColor: tiposVentaColors[tipo] || 'hsl(var(--primary))',
+                        }}
+                      />
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Performers Table */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle>Ranking de Asesores</CardTitle>
-          <CardDescription>Top 5 por cumplimiento de meta</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Pos.</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Asesor</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Ventas</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Meta</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Cumplimiento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {advisorPerformance.map((advisor, index) => (
-                  <tr key={advisor.name} className="border-b hover:bg-muted/50 transition-colors">
-                    <td className="py-4 px-4">
-                      <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold ${
-                        index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                        index === 1 ? 'bg-gray-100 text-gray-700' :
-                        index === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {index + 1}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 font-medium">{advisor.name}</td>
-                    <td className="py-4 px-4 text-right">{formatCurrency(advisor.ventas)}</td>
-                    <td className="py-4 px-4 text-right text-muted-foreground">{formatCurrency(advisor.meta)}</td>
-                    <td className="py-4 px-4 text-right">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        advisor.cumplimiento >= 100 ? 'bg-success/10 text-success' :
-                        advisor.cumplimiento >= 80 ? 'bg-warning/10 text-warning' :
-                        'bg-danger/10 text-danger'
-                      }`}>
-                        {advisor.cumplimiento}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Incompliance Table - visible for leaders */}
+      {(role === 'lider_zona' || role === 'jefe_ventas' || role === 'coordinador_comercial' || role === 'administrador') && (
+        <Card className="card-elevated">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              <CardTitle>Indicadores de Incumplimiento</CardTitle>
+            </div>
+            <CardDescription>
+              Asesores con falta de evidencia, GPS o reportes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {incumplimientos.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                        Asesor
+                      </th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                        <div className="flex items-center justify-center gap-1">
+                          <Camera className="h-4 w-4" />
+                          Sin Foto
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                        <div className="flex items-center justify-center gap-1">
+                          <MapPin className="h-4 w-4" />
+                          Sin GPS
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                        <div className="flex items-center justify-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          Sin Actividad
+                        </div>
+                      </th>
+                      <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                        Días Reportados
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {incumplimientos.map((asesor, index) => (
+                      <tr
+                        key={index}
+                        className="border-b hover:bg-muted/50 transition-colors"
+                      >
+                        <td className="py-4 px-4 font-medium">{asesor.nombre}</td>
+                        <td className="py-4 px-4 text-center">
+                          {asesor.sinFoto > 0 ? (
+                            <Badge variant="destructive">{asesor.sinFoto}</Badge>
+                          ) : (
+                            <Badge variant="secondary">0</Badge>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          {asesor.sinGPS > 0 ? (
+                            <Badge variant="destructive">{asesor.sinGPS}</Badge>
+                          ) : (
+                            <Badge variant="secondary">0</Badge>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          {asesor.sinConsultas > 0 ? (
+                            <Badge variant="destructive">{asesor.sinConsultas}</Badge>
+                          ) : (
+                            <Badge variant="secondary">0</Badge>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-center text-muted-foreground">
+                          {asesor.diasReportados}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No hay incumplimientos registrados</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </motion.div>
   );
 }
