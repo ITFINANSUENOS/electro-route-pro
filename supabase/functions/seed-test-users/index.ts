@@ -12,61 +12,83 @@ interface TestUser {
   cedula: string;
   nombre_completo: string;
   telefono?: string;
-  zona?: 'norte' | 'sur' | 'centro' | 'oriente';
+  zona?: string;
   role: 'asesor_comercial' | 'jefe_ventas' | 'lider_zona' | 'coordinador_comercial' | 'administrativo' | 'administrador';
+  codigo_asesor?: string;
+  codigo_jefe?: string;
+  tipo_asesor?: 'INTERNO' | 'EXTERNO';
+  regional_codigo?: number;
 }
 
+// Usuarios de prueba basados en USUARIOS_PRUEBAS.xlsx y BD ASESORES
 const testUsers: TestUser[] = [
+  // Líder de Zona - SANTANDER
   {
-    email: 'coordinador.norte@electrocreditos.com',
-    password: 'Coord2026$Ecom',
-    cedula: '1061000001',
-    nombre_completo: 'Carlos Gómez Martínez',
-    telefono: '3101234567',
-    zona: 'norte',
-    role: 'coordinador_comercial'
-  },
-  {
-    email: 'lider.popayan@electrocreditos.com',
+    email: 'liderdezonasantander@electrocreditosdelcauca.com',
     password: 'Lider2026$Ecom',
-    cedula: '1061000002',
-    nombre_completo: 'María López Rodríguez',
-    telefono: '3152345678',
-    zona: 'centro',
-    role: 'lider_zona'
+    cedula: '1061428295',
+    nombre_completo: 'MUNOZ LOBOA GUSTAVO ANDRES',
+    telefono: '3168279196',
+    zona: 'norte',
+    role: 'lider_zona',
+    regional_codigo: 103
   },
+  // Jefe de Ventas - SANTANDER
   {
-    email: 'jefe.ventas@electrocreditos.com',
+    email: 'garciazapata196@gmail.com',
     password: 'Jefe2026$Ecom',
-    cedula: '1061000003',
-    nombre_completo: 'Pedro Sánchez Vargas',
-    telefono: '3183456789',
-    zona: 'sur',
-    role: 'jefe_ventas'
+    cedula: '16933411',
+    nombre_completo: 'GARCIA ZAPATA JOSE LUIS',
+    telefono: '3206595450',
+    zona: 'norte',
+    role: 'jefe_ventas',
+    codigo_jefe: '69334',
+    regional_codigo: 103
   },
+  // Asesor Comercial 1 - EXTERNO - SANTANDER
   {
     email: 'asesor1@electrocreditos.com',
     password: 'Asesor2026$Ecom',
-    cedula: '1061000004',
-    nombre_completo: 'Ana Patricia Ruiz',
-    telefono: '3164567890',
-    zona: 'centro',
-    role: 'asesor_comercial'
+    cedula: '1061502889',
+    nombre_completo: 'TOMBE DAGUA ROSA MARIA',
+    telefono: '3137463494',
+    zona: 'norte',
+    role: 'asesor_comercial',
+    codigo_asesor: '50288',
+    codigo_jefe: '69334',
+    tipo_asesor: 'EXTERNO',
+    regional_codigo: 103
   },
+  // Asesor Comercial 2 - EXTERNO - SANTANDER
   {
     email: 'asesor2@electrocreditos.com',
     password: 'Asesor2026$Ecom',
-    cedula: '1061000005',
-    nombre_completo: 'Luis Fernando Torres',
-    telefono: '3175678901',
+    cedula: '34608423',
+    nombre_completo: 'ESTRADA PALOMINO VERONICA',
+    telefono: '3225126433',
     zona: 'norte',
-    role: 'asesor_comercial'
+    role: 'asesor_comercial',
+    codigo_asesor: '60842',
+    codigo_jefe: '69334',
+    tipo_asesor: 'EXTERNO',
+    regional_codigo: 103
   },
+  // Coordinador Comercial - ZONA NORTE
+  {
+    email: 'coorcomercialzonanorte@electrocreditosdelcauca.com',
+    password: 'Coord2026$Ecom',
+    cedula: '94470884',
+    nombre_completo: 'TACAN PASCUAZA LUIS GONZALO',
+    telefono: '3183625094',
+    zona: 'norte',
+    role: 'coordinador_comercial'
+  },
+  // Administrativo
   {
     email: 'administrativo@electrocreditos.com',
     password: 'Admin2026$Ecom',
     cedula: '1061000006',
-    nombre_completo: 'Gloria Esperanza Castro',
+    nombre_completo: 'USUARIO ADMINISTRATIVO PRUEBA',
     telefono: '3126789012',
     zona: undefined,
     role: 'administrativo'
@@ -90,17 +112,46 @@ serve(async (req) => {
       }
     );
 
-    const createdUsers: { email: string; role: string; status: string }[] = [];
+    // First get regionales for reference
+    const { data: regionales } = await supabaseAdmin
+      .from('regionales')
+      .select('id, codigo');
+
+    const regionalMap = new Map(regionales?.map(r => [r.codigo, r.id]) || []);
+
+    const createdUsers: { email: string; password: string; role: string; nombre: string; status: string }[] = [];
     const errors: string[] = [];
 
     for (const user of testUsers) {
       try {
         // Check if user already exists
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const userExists = existingUsers?.users?.some(u => u.email === user.email);
+        const existingUser = existingUsers?.users?.find(u => u.email === user.email);
 
-        if (userExists) {
-          createdUsers.push({ email: user.email, role: user.role, status: 'ya existía' });
+        if (existingUser) {
+          // Update profile with new data
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              cedula: user.cedula,
+              nombre_completo: user.nombre_completo,
+              telefono: user.telefono,
+              zona: user.zona,
+              codigo_asesor: user.codigo_asesor,
+              codigo_jefe: user.codigo_jefe,
+              tipo_asesor: user.tipo_asesor,
+              regional_id: user.regional_codigo ? regionalMap.get(user.regional_codigo) : null,
+              correo: user.email
+            })
+            .eq('user_id', existingUser.id);
+
+          createdUsers.push({ 
+            email: user.email, 
+            password: user.password,
+            role: user.role, 
+            nombre: user.nombre_completo,
+            status: 'actualizado' 
+          });
           continue;
         }
 
@@ -120,17 +171,21 @@ serve(async (req) => {
           continue;
         }
 
-        // Create profile
+        // Create profile with all fields
         const profileData: Record<string, unknown> = {
           user_id: newUser.user.id,
           cedula: user.cedula,
           nombre_completo: user.nombre_completo,
           telefono: user.telefono,
-          activo: true
+          activo: true,
+          correo: user.email
         };
-        if (user.zona) {
-          profileData.zona = user.zona;
-        }
+        
+        if (user.zona) profileData.zona = user.zona;
+        if (user.codigo_asesor) profileData.codigo_asesor = user.codigo_asesor;
+        if (user.codigo_jefe) profileData.codigo_jefe = user.codigo_jefe;
+        if (user.tipo_asesor) profileData.tipo_asesor = user.tipo_asesor;
+        if (user.regional_codigo) profileData.regional_id = regionalMap.get(user.regional_codigo);
 
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
@@ -156,7 +211,29 @@ serve(async (req) => {
           continue;
         }
 
-        createdUsers.push({ email: user.email, role: user.role, status: 'creado' });
+        // Update lideres_zona table if this is a lider
+        if (user.role === 'lider_zona') {
+          await supabaseAdmin
+            .from('lideres_zona')
+            .update({ user_id: newUser.user.id })
+            .eq('cedula', user.cedula);
+        }
+
+        // Update coordinadores table if this is a coordinador
+        if (user.role === 'coordinador_comercial') {
+          await supabaseAdmin
+            .from('coordinadores')
+            .update({ user_id: newUser.user.id })
+            .eq('cedula', user.cedula);
+        }
+
+        createdUsers.push({ 
+          email: user.email, 
+          password: user.password,
+          role: user.role, 
+          nombre: user.nombre_completo,
+          status: 'creado' 
+        });
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : 'Error desconocido';
         errors.push(`${user.email}: ${errorMsg}`);
