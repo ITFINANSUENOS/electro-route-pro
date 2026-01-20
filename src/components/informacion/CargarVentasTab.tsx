@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UploadHistory {
   id: string;
@@ -13,7 +14,55 @@ interface UploadHistory {
   created_at: string;
   registros_procesados: number | null;
   estado: string | null;
+  mensaje_error: string | null;
 }
+
+// Mapeo de columnas del CSV a campos de la tabla ventas
+const CSV_COLUMN_MAP: Record<number, string> = {
+  0: 'tipo_docum',
+  1: 'numero_doc',
+  2: 'sede',
+  3: 'codigo_cco',
+  4: 'nombre_cco',
+  5: 'cliente_identificacion',
+  6: 'cliente_nombre',
+  7: 'cliente_telefono',
+  8: 'cliente_direccion',
+  9: 'cliente_email',
+  10: 'destino',
+  11: 'destino_nombre',
+  12: 'cod_forma_pago',
+  13: 'forma1_pago',
+  14: 'forma_pago',
+  15: 'tipo_venta',
+  16: 'cod_region',
+  17: 'regional',
+  18: 'zona',
+  19: 'cedula_asesor',
+  20: 'codigo_asesor',
+  21: 'asesor_nombre',
+  22: 'codigo_jefe',
+  23: 'jefe_ventas',
+  24: 'codigo_ean',
+  25: 'producto',
+  26: 'referencia',
+  27: 'nombre_corto',
+  28: 'categoria',
+  29: 'cod_marca',
+  30: 'marca',
+  31: 'cod_linea',
+  32: 'linea',
+  33: 'lote',
+  34: 'serial',
+  35: 'mcn_clase',
+  36: 'cantidad',
+  37: 'subtotal',
+  38: 'iva',
+  39: 'total',
+  40: 'vtas_ant_i',
+  41: 'fecha',
+  42: 'motivo_dev',
+};
 
 export default function CargarVentasTab() {
   const [dragActive, setDragActive] = useState(false);
@@ -21,6 +70,7 @@ export default function CargarVentasTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch upload history from carga_archivos table
   const { data: uploadHistory, refetch } = useQuery({
@@ -88,38 +138,172 @@ export default function CargarVentasTab() {
     setFile(file);
   };
 
+  const parseCSV = (text: string): string[][] => {
+    const lines = text.split('\n');
+    return lines.map(line => {
+      // Handle quoted fields with commas inside
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    });
+  };
+
+  const parseNumber = (value: string): number => {
+    if (!value || value.trim() === '') return 0;
+    // Remove thousands separators and handle decimal comma
+    const cleaned = value.replace(/\./g, '').replace(',', '.').trim();
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  const parseDate = (value: string): string => {
+    if (!value || value.trim() === '') return new Date().toISOString().split('T')[0];
+    
+    // Try different date formats
+    // DD/MM/YYYY or DD-MM-YYYY
+    const parts = value.split(/[\/\-]/);
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      if (day && month && year) {
+        const fullYear = year.length === 2 ? `20${year}` : year;
+        return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+    }
+    
+    return new Date().toISOString().split('T')[0];
+  };
+
   const handleUpload = async () => {
     if (!file) return;
 
     setUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(10);
 
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
+    try {
+      // Read file content
+      const text = await file.text();
+      setUploadProgress(20);
+
+      // Parse CSV
+      const rows = parseCSV(text);
+      if (rows.length < 2) {
+        throw new Error('El archivo CSV está vacío o no tiene datos');
+      }
+
+      // Skip header row
+      const dataRows = rows.slice(1).filter(row => row.length > 5 && row.some(cell => cell.trim() !== ''));
+      setUploadProgress(30);
+
+      // Create upload record
+      const { data: cargaRecord, error: cargaError } = await supabase
+        .from('carga_archivos')
+        .insert({
+          nombre_archivo: file.name,
+          tipo: 'ventas',
+          estado: 'procesando',
+          cargado_por: user?.id,
+        })
+        .select()
+        .single();
+
+      if (cargaError) throw cargaError;
+      setUploadProgress(40);
+
+      // Process rows and insert into ventas
+      const ventasToInsert = dataRows.map(row => {
+        const venta: Record<string, unknown> = {
+          carga_id: cargaRecord.id,
+          cargado_por: user?.id,
+        };
+
+        // Map columns to fields
+        row.forEach((value, index) => {
+          const fieldName = CSV_COLUMN_MAP[index];
+          if (fieldName) {
+            if (['cantidad', 'subtotal', 'iva', 'total', 'vtas_ant_i'].includes(fieldName)) {
+              venta[fieldName] = parseNumber(value);
+            } else if (fieldName === 'cod_region') {
+              venta[fieldName] = parseInt(value) || null;
+            } else if (fieldName === 'fecha') {
+              venta[fieldName] = parseDate(value);
+            } else {
+              venta[fieldName] = value.trim() || null;
+            }
+          }
+        });
+
+        // Ensure required fields
+        if (!venta.codigo_asesor) venta.codigo_asesor = 'SIN_CODIGO';
+        if (!venta.fecha) venta.fecha = new Date().toISOString().split('T')[0];
+        if (venta.vtas_ant_i === undefined) venta.vtas_ant_i = 0;
+
+        return venta;
       });
-    }, 200);
 
-    // TODO: Implement actual CSV processing
-    await new Promise(resolve => setTimeout(resolve, 2500));
+      setUploadProgress(60);
 
-    clearInterval(interval);
-    setUploadProgress(100);
+      // Insert in batches of 100
+      const batchSize = 100;
+      let inserted = 0;
+      
+      for (let i = 0; i < ventasToInsert.length; i += batchSize) {
+        const batch = ventasToInsert.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .from('ventas')
+          .insert(batch as never[]);
 
-    toast({
-      title: '¡Archivo cargado exitosamente!',
-      description: `Se procesaron registros de ${file.name}`,
-    });
+        if (insertError) {
+          console.error('Error inserting batch:', insertError);
+          throw insertError;
+        }
+        
+        inserted += batch.length;
+        setUploadProgress(60 + Math.round((inserted / ventasToInsert.length) * 30));
+      }
 
-    setFile(null);
-    setUploading(false);
-    setUploadProgress(0);
-    refetch();
+      // Update carga record as completed
+      await supabase
+        .from('carga_archivos')
+        .update({
+          estado: 'completado',
+          registros_procesados: inserted,
+        })
+        .eq('id', cargaRecord.id);
+
+      setUploadProgress(100);
+
+      toast({
+        title: '¡Archivo cargado exitosamente!',
+        description: `Se procesaron ${inserted} registros de ${file.name}`,
+      });
+
+      setFile(null);
+      refetch();
+    } catch (error) {
+      console.error('Error processing CSV:', error);
+      toast({
+        title: 'Error al procesar archivo',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const removeFile = () => {
@@ -178,6 +362,7 @@ export default function CargarVentasTab() {
                     size="icon"
                     onClick={removeFile}
                     className="text-muted-foreground hover:text-destructive"
+                    disabled={uploading}
                   >
                     <X className="h-5 w-5" />
                   </Button>
@@ -234,9 +419,9 @@ export default function CargarVentasTab() {
 
           {/* Expected Format */}
           <div className="p-4 rounded-lg bg-muted">
-            <h4 className="text-sm font-medium mb-2">Estructura esperada del CSV (INFO VENTAS):</h4>
-            <code className="text-xs text-muted-foreground block overflow-x-auto">
-              TIPO_DOCUM, NUMERO_DOC, SEDE, COD_CCO, NOMBRE_CCO, CLI_IDENTIFICACION, CLI_NOMBRE, ...
+            <h4 className="text-sm font-medium mb-2">Columnas del CSV (en orden):</h4>
+            <code className="text-xs text-muted-foreground block overflow-x-auto whitespace-pre-wrap">
+              TIPO_DOCUM, NUMERO_DOC, SEDE, COD_CCO, NOMBRE_CCO, CLI_IDENTIFICACION, CLI_NOMBRE, CLI_TELEFONO, CLI_DIRECCION, CLI_EMAIL, DESTINO, DESTINO_NOMBRE, COD_FORMA_PAGO, FORMA1_PAGO, FORMA_PAGO, TIPO_VENTA, COD_REGION, REGIONAL, ZONA, CEDULA_ASESOR, CODIGO_ASESOR, ASESOR_NOMBRE, CODIGO_JEFE, JEFE_VENTAS, CODIGO_EAN, PRODUCTO, REFERENCIA, NOMBRE_CORTO, CATEGORIA, COD_MARCA, MARCA, COD_LINEA, LINEA, LOTE, SERIAL, MCN_CLASE, CANTIDAD, SUBTOTAL, IVA, TOTAL, VTAS_ANT_I, FECHA, MOTIVO_DEV
             </code>
           </div>
         </CardContent>
@@ -278,7 +463,7 @@ export default function CargarVentasTab() {
                       <span className="text-success font-medium">{item.registros_procesados} registros</span>
                     )}
                     {item.estado === 'error' && (
-                      <span className="text-danger font-medium">Error de formato</span>
+                      <span className="text-danger font-medium">{item.mensaje_error || 'Error de formato'}</span>
                     )}
                   </div>
                 </div>
