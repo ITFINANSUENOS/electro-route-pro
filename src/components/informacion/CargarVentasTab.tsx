@@ -104,8 +104,8 @@ const HEADER_MAP: Record<string, string> = {
   'vtasanti': 'vtas_ant_i',
   // Otros
   'motivodev': 'motivo_dev',
-  'ccostopadr': 'ccosto_asesor',
   'tipo_venta': 'tipo_venta',
+  // ccostopadr se ignora - no existe en tabla ventas
 };
 
 const NUMERIC_FIELDS = ['cantidad', 'subtotal', 'iva', 'total', 'vtas_ant_i', 'cod_region'];
