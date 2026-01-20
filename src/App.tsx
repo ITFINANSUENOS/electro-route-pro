@@ -12,6 +12,7 @@ import Actividades from "./pages/Actividades";
 import CargarVentas from "./pages/CargarVentas";
 import Mapa from "./pages/Mapa";
 import Reportes from "./pages/Reportes";
+import Informacion from "./pages/Informacion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,7 +34,7 @@ const App = () => (
               <Route path="/cargar-ventas" element={<CargarVentas />} />
               <Route path="/mapa" element={<Mapa />} />
               <Route path="/reportes" element={<Reportes />} />
-              <Route path="/metas" element={<Dashboard />} />
+              <Route path="/informacion" element={<Informacion />} />
               <Route path="/usuarios" element={<Dashboard />} />
               <Route path="/configuracion" element={<Dashboard />} />
             </Route>

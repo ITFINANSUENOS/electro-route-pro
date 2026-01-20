@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Calendar,
   ClipboardCheck,
-  Upload,
   BarChart3,
   Users,
   Settings,
@@ -13,40 +12,115 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
-  Target,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { roleLabels } from '@/types/auth';
+import { roleLabels, menuOrderByRole, UserRole } from '@/types/auth';
 import logoFinansuenos from '@/assets/logo-finansuenos.png';
 
 interface NavItem {
+  id: string;
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: string;
+  roles: UserRole[];
 }
 
-const navItems: NavItem[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Programación', href: '/programacion', icon: Calendar, permission: 'view_schedule' },
-  { title: 'Actividades', href: '/actividades', icon: ClipboardCheck, permission: 'register_activity' },
-  { title: 'Cargar Ventas', href: '/cargar-ventas', icon: Upload, permission: 'upload_sales' },
-  { title: 'Metas', href: '/metas', icon: Target, permission: 'upload_goals' },
-  { title: 'Reportes', href: '/reportes', icon: BarChart3, permission: 'view_reports' },
-  { title: 'Mapa', href: '/mapa', icon: MapPin },
-  { title: 'Usuarios', href: '/usuarios', icon: Users, permission: 'full_access' },
-  { title: 'Configuración', href: '/configuracion', icon: Settings, permission: 'full_access' },
+const allNavItems: NavItem[] = [
+  { 
+    id: 'dashboard',
+    title: 'Dashboard', 
+    href: '/dashboard', 
+    icon: LayoutDashboard,
+    roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
+  },
+  { 
+    id: 'programacion',
+    title: 'Programación', 
+    href: '/programacion', 
+    icon: Calendar,
+    roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
+  },
+  { 
+    id: 'informacion',
+    title: 'Información', 
+    href: '/informacion', 
+    icon: Settings,
+    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
+  },
+  { 
+    id: 'actividades',
+    title: 'Actividades', 
+    href: '/actividades', 
+    icon: ClipboardCheck,
+    roles: ['asesor_comercial']
+  },
+  { 
+    id: 'cargar-ventas',
+    title: 'Cargar Ventas', 
+    href: '/cargar-ventas', 
+    icon: FileText,
+    roles: ['administrativo']
+  },
+  { 
+    id: 'reportes',
+    title: 'Reportes', 
+    href: '/reportes', 
+    icon: BarChart3,
+    roles: ['jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
+  },
+  { 
+    id: 'mapa',
+    title: 'Mapa', 
+    href: '/mapa', 
+    icon: MapPin,
+    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
+  },
+  { 
+    id: 'usuarios',
+    title: 'Usuarios', 
+    href: '/usuarios', 
+    icon: Users,
+    roles: ['administrador']
+  },
+  { 
+    id: 'configuracion',
+    title: 'Configuración', 
+    href: '/configuracion', 
+    icon: Settings,
+    roles: ['administrador']
+  },
 ];
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { profile, role, signOut, hasPermission } = useAuth();
+  const { profile, role, signOut } = useAuth();
 
-  const filteredNavItems = navItems.filter(
-    (item) => !item.permission || hasPermission(item.permission) || role === 'administrador'
-  );
+  // Filter and sort nav items based on user role
+  const filteredNavItems = (() => {
+    if (!role) return [];
+    
+    // Filter items by role
+    const roleItems = allNavItems.filter(item => item.roles.includes(role));
+    
+    // Get menu order for this role
+    const menuOrder = menuOrderByRole[role] || [];
+    
+    // Sort by menu order
+    return roleItems.sort((a, b) => {
+      const indexA = menuOrder.indexOf(a.id);
+      const indexB = menuOrder.indexOf(b.id);
+      
+      // Items not in order go to the end
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      
+      return indexA - indexB;
+    });
+  })();
 
   return (
     <motion.aside
