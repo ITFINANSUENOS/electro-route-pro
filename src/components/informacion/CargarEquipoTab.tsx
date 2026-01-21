@@ -168,7 +168,7 @@ export default function CargarEquipoTab() {
         throw new Error('No hay sesión activa');
       }
 
-      const response = await supabase.functions.invoke('import-team', {
+      const response = await supabase.functions.invoke('bulk-import-users', {
         body: { data },
       });
 
