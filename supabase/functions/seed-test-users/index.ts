@@ -22,6 +22,26 @@ interface TestUser {
 
 // Usuarios de prueba basados en USUARIOS_PRUEBAS.xlsx y BD ASESORES
 const testUsers: TestUser[] = [
+  // Administrador
+  {
+    email: 'admin@electrocreditos.com',
+    password: 'Admin2026$Master',
+    cedula: 'ADMIN-001',
+    nombre_completo: 'Administrador E-COM',
+    telefono: undefined,
+    zona: undefined,
+    role: 'administrador'
+  },
+  // Coordinador Comercial - ZONA NORTE
+  {
+    email: 'coorcomercialzonanorte@electrocreditosdelcauca.com',
+    password: 'Coord2026$Ecom',
+    cedula: '94470884',
+    nombre_completo: 'TACAN PASCUAZA LUIS GONZALO',
+    telefono: '3183625094',
+    zona: 'norte',
+    role: 'coordinador_comercial'
+  },
   // Líder de Zona - SANTANDER
   {
     email: 'liderdezonasantander@electrocreditosdelcauca.com',
@@ -73,16 +93,6 @@ const testUsers: TestUser[] = [
     tipo_asesor: 'EXTERNO',
     regional_codigo: 103
   },
-  // Coordinador Comercial - ZONA NORTE
-  {
-    email: 'coorcomercialzonanorte@electrocreditosdelcauca.com',
-    password: 'Coord2026$Ecom',
-    cedula: '94470884',
-    nombre_completo: 'TACAN PASCUAZA LUIS GONZALO',
-    telefono: '3183625094',
-    zona: 'norte',
-    role: 'coordinador_comercial'
-  },
   // Administrativo
   {
     email: 'administrativo@electrocreditos.com',
@@ -129,6 +139,11 @@ serve(async (req) => {
         const existingUser = existingUsers?.users?.find(u => u.email === user.email);
 
         if (existingUser) {
+          // Update password
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            password: user.password
+          });
+
           // Update profile with new data
           await supabaseAdmin
             .from('profiles')
