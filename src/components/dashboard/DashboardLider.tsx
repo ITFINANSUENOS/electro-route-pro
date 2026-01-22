@@ -81,9 +81,25 @@ export default function DashboardLider() {
   const currentMonth = 11;
   const currentYear = 2025;
 
+  // First fetch the regional code for the leader
+  const { data: leaderRegional } = useQuery({
+    queryKey: ['leader-regional', profile?.regional_id],
+    queryFn: async () => {
+      if (!profile?.regional_id) return null;
+      const { data, error } = await supabase
+        .from('regionales')
+        .select('codigo, nombre')
+        .eq('id', profile.regional_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!profile?.regional_id && role === 'lider_zona',
+  });
+
   // Fetch real sales data - filter by regional for lider_zona
   const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales', profile?.regional_id, role, startDateStr],
+    queryKey: ['dashboard-sales', leaderRegional?.codigo, role, startDateStr],
     queryFn: async () => {
       let query = supabase
         .from('ventas')
@@ -92,24 +108,15 @@ export default function DashboardLider() {
         .lte('fecha', endDateStr);
       
       // If lider_zona, filter by their regional code
-      if (role === 'lider_zona' && profile?.regional_id) {
-        // Get regional code from regional_id
-        const { data: regional } = await supabase
-          .from('regionales')
-          .select('codigo')
-          .eq('id', profile.regional_id)
-          .maybeSingle();
-        
-        if (regional?.codigo) {
-          query = query.eq('cod_region', regional.codigo);
-        }
+      if (role === 'lider_zona' && leaderRegional?.codigo) {
+        query = query.eq('cod_region', leaderRegional.codigo);
       }
       
       const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: !!profile,
+    enabled: role === 'lider_zona' ? !!leaderRegional?.codigo : !!profile,
   });
 
   // Fetch metas - for lider, could filter by their asesores
