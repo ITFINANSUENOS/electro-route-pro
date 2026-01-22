@@ -298,9 +298,23 @@ export default function CargarVentasTab() {
         });
 
         // Required fields
-        if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || 'SIN_CODIGO';
+        if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || '';
         if (!venta.fecha) venta.fecha = new Date().toISOString().split('T')[0];
         if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
+        
+        // Automatically derive tipo_venta from forma_pago if not set
+        if (!venta.tipo_venta && venta.forma_pago) {
+          const formaPago = (venta.forma_pago as string).toUpperCase();
+          if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'].includes(formaPago)) {
+            venta.tipo_venta = formaPago;
+          }
+        }
+        
+        // Skip records without codigo_asesor
+        if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
+          console.log('Skipping record without codigo_asesor');
+          continue;
+        }
 
         ventas.push(venta);
       }

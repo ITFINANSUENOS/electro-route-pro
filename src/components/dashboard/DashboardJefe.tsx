@@ -66,20 +66,27 @@ const tiposVentaLabels: Record<string, string> = {
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
 
+  // Get date range - using November 2025 as the data period
+  // TODO: Make this dynamic based on user selection or latest data available
+  const startDateStr = '2025-11-01';
+  const endDateStr = '2025-11-30';
+  const currentMonth = 11;
+  const currentYear = 2025;
+
   // Get jefe code from profile
   const codigoJefe = (profile as any)?.codigo_jefe || (profile as any)?.codigo_asesor;
 
   // Fetch sales for team (filtered by codigo_jefe)
   const { data: salesData } = useQuery({
-    queryKey: ['jefe-team-sales', codigoJefe],
+    queryKey: ['jefe-team-sales', codigoJefe, startDateStr],
     queryFn: async () => {
       if (!codigoJefe) {
         // If no codigo_jefe, get all (fallback for testing)
         const { data, error } = await supabase
           .from('ventas')
           .select('*')
-          .gte('fecha', '2026-01-01')
-          .lte('fecha', '2026-01-31');
+          .gte('fecha', startDateStr)
+          .lte('fecha', endDateStr);
         
         if (error) throw error;
         return data;
@@ -89,8 +96,8 @@ export default function DashboardJefe() {
         .from('ventas')
         .select('*')
         .eq('codigo_jefe', codigoJefe)
-        .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       
       if (error) throw error;
       return data;
@@ -99,13 +106,13 @@ export default function DashboardJefe() {
 
   // Fetch metas for team
   const { data: metasData } = useQuery({
-    queryKey: ['jefe-team-metas'],
+    queryKey: ['jefe-team-metas', currentMonth, currentYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('metas')
         .select('*')
-        .eq('mes', 1)
-        .eq('anio', 2026);
+        .eq('mes', currentMonth)
+        .eq('anio', currentYear);
       
       if (error) throw error;
       return data;
@@ -114,13 +121,13 @@ export default function DashboardJefe() {
 
   // Fetch daily reports for incompliance tracking
   const { data: reportesData } = useQuery({
-    queryKey: ['jefe-team-reportes'],
+    queryKey: ['jefe-team-reportes', startDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('reportes_diarios')
         .select('*')
-        .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       
       if (error) throw error;
       return data;

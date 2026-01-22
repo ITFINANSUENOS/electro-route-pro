@@ -74,15 +74,22 @@ export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
 
+  // Get date range - using November 2025 as the data period (will be dynamic once more data is loaded)
+  // TODO: Make this dynamic based on user selection or latest data available
+  const startDateStr = '2025-11-01';
+  const endDateStr = '2025-11-30';
+  const currentMonth = 11;
+  const currentYear = 2025;
+
   // Fetch real sales data - filter by regional for lider_zona
   const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales', profile?.regional_id, role],
+    queryKey: ['dashboard-sales', profile?.regional_id, role, startDateStr],
     queryFn: async () => {
       let query = supabase
         .from('ventas')
         .select('*')
-        .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       
       // If lider_zona, filter by their regional code
       if (role === 'lider_zona' && profile?.regional_id) {
@@ -107,13 +114,13 @@ export default function DashboardLider() {
 
   // Fetch metas - for lider, could filter by their asesores
   const { data: metasData } = useQuery({
-    queryKey: ['dashboard-metas', role],
+    queryKey: ['dashboard-metas', role, currentMonth, currentYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('metas')
         .select('*')
-        .eq('mes', 1)
-        .eq('anio', 2026);
+        .eq('mes', currentMonth)
+        .eq('anio', currentYear);
       
       if (error) throw error;
       return data;

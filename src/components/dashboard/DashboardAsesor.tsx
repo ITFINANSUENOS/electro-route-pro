@@ -60,12 +60,19 @@ const tiposVentaLabels: Record<string, string> = {
 export default function DashboardAsesor() {
   const { profile, role, user } = useAuth();
 
+  // Get date range - using November 2025 as the data period
+  // TODO: Make this dynamic based on user selection or latest data available
+  const startDateStr = '2025-11-01';
+  const endDateStr = '2025-11-30';
+  const currentMonth = 11;
+  const currentYear = 2025;
+
   // Get advisor code from profile
   const codigoAsesor = (profile as any)?.codigo_asesor;
 
   // Fetch own sales data
   const { data: salesData } = useQuery({
-    queryKey: ['asesor-sales', codigoAsesor],
+    queryKey: ['asesor-sales', codigoAsesor, startDateStr],
     queryFn: async () => {
       if (!codigoAsesor) return [];
       
@@ -73,8 +80,8 @@ export default function DashboardAsesor() {
         .from('ventas')
         .select('*')
         .eq('codigo_asesor', codigoAsesor)
-        .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       
       if (error) throw error;
       return data;
@@ -84,7 +91,7 @@ export default function DashboardAsesor() {
 
   // Fetch own meta
   const { data: metaData } = useQuery({
-    queryKey: ['asesor-meta', codigoAsesor],
+    queryKey: ['asesor-meta', codigoAsesor, currentMonth],
     queryFn: async () => {
       if (!codigoAsesor) return null;
       
@@ -92,8 +99,8 @@ export default function DashboardAsesor() {
         .from('metas')
         .select('*')
         .eq('codigo_asesor', codigoAsesor)
-        .eq('mes', 1)
-        .eq('anio', 2026);
+        .eq('mes', currentMonth)
+        .eq('anio', currentYear);
       
       if (error) throw error;
       return data;

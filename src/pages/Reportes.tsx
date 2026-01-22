@@ -79,17 +79,22 @@ export default function Reportes() {
   const [selectedRegional, setSelectedRegional] = useState<string>('all');
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('all');
 
+  // Get date range - using November 2025 as the data period
+  // TODO: Make this dynamic based on user selection or latest data available
+  const startDateStr = '2025-11-01';
+  const endDateStr = '2025-11-30';
+  const currentMonth = 11;
+  const currentYear = 2025;
+
   // Fetch ventas data
   const { data: ventas = [] } = useQuery({
-    queryKey: ['ventas-reportes'],
+    queryKey: ['ventas-reportes', startDateStr],
     queryFn: async () => {
-      const startDate = '2026-01-01';
-      const endDate = '2026-01-31';
       const { data, error } = await supabase
         .from('ventas')
         .select('*')
-        .gte('fecha', startDate)
-        .lte('fecha', endDate);
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       if (error) throw error;
       return data || [];
     },
@@ -97,13 +102,13 @@ export default function Reportes() {
 
   // Fetch metas
   const { data: metas = [] } = useQuery({
-    queryKey: ['metas-reportes'],
+    queryKey: ['metas-reportes', currentMonth, currentYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('metas')
         .select('*')
-        .eq('mes', 1)
-        .eq('anio', 2026);
+        .eq('mes', currentMonth)
+        .eq('anio', currentYear);
       if (error) throw error;
       return data || [];
     },
@@ -124,15 +129,13 @@ export default function Reportes() {
 
   // Fetch reportes diarios
   const { data: reportesDiarios = [] } = useQuery({
-    queryKey: ['reportes-diarios'],
+    queryKey: ['reportes-diarios', startDateStr],
     queryFn: async () => {
-      const startDate = '2026-01-01';
-      const endDate = '2026-01-31';
       const { data, error } = await supabase
         .from('reportes_diarios')
         .select('*')
-        .gte('fecha', startDate)
-        .lte('fecha', endDate);
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       if (error) throw error;
       return data || [];
     },
