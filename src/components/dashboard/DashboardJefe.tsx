@@ -73,35 +73,54 @@ export default function DashboardJefe() {
   const currentMonth = 11;
   const currentYear = 2025;
 
-  // Get jefe code from profile
-  const codigoJefe = (profile as any)?.codigo_jefe || (profile as any)?.codigo_asesor;
+  // Get jefe code from profile - handle both 4 and 5 digit formats
+  const codigoJefeRaw = (profile as any)?.codigo_jefe;
+  // Normalize: if 5 digits starting with 0, trim to 4; if 5 digits, use last 4
+  const codigoJefe = codigoJefeRaw ? 
+    (codigoJefeRaw.length === 5 ? codigoJefeRaw.slice(-4) : codigoJefeRaw) : null;
+  
+  // Get regional_id from profile for filtering
+  const regionalId = profile?.regional_id;
 
-  // Fetch sales for team (filtered by codigo_jefe)
-  const { data: salesData } = useQuery({
-    queryKey: ['jefe-team-sales', codigoJefe, startDateStr],
+  // Fetch regional code for filtering
+  const { data: jefeRegional } = useQuery({
+    queryKey: ['jefe-regional', regionalId],
     queryFn: async () => {
-      if (!codigoJefe) {
-        // If no codigo_jefe, get all (fallback for testing)
-        const { data, error } = await supabase
-          .from('ventas')
-          .select('*')
-          .gte('fecha', startDateStr)
-          .lte('fecha', endDateStr);
-        
-        if (error) throw error;
-        return data;
-      }
-
+      if (!regionalId) return null;
       const { data, error } = await supabase
-        .from('ventas')
-        .select('*')
-        .eq('codigo_jefe', codigoJefe)
-        .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
-      
+        .from('regionales')
+        .select('codigo, nombre')
+        .eq('id', regionalId)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
+    enabled: !!regionalId,
+  });
+
+  // Fetch sales for team - filter by codigo_jefe OR by regional
+  const { data: salesData } = useQuery({
+    queryKey: ['jefe-team-sales', codigoJefe, jefeRegional?.codigo, startDateStr],
+    queryFn: async () => {
+      let query = supabase
+        .from('ventas')
+        .select('*')
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
+      
+      // Filter by codigo_jefe if available
+      if (codigoJefe) {
+        query = query.eq('codigo_jefe', codigoJefe);
+      } else if (jefeRegional?.codigo) {
+        // Fallback to regional filter if no codigo_jefe
+        query = query.eq('cod_region', jefeRegional.codigo);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!codigoJefe || !!jefeRegional?.codigo,
   });
 
   // Fetch metas for team
