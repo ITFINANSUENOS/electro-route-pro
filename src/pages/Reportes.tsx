@@ -180,6 +180,16 @@ export default function Reportes() {
     }));
   }, [ventas]);
 
+  // Get team advisor codes for jefe_ventas filtering (by regional, not codigo_jefe)
+  const teamAdvisorCodes = useMemo(() => {
+    if (role !== 'jefe_ventas' || !profile?.regional_id) return null;
+    return new Set(
+      profiles
+        .filter(p => p.regional_id === profile.regional_id && p.codigo_asesor)
+        .map(p => p.codigo_asesor)
+    );
+  }, [role, profile?.regional_id, profiles]);
+
   // Filter ventas based on selections
   const filteredVentas = useMemo(() => {
     let filtered = ventas;
@@ -204,13 +214,13 @@ export default function Reportes() {
       });
     }
 
-    // For jefe_ventas, filter by codigo_jefe
-    if (role === 'jefe_ventas' && profile?.codigo_jefe) {
-      filtered = filtered.filter((v) => v.codigo_jefe === profile.codigo_jefe);
+    // For jefe_ventas, filter by team advisor codes (based on regional)
+    if (role === 'jefe_ventas' && teamAdvisorCodes) {
+      filtered = filtered.filter((v) => teamAdvisorCodes.has(v.codigo_asesor || ''));
     }
 
     return filtered;
-  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, profile]);
+  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, teamAdvisorCodes]);
 
   // Calculate metrics
   const metrics = useMemo(() => {

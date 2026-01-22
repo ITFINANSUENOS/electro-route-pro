@@ -73,10 +73,7 @@ export default function DashboardJefe() {
   const currentMonth = 11;
   const currentYear = 2025;
 
-  // Get jefe code from profile - now all codes are normalized to 5 digits
-  const codigoJefe = (profile as any)?.codigo_jefe || null;
-  
-  // Get regional_id from profile for filtering
+  // Get regional_id from profile for filtering - ignore codigo_jefe due to data inconsistencies
   const regionalId = profile?.regional_id;
 
   // Fetch regional code for filtering
@@ -95,29 +92,44 @@ export default function DashboardJefe() {
     enabled: !!regionalId,
   });
 
-  // Fetch sales for team - filter by codigo_jefe OR by regional
-  const { data: salesData } = useQuery({
-    queryKey: ['jefe-team-sales', codigoJefe, jefeRegional?.codigo, startDateStr],
+  // Fetch team advisors based on the same regional
+  const { data: teamProfiles } = useQuery({
+    queryKey: ['jefe-team-profiles', regionalId],
     queryFn: async () => {
-      let query = supabase
+      if (!regionalId) return [];
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('codigo_asesor')
+        .eq('regional_id', regionalId)
+        .eq('activo', true)
+        .not('codigo_asesor', 'is', null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!regionalId,
+  });
+
+  const teamAdvisorCodes = useMemo(() => {
+    return new Set(teamProfiles?.map(p => p.codigo_asesor).filter(Boolean) || []);
+  }, [teamProfiles]);
+
+  // Fetch sales for team - filter by codigo_asesor from team profiles
+  const { data: salesData } = useQuery({
+    queryKey: ['jefe-team-sales', regionalId, startDateStr],
+    queryFn: async () => {
+      if (!jefeRegional?.codigo) return [];
+      
+      const { data, error } = await supabase
         .from('ventas')
         .select('*')
+        .eq('cod_region', jefeRegional.codigo)
         .gte('fecha', startDateStr)
         .lte('fecha', endDateStr);
       
-      // Filter by codigo_jefe if available
-      if (codigoJefe) {
-        query = query.eq('codigo_jefe', codigoJefe);
-      } else if (jefeRegional?.codigo) {
-        // Fallback to regional filter if no codigo_jefe
-        query = query.eq('cod_region', jefeRegional.codigo);
-      }
-      
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: !!codigoJefe || !!jefeRegional?.codigo,
+    enabled: !!jefeRegional?.codigo,
   });
 
   // Fetch metas for team
