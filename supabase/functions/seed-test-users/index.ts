@@ -134,15 +134,24 @@ serve(async (req) => {
 
     for (const user of testUsers) {
       try {
-        // Check if user already exists
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find(u => u.email === user.email);
+        // Check if user already exists by searching with email filter
+        const { data: usersList, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+          page: 1,
+          perPage: 1000
+        });
+        
+        const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === user.email.toLowerCase());
 
         if (existingUser) {
-          // Update password
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            password: user.password
+          // Update password using updateUserById
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            password: user.password,
+            email_confirm: true
           });
+
+          if (updateError) {
+            errors.push(`${user.email} (password update): ${updateError.message}`);
+          }
 
           // Update profile with new data
           await supabaseAdmin
@@ -165,7 +174,7 @@ serve(async (req) => {
             password: user.password,
             role: user.role, 
             nombre: user.nombre_completo,
-            status: 'actualizado' 
+            status: updateError ? 'error_password' : 'actualizado' 
           });
           continue;
         }
