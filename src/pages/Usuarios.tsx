@@ -47,6 +47,7 @@ interface UserWithRole {
   regional_nombre: string | null;
   codigo_asesor: string | null;
   codigo_jefe: string | null;
+  tipo_asesor: string | null;
 }
 
 interface Regional {
@@ -442,6 +443,7 @@ export default function Usuarios() {
           <TableHeader>
             <TableRow>
               <TableHead>Rol</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Cédula</TableHead>
               <TableHead>Nombre</TableHead>
@@ -454,14 +456,14 @@ export default function Usuarios() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   <p className="text-muted-foreground mt-2">Cargando usuarios...</p>
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <p className="text-muted-foreground">No hay usuarios registrados</p>
                 </TableCell>
               </TableRow>
@@ -472,6 +474,13 @@ export default function Usuarios() {
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {user.role ? roleLabels[user.role] : 'Sin rol'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.tipo_asesor ? (
+                      <Badge variant="outline" className="text-xs">
+                        {user.tipo_asesor}
+                      </Badge>
+                    ) : '-'}
                   </TableCell>
                   <TableCell className="font-mono text-sm">
                     {user.correo || '-'}
