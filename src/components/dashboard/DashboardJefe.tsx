@@ -73,12 +73,8 @@ export default function DashboardJefe() {
   const currentMonth = 11;
   const currentYear = 2025;
 
-  // Get jefe code from profile - handle 5 digit to 4 digit conversion
-  // In profiles: codigo_jefe = "28445" (5 digits)
-  // In ventas: codigo_jefe = "2844" (first 4 digits)
-  const codigoJefeRaw = (profile as any)?.codigo_jefe;
-  const codigoJefe = codigoJefeRaw ? 
-    (codigoJefeRaw.length === 5 ? codigoJefeRaw.slice(0, 4) : codigoJefeRaw) : null;
+  // Get jefe code from profile - now all codes are normalized to 5 digits
+  const codigoJefe = (profile as any)?.codigo_jefe || null;
   
   // Get regional_id from profile for filtering
   const regionalId = profile?.regional_id;
