@@ -60,11 +60,24 @@ const tiposVentaColors: Record<string, string> = {
   CONVENIO: '#8b5cf6',
 };
 
+const tiposAsesorLabels: Record<string, string> = {
+  INTERNO: 'Interno',
+  EXTERNO: 'Externo',
+  CORRETAJE: 'Corretaje',
+};
+
+const tiposAsesorColors: Record<string, string> = {
+  INTERNO: '#22c55e',
+  EXTERNO: '#3b82f6',
+  CORRETAJE: '#f59e0b',
+};
+
 export default function Reportes() {
   const { role, profile } = useAuth();
   const [selectedAsesor, setSelectedAsesor] = useState<string>('all');
   const [selectedTipoVenta, setSelectedTipoVenta] = useState<string>('all');
   const [selectedRegional, setSelectedRegional] = useState<string>('all');
+  const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('all');
 
   // Fetch ventas data
   const { data: ventas = [] } = useQuery({
@@ -139,6 +152,17 @@ export default function Reportes() {
     enabled: role === 'coordinador_comercial' || role === 'administrador',
   });
 
+  // Create a map of codigo_asesor to tipo_asesor from profiles
+  const asesorTipoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    profiles.forEach((p) => {
+      if (p.codigo_asesor && p.tipo_asesor) {
+        map.set(p.codigo_asesor, p.tipo_asesor);
+      }
+    });
+    return map;
+  }, [profiles]);
+
   // Get unique asesores from ventas
   const asesores = useMemo(() => {
     const uniqueAsesores = new Map();
@@ -169,13 +193,21 @@ export default function Reportes() {
       filtered = filtered.filter((v) => v.cod_region?.toString() === selectedRegional);
     }
 
+    // Filter by tipo_asesor
+    if (selectedTipoAsesor !== 'all') {
+      filtered = filtered.filter((v) => {
+        const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '');
+        return tipoAsesor === selectedTipoAsesor;
+      });
+    }
+
     // For jefe_ventas, filter by codigo_jefe
     if (role === 'jefe_ventas' && profile?.codigo_jefe) {
       filtered = filtered.filter((v) => v.codigo_jefe === profile.codigo_jefe);
     }
 
     return filtered;
-  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, role, profile]);
+  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, profile]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -184,11 +216,18 @@ export default function Reportes() {
     const cumplimiento = totalMetas > 0 ? (totalVentas / totalMetas) * 100 : 0;
     const asesoresActivos = new Set(filteredVentas.map((v) => v.codigo_asesor)).size;
 
-    // Ventas por tipo
+    // Ventas por tipo de venta
     const ventasPorTipo: Record<string, number> = {};
     filteredVentas.forEach((v) => {
       const tipo = v.tipo_venta || 'OTRO';
       ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + (v.total || 0);
+    });
+
+    // Ventas por tipo de asesor
+    const ventasPorTipoAsesor: Record<string, number> = {};
+    filteredVentas.forEach((v) => {
+      const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '') || 'SIN TIPO';
+      ventasPorTipoAsesor[tipoAsesor] = (ventasPorTipoAsesor[tipoAsesor] || 0) + (v.total || 0);
     });
 
     return {
@@ -197,8 +236,9 @@ export default function Reportes() {
       cumplimiento,
       asesoresActivos,
       ventasPorTipo,
+      ventasPorTipoAsesor,
     };
-  }, [filteredVentas, metas]);
+  }, [filteredVentas, metas, asesorTipoMap]);
 
   // Calculate incompliance data
   const incumplimientos = useMemo(() => {
@@ -329,6 +369,22 @@ export default function Reportes() {
               </Select>
             </div>
 
+            {/* Tipo asesor filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tipo Asesor:</span>
+              <Select value={selectedTipoAsesor} onValueChange={setSelectedTipoAsesor}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="INTERNO">Interno</SelectItem>
+                  <SelectItem value="EXTERNO">Externo</SelectItem>
+                  <SelectItem value="CORRETAJE">Corretaje</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Regional filter for coordinador */}
             {(role === 'coordinador_comercial' || role === 'administrador') && (
               <div className="flex items-center gap-2">
@@ -455,6 +511,48 @@ export default function Reportes() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Ventas por tipo de asesor */}
+      <Card className="card-elevated">
+        <CardHeader>
+          <CardTitle>Ventas por Tipo de Asesor</CardTitle>
+          <CardDescription>Comparativo entre asesores internos, externos y corretaje</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6 md:grid-cols-3">
+            {['INTERNO', 'EXTERNO', 'CORRETAJE'].map((tipoAsesor) => {
+              const valor = metrics.ventasPorTipoAsesor[tipoAsesor] || 0;
+              const porcentaje = metrics.totalVentas > 0 ? (valor / metrics.totalVentas) * 100 : 0;
+              return (
+                <div key={tipoAsesor} className="space-y-3 p-4 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: tiposAsesorColors[tipoAsesor] }}
+                    />
+                    <span className="text-lg font-semibold">
+                      {tiposAsesorLabels[tipoAsesor]}
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold">{formatCurrency(valor)}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${porcentaje}%`,
+                          backgroundColor: tiposAsesorColors[tipoAsesor],
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm text-muted-foreground">{porcentaje.toFixed(1)}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Incompliance Table - visible for leaders */}
       {(role === 'lider_zona' || role === 'jefe_ventas' || role === 'coordinador_comercial' || role === 'administrador') && (
