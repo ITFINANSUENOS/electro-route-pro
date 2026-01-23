@@ -70,6 +70,12 @@ const tiposVentaLabels: Record<string, string> = {
 
 type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
 
+// Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
+// This is outside the component to avoid recreation on each render
+const REGIONAL_CODE_MAPPING: Record<number, number[]> = {
+  103: [103, 106], // SANTANDER includes PUERTO TEJADA
+};
+
 export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
@@ -79,11 +85,6 @@ export default function DashboardLider() {
   const endDateStr = '2026-01-31';
   const currentMonth = 1;
   const currentYear = 2026;
-
-  // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
-  const regionalCodeMapping: Record<number, number[]> = {
-    103: [103, 106], // SANTANDER includes PUERTO TEJADA
-  };
 
   // First fetch the regional code for the leader
   const { data: leaderRegional } = useQuery({
@@ -104,7 +105,7 @@ export default function DashboardLider() {
   // Get the list of regional codes to filter (includes mapped codes like 106->103)
   const regionalCodesToFilter = useMemo(() => {
     if (!leaderRegional?.codigo) return [];
-    return regionalCodeMapping[leaderRegional.codigo] || [leaderRegional.codigo];
+    return REGIONAL_CODE_MAPPING[leaderRegional.codigo] || [leaderRegional.codigo];
   }, [leaderRegional?.codigo]);
 
   // Fetch real sales data - filter by regional for lider_zona (including mapped codes)
