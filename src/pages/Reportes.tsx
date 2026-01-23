@@ -72,6 +72,12 @@ const tiposAsesorColors: Record<string, string> = {
   CORRETAJE: '#f59e0b',
 };
 
+// Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
+// This is outside the component to avoid recreation on each render
+const REGIONAL_CODE_MAPPING: Record<number, number[]> = {
+  103: [103, 106], // SANTANDER includes PUERTO TEJADA
+};
+
 export default function Reportes() {
   const { role, profile } = useAuth();
   const [selectedAsesor, setSelectedAsesor] = useState<string>('all');
@@ -84,11 +90,6 @@ export default function Reportes() {
   const endDateStr = '2026-01-31';
   const currentMonth = 1;
   const currentYear = 2026;
-
-  // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
-  const regionalCodeMapping: Record<number, number[]> = {
-    103: [103, 106], // SANTANDER includes PUERTO TEJADA
-  };
 
   // Fetch ventas data
   const { data: ventas = [] } = useQuery({
@@ -196,10 +197,13 @@ export default function Reportes() {
 
   // Get leader's regional codes (including mapped ones like 106->103)
   const leaderRegionalCodes = useMemo(() => {
-    if (role !== 'lider_zona') return null;
-    const leaderRegional = regionales.find(r => r.id === profile?.regional_id);
-    if (!leaderRegional) return null;
-    return regionalCodeMapping[leaderRegional.codigo] || [leaderRegional.codigo];
+    if (role !== 'lider_zona' || !profile?.regional_id) return null;
+    const leaderRegional = regionales.find(r => r.id === profile.regional_id);
+    if (!leaderRegional) {
+      // If regionales not loaded yet, return undefined to wait
+      return regionales.length > 0 ? null : undefined;
+    }
+    return REGIONAL_CODE_MAPPING[leaderRegional.codigo] || [leaderRegional.codigo];
   }, [role, profile?.regional_id, regionales]);
 
   // Filter ventas based on selections
@@ -207,8 +211,15 @@ export default function Reportes() {
     let filtered = ventas;
 
     // For lider_zona, filter by their regional codes first (including mapped codes)
-    if (role === 'lider_zona' && leaderRegionalCodes) {
-      filtered = filtered.filter((v) => leaderRegionalCodes.includes(v.cod_region || 0));
+    // Only apply filter once leaderRegionalCodes is loaded (not undefined)
+    if (role === 'lider_zona') {
+      if (leaderRegionalCodes === undefined) {
+        // Still loading regionales, don't filter yet
+        return [];
+      }
+      if (leaderRegionalCodes) {
+        filtered = filtered.filter((v) => leaderRegionalCodes.includes(v.cod_region || 0));
+      }
     }
 
     if (selectedAsesor !== 'all') {
@@ -239,9 +250,9 @@ export default function Reportes() {
     return filtered;
   }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, teamAdvisorCodes, leaderRegionalCodes]);
 
-  // Calculate metrics
+  // Calculate metrics - use vtas_ant_i for consistency with dashboard
   const metrics = useMemo(() => {
-    const totalVentas = filteredVentas.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalVentas = filteredVentas.reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
     const totalMetas = metas.reduce((sum, m) => sum + m.valor_meta, 0);
     const cumplimiento = totalMetas > 0 ? (totalVentas / totalMetas) * 100 : 0;
     const asesoresActivos = new Set(filteredVentas.map((v) => v.codigo_asesor)).size;
@@ -250,14 +261,14 @@ export default function Reportes() {
     const ventasPorTipo: Record<string, number> = {};
     filteredVentas.forEach((v) => {
       const tipo = v.tipo_venta || 'OTRO';
-      ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + (v.total || 0);
+      ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + Math.abs(v.vtas_ant_i || 0);
     });
 
     // Ventas por tipo de asesor
     const ventasPorTipoAsesor: Record<string, number> = {};
     filteredVentas.forEach((v) => {
       const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '') || 'SIN TIPO';
-      ventasPorTipoAsesor[tipoAsesor] = (ventasPorTipoAsesor[tipoAsesor] || 0) + (v.total || 0);
+      ventasPorTipoAsesor[tipoAsesor] = (ventasPorTipoAsesor[tipoAsesor] || 0) + Math.abs(v.vtas_ant_i || 0);
     });
 
     return {
