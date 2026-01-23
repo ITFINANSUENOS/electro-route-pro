@@ -74,12 +74,16 @@ export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
 
-  // Get date range - using November 2025 as the data period (will be dynamic once more data is loaded)
-  // TODO: Make this dynamic based on user selection or latest data available
-  const startDateStr = '2025-11-01';
-  const endDateStr = '2025-11-30';
-  const currentMonth = 11;
-  const currentYear = 2025;
+  // Get date range - using January 2026 as the data period
+  const startDateStr = '2026-01-01';
+  const endDateStr = '2026-01-31';
+  const currentMonth = 1;
+  const currentYear = 2026;
+
+  // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
+  const regionalCodeMapping: Record<number, number[]> = {
+    103: [103, 106], // SANTANDER includes PUERTO TEJADA
+  };
 
   // First fetch the regional code for the leader
   const { data: leaderRegional } = useQuery({
@@ -97,9 +101,15 @@ export default function DashboardLider() {
     enabled: !!profile?.regional_id && role === 'lider_zona',
   });
 
-  // Fetch real sales data - filter by regional for lider_zona
+  // Get the list of regional codes to filter (includes mapped codes like 106->103)
+  const regionalCodesToFilter = useMemo(() => {
+    if (!leaderRegional?.codigo) return [];
+    return regionalCodeMapping[leaderRegional.codigo] || [leaderRegional.codigo];
+  }, [leaderRegional?.codigo]);
+
+  // Fetch real sales data - filter by regional for lider_zona (including mapped codes)
   const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales', leaderRegional?.codigo, role, startDateStr],
+    queryKey: ['dashboard-sales', regionalCodesToFilter, role, startDateStr],
     queryFn: async () => {
       let query = supabase
         .from('ventas')
@@ -107,16 +117,16 @@ export default function DashboardLider() {
         .gte('fecha', startDateStr)
         .lte('fecha', endDateStr);
       
-      // If lider_zona, filter by their regional code
-      if (role === 'lider_zona' && leaderRegional?.codigo) {
-        query = query.eq('cod_region', leaderRegional.codigo);
+      // If lider_zona, filter by their regional codes (can include multiple)
+      if (role === 'lider_zona' && regionalCodesToFilter.length > 0) {
+        query = query.in('cod_region', regionalCodesToFilter);
       }
       
       const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: role === 'lider_zona' ? !!leaderRegional?.codigo : !!profile,
+    enabled: role === 'lider_zona' ? regionalCodesToFilter.length > 0 : !!profile,
   });
 
   // Fetch metas - for lider, could filter by their asesores
