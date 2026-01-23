@@ -147,7 +147,7 @@ export default function Reportes() {
   });
 
   // Fetch regionales for coordinador filter and lider_zona regional mapping
-  const { data: regionales = [] } = useQuery({
+  const { data: regionales = [], isLoading: regionalesLoading } = useQuery({
     queryKey: ['regionales'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -198,13 +198,19 @@ export default function Reportes() {
   // Get leader's regional codes (including mapped ones like 106->103)
   const leaderRegionalCodes = useMemo(() => {
     if (role !== 'lider_zona' || !profile?.regional_id) return null;
+    
+    // Wait for regionales to load
+    if (regionalesLoading) return undefined;
+    
     const leaderRegional = regionales.find(r => r.id === profile.regional_id);
     if (!leaderRegional) {
-      // If regionales not loaded yet, return undefined to wait
-      return regionales.length > 0 ? null : undefined;
+      // Regional not found after loading, return null (no filter)
+      return null;
     }
+    
+    // Return mapped codes (e.g., 103 includes 106) or just the single code
     return REGIONAL_CODE_MAPPING[leaderRegional.codigo] || [leaderRegional.codigo];
-  }, [role, profile?.regional_id, regionales]);
+  }, [role, profile?.regional_id, regionales, regionalesLoading]);
 
   // Filter ventas based on selections
   const filteredVentas = useMemo(() => {
