@@ -79,12 +79,16 @@ export default function Reportes() {
   const [selectedRegional, setSelectedRegional] = useState<string>('all');
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('all');
 
-  // Get date range - using November 2025 as the data period
-  // TODO: Make this dynamic based on user selection or latest data available
-  const startDateStr = '2025-11-01';
-  const endDateStr = '2025-11-30';
-  const currentMonth = 11;
-  const currentYear = 2025;
+  // Get date range - using January 2026 as the data period
+  const startDateStr = '2026-01-01';
+  const endDateStr = '2026-01-31';
+  const currentMonth = 1;
+  const currentYear = 2026;
+
+  // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
+  const regionalCodeMapping: Record<number, number[]> = {
+    103: [103, 106], // SANTANDER includes PUERTO TEJADA
+  };
 
   // Fetch ventas data
   const { data: ventas = [] } = useQuery({
@@ -141,7 +145,7 @@ export default function Reportes() {
     },
   });
 
-  // Fetch regionales for coordinador filter
+  // Fetch regionales for coordinador filter and lider_zona regional mapping
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales'],
     queryFn: async () => {
@@ -152,7 +156,7 @@ export default function Reportes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: role === 'coordinador_comercial' || role === 'administrador',
+    enabled: role === 'coordinador_comercial' || role === 'administrador' || role === 'lider_zona',
   });
 
   // Create a map of codigo_asesor to tipo_asesor from profiles
@@ -190,9 +194,22 @@ export default function Reportes() {
     );
   }, [role, profile?.regional_id, profiles]);
 
+  // Get leader's regional codes (including mapped ones like 106->103)
+  const leaderRegionalCodes = useMemo(() => {
+    if (role !== 'lider_zona') return null;
+    const leaderRegional = regionales.find(r => r.id === profile?.regional_id);
+    if (!leaderRegional) return null;
+    return regionalCodeMapping[leaderRegional.codigo] || [leaderRegional.codigo];
+  }, [role, profile?.regional_id, regionales]);
+
   // Filter ventas based on selections
   const filteredVentas = useMemo(() => {
     let filtered = ventas;
+
+    // For lider_zona, filter by their regional codes first (including mapped codes)
+    if (role === 'lider_zona' && leaderRegionalCodes) {
+      filtered = filtered.filter((v) => leaderRegionalCodes.includes(v.cod_region || 0));
+    }
 
     if (selectedAsesor !== 'all') {
       filtered = filtered.filter((v) => v.codigo_asesor === selectedAsesor);
@@ -220,7 +237,7 @@ export default function Reportes() {
     }
 
     return filtered;
-  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, teamAdvisorCodes]);
+  }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, teamAdvisorCodes, leaderRegionalCodes]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
