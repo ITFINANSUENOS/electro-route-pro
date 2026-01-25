@@ -302,33 +302,36 @@ export default function CargarVentasTab() {
         if (!venta.fecha) venta.fecha = new Date().toISOString().split('T')[0];
         if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
         
-        // Derive tipo_venta from FORMA1PAGO and FORMAPAGO
-        // Priority: Check forma1_pago first for specific patterns
+        // Derive tipo_venta from FORMA1PAGO based on reference table
         if (venta.forma1_pago) {
           const forma1 = (venta.forma1_pago as string).toUpperCase();
           
-          // REBATE is internal and should not count in sales reports
-          if (forma1.includes('REBATE')) {
+          // NO APLICA - excluded from sales reports
+          if (forma1.includes('REBATE') || 
+              forma1.includes('ARRENDAMIENTO') || 
+              forma1.includes('ACTIVOS FIJOS')) {
             venta.tipo_venta = 'OTROS';
           }
-          // These are CONVENIOS (third-party financing agreements)
-          else if (forma1.includes('BRILLA') || 
-              forma1.includes('SISTECREDITO') || 
-              forma1.includes('SISTEMCREDITO')) {
+          // CONVENIO: ADDI, BRILLA, SISTECREDITO (third-party financing)
+          else if (forma1.includes('ADDI') || 
+                   forma1.includes('BRILLA') || 
+                   forma1.includes('SISTECREDITO') || 
+                   forma1.includes('SISTEMCREDITO')) {
             venta.tipo_venta = 'CONVENIO';
           } 
-          // These are CREDITO (internal long-term financing)
-          else if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
+          // CREDITO: FINANSUEDOS, ARPESOD, RETANQUEO (internal long-term)
+          else if (forma1.includes('FINANSUE') || 
+                   forma1.includes('ARPESOD') || 
+                   forma1.includes('RETANQUEO')) {
             venta.tipo_venta = 'CREDITO';
           } 
-          // These are CREDICONTADO (short-term installments)
-          else if (forma1.includes('ADDI') || 
-                     forma1.includes('CUOTAS') || 
-                     forma1.includes('INCREMENTO') ||
-                     forma1.includes('OBSEQUIOS')) {
+          // CREDICONTADO: CUOTAS, INCREMENTO, OBSEQUIOS (short-term installments)
+          else if (forma1.includes('CUOTAS') || 
+                   forma1.includes('INCREMENTO') ||
+                   forma1.includes('OBSEQUIOS')) {
             venta.tipo_venta = 'CREDICONTADO';
           } 
-          // Standard cash sales
+          // CONTADO: CONTADO variants + CREDITO ENTIDADES
           else if (forma1.includes('CONTADO') || forma1.includes('CREDITO ENTIDADES')) {
             venta.tipo_venta = 'CONTADO';
           }
