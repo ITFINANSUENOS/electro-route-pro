@@ -302,7 +302,33 @@ export default function CargarVentasTab() {
         if (!venta.fecha) venta.fecha = new Date().toISOString().split('T')[0];
         if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
         
-        // Automatically derive tipo_venta from forma_pago if not set
+        // Derive tipo_venta from FORMA1PAGO and FORMAPAGO
+        // Priority: Check forma1_pago first for CONVENIO patterns
+        if (venta.forma1_pago) {
+          const forma1 = (venta.forma1_pago as string).toUpperCase();
+          
+          // These are CONVENIOS (third-party financing)
+          if (forma1.includes('BRILLA') || 
+              forma1.includes('SISTECREDITO') || 
+              forma1.includes('SISTEMCREDITO') ||
+              forma1.includes('CREDITO ENTIDADES')) {
+            venta.tipo_venta = 'CONVENIO';
+          } else if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
+            // These are CREDITO (internal financing)
+            venta.tipo_venta = 'CREDITO';
+          } else if (forma1.includes('ADDI') || 
+                     forma1.includes('CUOTAS') || 
+                     forma1.includes('INCREMENTO') ||
+                     forma1.includes('OBSEQUIOS')) {
+            // These are CREDICONTADO 
+            venta.tipo_venta = 'CREDICONTADO';
+          } else if (forma1.includes('CONTADO') || 
+                     forma1.includes('REBATE')) {
+            venta.tipo_venta = 'CONTADO';
+          }
+        }
+        
+        // Fallback to forma_pago if tipo_venta not set
         if (!venta.tipo_venta && venta.forma_pago) {
           const formaPago = (venta.forma_pago as string).toUpperCase();
           if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'].includes(formaPago)) {
