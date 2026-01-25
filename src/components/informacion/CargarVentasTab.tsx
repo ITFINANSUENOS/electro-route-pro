@@ -303,27 +303,33 @@ export default function CargarVentasTab() {
         if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
         
         // Derive tipo_venta from FORMA1PAGO and FORMAPAGO
-        // Priority: Check forma1_pago first for CONVENIO patterns
+        // Priority: Check forma1_pago first for specific patterns
         if (venta.forma1_pago) {
           const forma1 = (venta.forma1_pago as string).toUpperCase();
           
-          // These are CONVENIOS (third-party financing)
-          if (forma1.includes('BRILLA') || 
+          // REBATE is internal and should not count in sales reports
+          if (forma1.includes('REBATE')) {
+            venta.tipo_venta = 'OTROS';
+          }
+          // These are CONVENIOS (third-party financing agreements)
+          else if (forma1.includes('BRILLA') || 
               forma1.includes('SISTECREDITO') || 
-              forma1.includes('SISTEMCREDITO') ||
-              forma1.includes('CREDITO ENTIDADES')) {
+              forma1.includes('SISTEMCREDITO')) {
             venta.tipo_venta = 'CONVENIO';
-          } else if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
-            // These are CREDITO (internal financing)
+          } 
+          // These are CREDITO (internal long-term financing)
+          else if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
             venta.tipo_venta = 'CREDITO';
-          } else if (forma1.includes('ADDI') || 
+          } 
+          // These are CREDICONTADO (short-term installments)
+          else if (forma1.includes('ADDI') || 
                      forma1.includes('CUOTAS') || 
                      forma1.includes('INCREMENTO') ||
                      forma1.includes('OBSEQUIOS')) {
-            // These are CREDICONTADO 
             venta.tipo_venta = 'CREDICONTADO';
-          } else if (forma1.includes('CONTADO') || 
-                     forma1.includes('REBATE')) {
+          } 
+          // Standard cash sales
+          else if (forma1.includes('CONTADO') || forma1.includes('CREDITO ENTIDADES')) {
             venta.tipo_venta = 'CONTADO';
           }
         }
