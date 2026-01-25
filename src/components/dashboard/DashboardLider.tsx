@@ -71,9 +71,24 @@ const tiposVentaLabels: Record<string, string> = {
 type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
 
 // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
-// This is outside the component to avoid recreation on each render
+// CALI (201) is equivalent to VALLE - handle both names/codes
 const REGIONAL_CODE_MAPPING: Record<number, number[]> = {
   103: [103, 106], // SANTANDER includes PUERTO TEJADA
+  201: [201],     // CALI/VALLE - same regional
+};
+
+const tipoAsesorLabels: Record<string, string> = {
+  'INTERNO': 'Internos',
+  'EXTERNO': 'Externos', 
+  'CORRETAJE': 'Corretaje',
+  'GERENCIA': 'Gerencia',
+};
+
+const tipoAsesorColors: Record<string, string> = {
+  'INTERNO': 'hsl(var(--primary))',
+  'EXTERNO': 'hsl(var(--success))',
+  'CORRETAJE': 'hsl(var(--warning))',
+  'GERENCIA': 'hsl(var(--secondary))',
 };
 
 export default function DashboardLider() {
@@ -158,13 +173,16 @@ export default function DashboardLider() {
     },
   });
 
-  // Calculate metrics
+  // Calculate metrics including sales by advisor type
   const metrics = useMemo(() => {
-    if (!salesData) return { total: 0, byType: [], byAdvisor: [], totalMeta: 0 };
+    if (!salesData) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0 };
+
+    // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
+    const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
 
     // Group by tipo_venta
     const byType = Object.entries(
-      salesData.reduce((acc, sale) => {
+      filteredSales.reduce((acc, sale) => {
         const type = sale.tipo_venta || 'OTRO';
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
@@ -176,13 +194,24 @@ export default function DashboardLider() {
       color: tiposVentaColors[name as TipoVentaKey] || 'hsl(var(--muted))',
     }));
 
-    // Group by advisor
-    const byAdvisorMap = salesData.reduce((acc, sale) => {
+    // Group by advisor with their tipo_asesor from profiles
+    const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisor = sale.codigo_asesor;
       if (!acc[advisor]) {
+        // Match profile to get tipo_asesor
+        const profile = profiles?.find(p => p.codigo_asesor === advisor);
+        let tipoAsesor = profile?.tipo_asesor?.toUpperCase() || 'EXTERNO';
+        
+        // Special case: GERENCIA entries have code '01' or name contains 'GERENCIA'
+        const nombre = sale.asesor_nombre?.toUpperCase() || '';
+        if (advisor === '01' || advisor === '00001' || nombre.includes('GERENCIA')) {
+          tipoAsesor = 'INTERNO'; // Count GERENCIA as INTERNO
+        }
+        
         acc[advisor] = { 
           codigo: advisor, 
           nombre: sale.asesor_nombre || advisor,
+          tipoAsesor: tipoAsesor,
           total: 0, 
           byType: {} as Record<string, number>
         };
@@ -191,7 +220,7 @@ export default function DashboardLider() {
       const tipo = sale.tipo_venta || 'OTRO';
       acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
-    }, {} as Record<string, { codigo: string; nombre: string; total: number; byType: Record<string, number> }>);
+    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
 
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => ({
@@ -201,15 +230,41 @@ export default function DashboardLider() {
       }))
       .sort((a, b) => b.total - a.total);
 
+    // Group by tipo_asesor (INTERNO, EXTERNO, CORRETAJE, GERENCIA)
+    const byAdvisorTypeMap = byAdvisor.reduce((acc, advisor) => {
+      const tipo = advisor.tipoAsesor || 'EXTERNO';
+      if (!acc[tipo]) {
+        acc[tipo] = { count: 0, total: 0 };
+      }
+      acc[tipo].count += 1;
+      acc[tipo].total += advisor.total;
+      return acc;
+    }, {} as Record<string, { count: number; total: number }>);
+
+    const byAdvisorType = Object.entries(byAdvisorTypeMap)
+      .map(([tipo, data]) => ({
+        tipo,
+        label: tipoAsesorLabels[tipo] || tipo,
+        count: data.count,
+        total: data.total,
+        color: tipoAsesorColors[tipo] || 'hsl(var(--muted))',
+      }))
+      .sort((a, b) => b.total - a.total);
+
     const totalMeta = metasData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+
+    // Count unique advisors (excluding code '01' which is GERENCIA)
+    const uniqueAdvisors = new Set(byAdvisor.filter(a => a.codigo !== '01').map(a => a.codigo));
 
     return {
       total: byType.reduce((sum, t) => sum + t.value, 0),
       byType,
       byAdvisor,
+      byAdvisorType,
       totalMeta,
+      advisorCount: uniqueAdvisors.size,
     };
-  }, [salesData, metasData]);
+  }, [salesData, metasData, profiles]);
 
   // Calculate budget vs executed by type
   const budgetVsExecuted = useMemo(() => {
@@ -318,7 +373,7 @@ export default function DashboardLider() {
         />
         <KpiCard
           title="Asesores Activos"
-          value={metrics.byAdvisor.length.toString()}
+          value={metrics.advisorCount.toString()}
           subtitle="Con ventas este mes"
           icon={Users}
         />
@@ -421,7 +476,50 @@ export default function DashboardLider() {
         </Card>
       </motion.div>
 
-      {/* Second Row */}
+      {/* Sales by Advisor Type */}
+      <motion.div variants={item}>
+        <Card className="card-elevated">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-secondary" />
+              Ventas por Tipo de Asesor
+            </CardTitle>
+            <CardDescription>Distribución de ventas según clasificación de asesores</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {metrics.byAdvisorType.map((tipo) => (
+                <div
+                  key={tipo.tipo}
+                  className="p-4 rounded-lg border"
+                  style={{ borderLeftColor: tipo.color, borderLeftWidth: 4 }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">{tipo.label}</span>
+                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                      {tipo.count} asesores
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(tipo.total)}</p>
+                  <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${Math.min((tipo.total / metrics.total) * 100, 100)}%`,
+                        backgroundColor: tipo.color,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {((tipo.total / metrics.total) * 100).toFixed(1)}% del total
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       <motion.div variants={item} className="grid gap-6 lg:grid-cols-3">
         {/* Advisors at Risk */}
         <Card className="card-elevated">
