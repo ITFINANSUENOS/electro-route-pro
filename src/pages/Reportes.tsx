@@ -185,15 +185,16 @@ export default function Reportes() {
     }));
   }, [ventas]);
 
-  // Get team advisor codes for jefe_ventas filtering (by regional, not codigo_jefe)
+  // Get team advisor codes for jefe_ventas filtering (by codigo_jefe)
   const teamAdvisorCodes = useMemo(() => {
-    if (role !== 'jefe_ventas' || !profile?.regional_id) return null;
+    if (role !== 'jefe_ventas' || !(profile as any)?.codigo_jefe) return null;
+    const codigoJefe = (profile as any).codigo_jefe;
     return new Set(
       profiles
-        .filter(p => p.regional_id === profile.regional_id && p.codigo_asesor)
+        .filter(p => p.codigo_jefe === codigoJefe && p.codigo_asesor)
         .map(p => p.codigo_asesor)
     );
-  }, [role, profile?.regional_id, profiles]);
+  }, [role, (profile as any)?.codigo_jefe, profiles]);
 
   // Get leader's regional codes (including mapped ones like 106->103)
   const leaderRegionalCodes = useMemo(() => {
@@ -257,22 +258,24 @@ export default function Reportes() {
   }, [ventas, selectedAsesor, selectedTipoVenta, selectedRegional, selectedTipoAsesor, asesorTipoMap, role, teamAdvisorCodes, leaderRegionalCodes]);
 
   // Calculate metrics - use vtas_ant_i for consistency with dashboard
+  // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
   const metrics = useMemo(() => {
-    const totalVentas = filteredVentas.reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
+    const salesForMetrics = filteredVentas.filter(v => v.tipo_venta !== 'OTROS');
+    const totalVentas = salesForMetrics.reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
     const totalMetas = metas.reduce((sum, m) => sum + m.valor_meta, 0);
     const cumplimiento = totalMetas > 0 ? (totalVentas / totalMetas) * 100 : 0;
-    const asesoresActivos = new Set(filteredVentas.map((v) => v.codigo_asesor)).size;
+    const asesoresActivos = new Set(salesForMetrics.map((v) => v.codigo_asesor)).size;
 
-    // Ventas por tipo de venta
+    // Ventas por tipo de venta (exclude OTROS)
     const ventasPorTipo: Record<string, number> = {};
-    filteredVentas.forEach((v) => {
+    salesForMetrics.forEach((v) => {
       const tipo = v.tipo_venta || 'OTRO';
       ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + Math.abs(v.vtas_ant_i || 0);
     });
 
     // Ventas por tipo de asesor
     const ventasPorTipoAsesor: Record<string, number> = {};
-    filteredVentas.forEach((v) => {
+    salesForMetrics.forEach((v) => {
       const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '') || 'SIN TIPO';
       ventasPorTipoAsesor[tipoAsesor] = (ventasPorTipoAsesor[tipoAsesor] || 0) + Math.abs(v.vtas_ant_i || 0);
     });

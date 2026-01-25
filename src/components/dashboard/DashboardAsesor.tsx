@@ -60,12 +60,11 @@ const tiposVentaLabels: Record<string, string> = {
 export default function DashboardAsesor() {
   const { profile, role, user } = useAuth();
 
-  // Get date range - using November 2025 as the data period
-  // TODO: Make this dynamic based on user selection or latest data available
-  const startDateStr = '2025-11-01';
-  const endDateStr = '2025-11-30';
-  const currentMonth = 11;
-  const currentYear = 2025;
+  // Get date range - using January 2026 as the data period
+  const startDateStr = '2026-01-01';
+  const endDateStr = '2026-01-31';
+  const currentMonth = 1;
+  const currentYear = 2026;
 
   // Get advisor code from profile
   const codigoAsesor = (profile as any)?.codigo_asesor;
@@ -129,18 +128,19 @@ export default function DashboardAsesor() {
 
   // Calculate advisor's ranking
   const { data: rankingData } = useQuery({
-    queryKey: ['asesor-ranking'],
+    queryKey: ['asesor-ranking', startDateStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ventas')
-        .select('codigo_asesor, vtas_ant_i')
-        .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .select('codigo_asesor, vtas_ant_i, tipo_venta')
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
       
       if (error) throw error;
       
-      // Group by advisor and sum
-      const byAdvisor = data.reduce((acc, sale) => {
+      // Filter out OTROS and group by advisor
+      const filteredData = data.filter(sale => sale.tipo_venta !== 'OTROS');
+      const byAdvisor = filteredData.reduce((acc, sale) => {
         acc[sale.codigo_asesor] = (acc[sale.codigo_asesor] || 0) + Math.abs(sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>);
@@ -158,17 +158,20 @@ export default function DashboardAsesor() {
   const metrics = useMemo(() => {
     if (!salesData) return { total: 0, byType: [], totalMeta: 0 };
 
+    // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
+    const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
+
     // Group by tipo_venta
     const byType = Object.entries(
-      salesData.reduce((acc, sale) => {
+      filteredSales.reduce((acc, sale) => {
         const type = sale.tipo_venta || 'OTRO';
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
     ).map(([name, value]) => ({
       name: tiposVentaLabels[name] || name,
-      value: Math.abs(value as number),
       key: name,
+      value: Math.abs(value as number),
       color: tiposVentaColors[name as keyof typeof tiposVentaColors] || 'hsl(var(--muted))',
     }));
 

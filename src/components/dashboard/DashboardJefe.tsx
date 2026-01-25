@@ -66,17 +66,17 @@ const tiposVentaLabels: Record<string, string> = {
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
 
-  // Get date range - using November 2025 as the data period
-  // TODO: Make this dynamic based on user selection or latest data available
-  const startDateStr = '2025-11-01';
-  const endDateStr = '2025-11-30';
-  const currentMonth = 11;
-  const currentYear = 2025;
+  // Get date range - using January 2026 as the data period
+  const startDateStr = '2026-01-01';
+  const endDateStr = '2026-01-31';
+  const currentMonth = 1;
+  const currentYear = 2026;
 
-  // Get regional_id from profile for filtering - ignore codigo_jefe due to data inconsistencies
+  // Get codigo_jefe from profile for filtering
+  const codigoJefe = (profile as any)?.codigo_jefe;
   const regionalId = profile?.regional_id;
 
-  // Fetch regional code for filtering
+  // Fetch regional code for context
   const { data: jefeRegional } = useQuery({
     queryKey: ['jefe-regional', regionalId],
     queryFn: async () => {
@@ -92,44 +92,47 @@ export default function DashboardJefe() {
     enabled: !!regionalId,
   });
 
-  // Fetch team advisors based on the same regional
+  // Fetch team advisors based on codigo_jefe - advisors assigned to this manager
   const { data: teamProfiles } = useQuery({
-    queryKey: ['jefe-team-profiles', regionalId],
+    queryKey: ['jefe-team-profiles', codigoJefe],
     queryFn: async () => {
-      if (!regionalId) return [];
+      if (!codigoJefe) return [];
       const { data, error } = await supabase
         .from('profiles')
-        .select('codigo_asesor')
-        .eq('regional_id', regionalId)
+        .select('codigo_asesor, nombre_completo, tipo_asesor')
+        .eq('codigo_jefe', codigoJefe)
         .eq('activo', true)
         .not('codigo_asesor', 'is', null);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!regionalId,
+    enabled: !!codigoJefe,
   });
 
   const teamAdvisorCodes = useMemo(() => {
-    return new Set(teamProfiles?.map(p => p.codigo_asesor).filter(Boolean) || []);
+    return teamProfiles?.map(p => p.codigo_asesor).filter(Boolean) || [];
   }, [teamProfiles]);
 
-  // Fetch sales for team - filter by codigo_asesor from team profiles
+  // Fetch sales for team - filter by codigo_jefe in ventas table
   const { data: salesData } = useQuery({
-    queryKey: ['jefe-team-sales', regionalId, startDateStr],
+    queryKey: ['jefe-team-sales', codigoJefe, startDateStr],
     queryFn: async () => {
-      if (!jefeRegional?.codigo) return [];
+      if (!codigoJefe) return [];
+      
+      // Normalize codigo_jefe to 5 digits with leading zeros
+      const normalizedJefe = codigoJefe.toString().padStart(5, '0');
       
       const { data, error } = await supabase
         .from('ventas')
         .select('*')
-        .eq('cod_region', jefeRegional.codigo)
+        .eq('codigo_jefe', normalizedJefe)
         .gte('fecha', startDateStr)
         .lte('fecha', endDateStr);
       
       if (error) throw error;
       return data;
     },
-    enabled: !!jefeRegional?.codigo,
+    enabled: !!codigoJefe,
   });
 
   // Fetch metas for team
@@ -166,9 +169,12 @@ export default function DashboardJefe() {
   const metrics = useMemo(() => {
     if (!salesData) return { total: 0, byType: [], byAdvisor: [], totalMeta: 0 };
 
+    // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
+    const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
+
     // Group by tipo_venta
     const byType = Object.entries(
-      salesData.reduce((acc, sale) => {
+      filteredSales.reduce((acc, sale) => {
         const type = sale.tipo_venta || 'OTRO';
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
@@ -181,7 +187,7 @@ export default function DashboardJefe() {
     }));
 
     // Group by advisor
-    const byAdvisorMap = salesData.reduce((acc, sale) => {
+    const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisor = sale.codigo_asesor;
       if (!acc[advisor]) {
         acc[advisor] = { codigo: advisor, nombre: sale.asesor_nombre || advisor, total: 0 };
@@ -199,9 +205,9 @@ export default function DashboardJefe() {
       .sort((a, b) => b.total - a.total);
 
     // Calculate total meta for team advisors only
-    const teamAdvisorCodes = new Set(byAdvisor.map(a => a.codigo));
+    const teamAdvisorCodesSet = new Set(byAdvisor.map(a => a.codigo));
     const totalMeta = metasData
-      ?.filter(m => teamAdvisorCodes.has(m.codigo_asesor))
+      ?.filter(m => teamAdvisorCodesSet.has(m.codigo_asesor))
       .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
 
     return {
