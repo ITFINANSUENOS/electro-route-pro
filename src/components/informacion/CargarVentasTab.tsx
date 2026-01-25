@@ -1,12 +1,16 @@
-import { useState, useCallback } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2 } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2, CalendarCheck, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSalesPeriod, getMonthName, isClosingDay } from '@/hooks/useSalesPeriod';
+import MonthCloseDialog from './MonthCloseDialog';
 
 interface UploadHistory {
   id: string;
@@ -116,9 +120,23 @@ export default function CargarVentasTab() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [pendingUploadData, setPendingUploadData] = useState<{ ventas: Record<string, unknown>[]; cargaId: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Sales period management
+  const { 
+    getCurrentTargetPeriod, 
+    closePeriod, 
+    isClosingPeriod, 
+    isPeriodClosed,
+    getOrCreatePeriod 
+  } = useSalesPeriod();
+
+  const targetPeriod = useMemo(() => getCurrentTargetPeriod(), []);
+  const periodClosed = useMemo(() => isPeriodClosed(targetPeriod.month, targetPeriod.year), [targetPeriod]);
 
   const { data: uploadHistory, refetch } = useQuery({
     queryKey: ['upload-history-ventas'],
@@ -228,8 +246,41 @@ export default function CargarVentasTab() {
     return new Date().toISOString().split('T')[0];
   };
 
+  // Validate that >50% of dates are within the target month
+  const validateDatesInMonth = (ventas: Record<string, unknown>[], targetMonth: number, targetYear: number): { valid: boolean; inMonth: number; outOfMonth: number } => {
+    let inMonth = 0;
+    let outOfMonth = 0;
+
+    for (const venta of ventas) {
+      const fecha = venta.fecha as string;
+      if (fecha) {
+        const date = new Date(fecha);
+        const month = date.getMonth() + 1;
+        const year = date.getFullYear();
+        if (month === targetMonth && year === targetYear) {
+          inMonth++;
+        } else {
+          outOfMonth++;
+        }
+      }
+    }
+
+    const total = inMonth + outOfMonth;
+    return { valid: inMonth >= (total / 2), inMonth, outOfMonth };
+  };
+
   const handleUpload = async () => {
     if (!file || !user) return;
+
+    // Check if target period is closed
+    if (periodClosed) {
+      toast({ 
+        title: 'Período cerrado', 
+        description: `El período de ${getMonthName(targetPeriod.month)} ${targetPeriod.year} ya fue cerrado y no acepta más cargas.`, 
+        variant: 'destructive' 
+      });
+      return;
+    }
 
     setUploading(true);
     setUploadProgress(5);
@@ -258,20 +309,7 @@ export default function CargarVentasTab() {
       console.log('Mapped columns:', Object.keys(columnMapping).length, 'of', headers.length);
 
       setUploadProgress(15);
-      setUploadStatus('Registrando carga...');
-
-      // Create upload record
-      const { data: cargaRecord, error: cargaError } = await supabase
-        .from('carga_archivos')
-        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
-        .select()
-        .single();
-
-      if (cargaError) throw cargaError;
-      cargaId = cargaRecord.id;
-
-      setUploadProgress(20);
-      setUploadStatus('Procesando filas...');
+      setUploadStatus('Validando fechas...');
 
       // Process all data rows at once
       const dataRows = lines.slice(1);
@@ -282,7 +320,7 @@ export default function CargarVentasTab() {
         const values = parseCSVLine(line, delimiter);
         if (values.length < 5) continue;
 
-        const venta: Record<string, unknown> = { carga_id: cargaId, cargado_por: user.id };
+        const venta: Record<string, unknown> = {};
 
         values.forEach((val, idx) => {
           const field = columnMapping[idx];
@@ -356,6 +394,72 @@ export default function CargarVentasTab() {
 
       if (ventas.length === 0) throw new Error('No se encontraron registros válidos');
 
+      // Validate dates are in target month
+      const dateValidation = validateDatesInMonth(ventas, targetPeriod.month, targetPeriod.year);
+      if (!dateValidation.valid) {
+        setUploading(false);
+        setUploadProgress(0);
+        setUploadStatus('');
+        toast({ 
+          title: 'Fechas fuera de rango', 
+          description: `El archivo tiene ${dateValidation.outOfMonth} registros (${Math.round(dateValidation.outOfMonth / (dateValidation.inMonth + dateValidation.outOfMonth) * 100)}%) con fechas fuera de ${getMonthName(targetPeriod.month)} ${targetPeriod.year}. La mayoría de los registros deben corresponder al mes en curso.`,
+          variant: 'destructive' 
+        });
+        return;
+      }
+
+      setUploadProgress(20);
+      setUploadStatus('Registrando carga...');
+
+      // Ensure period exists
+      await getOrCreatePeriod(targetPeriod.month, targetPeriod.year);
+
+      // Create upload record
+      const { data: cargaRecord, error: cargaError } = await supabase
+        .from('carga_archivos')
+        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+        .select()
+        .single();
+
+      if (cargaError) throw cargaError;
+      cargaId = cargaRecord.id;
+
+      // Add carga_id and cargado_por to all records
+      ventas.forEach(v => {
+        v.carga_id = cargaId;
+        v.cargado_por = user.id;
+      });
+
+      setUploadProgress(30);
+      setUploadStatus('Procesando filas...');
+
+      // If it's closing day, show the dialog instead of inserting immediately
+      if (targetPeriod.isClosingDay) {
+        setPendingUploadData({ ventas, cargaId });
+        setShowCloseDialog(true);
+        return;
+      }
+
+      // Insert data
+      await insertSalesData(ventas, cargaId);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      if (cargaId) {
+        await supabase.from('carga_archivos')
+          .update({ estado: 'error', mensaje_error: (error as Error).message })
+          .eq('id', cargaId);
+      }
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+      refetch();
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadStatus('');
+    }
+  };
+
+  const insertSalesData = async (ventas: Record<string, unknown>[], cargaId: string) => {
+    try {
       setUploadProgress(40);
       setUploadStatus(`Insertando ${ventas.length} registros...`);
 
@@ -390,19 +494,65 @@ export default function CargarVentasTab() {
       refetch();
       queryClient.invalidateQueries({ queryKey: ['ventas'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
     } catch (error) {
-      console.error('Upload error:', error);
-      if (cargaId) {
-        await supabase.from('carga_archivos')
-          .update({ estado: 'error', mensaje_error: (error as Error).message })
-          .eq('id', cargaId);
-      }
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
-      refetch();
+      throw error;
     } finally {
       setUploading(false);
       setUploadProgress(0);
       setUploadStatus('');
+    }
+  };
+
+  const handleCloseMonthConfirm = async () => {
+    if (!pendingUploadData) return;
+
+    try {
+      // Insert the data first
+      await insertSalesData(pendingUploadData.ventas, pendingUploadData.cargaId);
+
+      // Calculate total amount
+      const totalAmount = pendingUploadData.ventas.reduce((sum, v) => {
+        const vtasAntI = v.vtas_ant_i as number || 0;
+        return sum + vtasAntI;
+      }, 0);
+
+      // Close the period
+      await closePeriod({
+        month: targetPeriod.month,
+        year: targetPeriod.year,
+        totalRecords: pendingUploadData.ventas.length,
+        totalAmount
+      });
+
+      toast({ 
+        title: '¡Período cerrado!', 
+        description: `${getMonthName(targetPeriod.month)} ${targetPeriod.year} ha sido cerrado con éxito.` 
+      });
+
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setShowCloseDialog(false);
+      setPendingUploadData(null);
+    }
+  };
+
+  const handleCloseMonthCancel = async () => {
+    if (!pendingUploadData) return;
+
+    try {
+      // Just insert the data without closing the period
+      await insertSalesData(pendingUploadData.ventas, pendingUploadData.cargaId);
+      toast({ 
+        title: '¡Carga exitosa!', 
+        description: `Datos cargados. El período de ${getMonthName(targetPeriod.month)} sigue abierto para más cargas.` 
+      });
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setShowCloseDialog(false);
+      setPendingUploadData(null);
     }
   };
 
@@ -415,18 +565,57 @@ export default function CargarVentasTab() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <Card className="card-elevated lg:col-span-2">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-secondary" />
-            Subir Archivo de Ventas
-          </CardTitle>
-          <CardDescription>
-            Formato: INFO_VENTAS.csv (máx 20MB) - Detecta delimitador automáticamente
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+    <>
+      {/* Month Close Dialog */}
+      <MonthCloseDialog
+        open={showCloseDialog}
+        onOpenChange={setShowCloseDialog}
+        monthName={getMonthName(targetPeriod.month)}
+        year={targetPeriod.year}
+        onConfirm={handleCloseMonthConfirm}
+        onCancel={handleCloseMonthCancel}
+        isLoading={isClosingPeriod}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Period Status Alert */}
+        <div className="lg:col-span-3">
+          {periodClosed ? (
+            <Alert variant="destructive">
+              <Lock className="h-4 w-4" />
+              <AlertTitle>Período Cerrado</AlertTitle>
+              <AlertDescription>
+                El período de {getMonthName(targetPeriod.month)} {targetPeriod.year} ya fue cerrado y no acepta más cargas de ventas.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <CalendarCheck className="h-4 w-4" />
+              <AlertTitle className="flex items-center gap-2">
+                Período Activo: {getMonthName(targetPeriod.month)} {targetPeriod.year}
+                <Badge variant="secondary">{targetPeriod.isClosingDay ? 'Día de cierre' : 'Abierto'}</Badge>
+              </AlertTitle>
+              <AlertDescription>
+                {targetPeriod.isClosingDay 
+                  ? `Hoy es el día de cierre. Al cargar un archivo, se te preguntará si es el resultado final de ${getMonthName(targetPeriod.month)}.`
+                  : `Los archivos cargados se asignarán automáticamente a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
+                }
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <Card className="card-elevated lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-secondary" />
+              Subir Archivo de Ventas
+            </CardTitle>
+            <CardDescription>
+              Formato: INFO_VENTAS.csv (máx 20MB) - Detecta delimitador automáticamente
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
           <div
             className={cn(
               'border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer',
@@ -518,7 +707,8 @@ export default function CargarVentasTab() {
             )) : <p className="text-sm text-muted-foreground text-center py-4">No hay cargas registradas</p>}
           </div>
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }

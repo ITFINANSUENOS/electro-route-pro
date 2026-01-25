@@ -273,6 +273,45 @@ export type Database = {
         }
         Relationships: []
       }
+      periodos_ventas: {
+        Row: {
+          anio: number
+          cerrado_por: string | null
+          created_at: string
+          estado: string
+          fecha_cierre: string | null
+          id: string
+          mes: number
+          monto_total: number | null
+          registros_totales: number | null
+          updated_at: string
+        }
+        Insert: {
+          anio: number
+          cerrado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_cierre?: string | null
+          id?: string
+          mes: number
+          monto_total?: number | null
+          registros_totales?: number | null
+          updated_at?: string
+        }
+        Update: {
+          anio?: number
+          cerrado_por?: string | null
+          created_at?: string
+          estado?: string
+          fecha_cierre?: string | null
+          id?: string
+          mes?: number
+          monto_total?: number | null
+          registros_totales?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           activo: boolean | null
