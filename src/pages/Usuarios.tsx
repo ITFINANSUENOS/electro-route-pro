@@ -30,8 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil } from "lucide-react";
 import { roleLabels, UserRole } from "@/types/auth";
+import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
+import * as XLSX from "xlsx";
 
 interface UserWithRole {
   id: string;
@@ -45,6 +47,7 @@ interface UserWithRole {
   created_at: string;
   role: UserRole | null;
   regional_nombre: string | null;
+  regional_id: string | null;
   codigo_asesor: string | null;
   codigo_jefe: string | null;
   tipo_asesor: string | null;
@@ -89,6 +92,10 @@ export default function Usuarios() {
     codigo_asesor: '',
     codigo_jefe: '',
   });
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -225,6 +232,34 @@ export default function Usuarios() {
     }
   };
 
+  const handleDownloadExcel = () => {
+    const excelData = users.map((user) => ({
+      'Rol': user.role ? roleLabels[user.role] : 'Sin rol',
+      'Tipo': user.tipo_asesor || '-',
+      'Email': user.correo || '-',
+      'Cédula': user.cedula,
+      'Nombre': user.nombre_completo,
+      'Teléfono': user.telefono || '-',
+      'Regional': user.regional_nombre || '-',
+      'Zona': user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
+      'Estado': user.activo ? 'Activo' : 'Inactivo',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
+    
+    // Generate filename with date
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `usuarios_${date}.xlsx`);
+    toast.success('Archivo Excel descargado');
+  };
+
+  const handleEditUser = (user: UserWithRole) => {
+    setEditingUser(user);
+    setEditDialogOpen(true);
+  };
+
   if (role !== 'administrador') {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -243,6 +278,10 @@ export default function Usuarios() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Descargar Excel
+          </Button>
           <Button variant="outline" onClick={fetchUsers} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -451,19 +490,20 @@ export default function Usuarios() {
               <TableHead>Regional</TableHead>
               <TableHead>Zona</TableHead>
               <TableHead>Estado</TableHead>
+              <TableHead className="w-[50px]">Editar</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={10} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   <p className="text-muted-foreground mt-2">Cargando usuarios...</p>
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={10} className="text-center py-8">
                   <p className="text-muted-foreground">No hay usuarios registrados</p>
                 </TableCell>
               </TableRow>
@@ -495,6 +535,16 @@ export default function Usuarios() {
                       {user.activo ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditUser(user)}
+                      title="Editar usuario"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -508,6 +558,15 @@ export default function Usuarios() {
           Total: {users.length} usuarios
         </div>
       )}
+
+      {/* Edit Dialog */}
+      <UserEditDialog
+        user={editingUser}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        regionales={regionales}
+        onUserUpdated={fetchUsers}
+      />
     </div>
   );
 }
