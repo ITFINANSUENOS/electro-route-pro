@@ -5,21 +5,31 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Calendar, Info } from 'lucide-react';
+import { Save, Calendar, Info, Clock, Camera, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 interface ProgramacionSettings {
   dias_bloqueo_minimo: number;
   dias_bloqueo_maximo: number;
+  requiere_foto_evidencia: boolean;
+  requiere_ubicacion_gps: boolean;
+  hora_limite_evidencia: string;
+  permitir_evidencia_fuera_horario: boolean;
 }
 
-export function ProgramacionConfig() {
+export default function ProgramacionConfig() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<ProgramacionSettings>({
-    dias_bloqueo_minimo: 4,
+    dias_bloqueo_minimo: 0,
     dias_bloqueo_maximo: 19,
+    requiere_foto_evidencia: true,
+    requiere_ubicacion_gps: true,
+    hora_limite_evidencia: '22:00',
+    permitir_evidencia_fuera_horario: false,
   });
 
   useEffect(() => {
@@ -29,7 +39,6 @@ export function ProgramacionConfig() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      // Try to get existing settings from permisos_roles table using a special category
       const { data, error } = await supabase
         .from('permisos_roles')
         .select('*')
@@ -38,12 +47,18 @@ export function ProgramacionConfig() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const minDays = data.find(d => d.permiso === 'dias_bloqueo_minimo');
-        const maxDays = data.find(d => d.permiso === 'dias_bloqueo_maximo');
+        const getValue = (permiso: string, defaultVal: string) => {
+          const found = data.find(d => d.permiso === permiso);
+          return found ? found.rol : defaultVal;
+        };
 
         setSettings({
-          dias_bloqueo_minimo: minDays ? parseInt(minDays.rol) : 4,
-          dias_bloqueo_maximo: maxDays ? parseInt(maxDays.rol) : 19,
+          dias_bloqueo_minimo: parseInt(getValue('dias_bloqueo_minimo', '0')),
+          dias_bloqueo_maximo: parseInt(getValue('dias_bloqueo_maximo', '19')),
+          requiere_foto_evidencia: getValue('requiere_foto_evidencia', 'true') === 'true',
+          requiere_ubicacion_gps: getValue('requiere_ubicacion_gps', 'true') === 'true',
+          hora_limite_evidencia: getValue('hora_limite_evidencia', '22:00'),
+          permitir_evidencia_fuera_horario: getValue('permitir_evidencia_fuera_horario', 'false') === 'true',
         });
       }
     } catch (error) {
@@ -54,10 +69,10 @@ export function ProgramacionConfig() {
   };
 
   const saveSettings = async () => {
-    if (settings.dias_bloqueo_minimo < 1) {
+    if (settings.dias_bloqueo_minimo < 0) {
       toast({
         title: 'Error',
-        description: 'El mínimo de días debe ser al menos 1',
+        description: 'El mínimo de días no puede ser negativo',
         variant: 'destructive',
       });
       return;
@@ -74,20 +89,13 @@ export function ProgramacionConfig() {
 
     setSaving(true);
     try {
-      // Upsert the settings
       const settingsToSave = [
-        {
-          categoria: 'programacion_config',
-          permiso: 'dias_bloqueo_minimo',
-          rol: settings.dias_bloqueo_minimo.toString(),
-          habilitado: true,
-        },
-        {
-          categoria: 'programacion_config',
-          permiso: 'dias_bloqueo_maximo',
-          rol: settings.dias_bloqueo_maximo.toString(),
-          habilitado: true,
-        },
+        { permiso: 'dias_bloqueo_minimo', valor: settings.dias_bloqueo_minimo.toString() },
+        { permiso: 'dias_bloqueo_maximo', valor: settings.dias_bloqueo_maximo.toString() },
+        { permiso: 'requiere_foto_evidencia', valor: settings.requiere_foto_evidencia.toString() },
+        { permiso: 'requiere_ubicacion_gps', valor: settings.requiere_ubicacion_gps.toString() },
+        { permiso: 'hora_limite_evidencia', valor: settings.hora_limite_evidencia },
+        { permiso: 'permitir_evidencia_fuera_horario', valor: settings.permitir_evidencia_fuera_horario.toString() },
       ];
 
       for (const setting of settingsToSave) {
@@ -101,12 +109,17 @@ export function ProgramacionConfig() {
         if (existing) {
           await supabase
             .from('permisos_roles')
-            .update({ rol: setting.rol, updated_at: new Date().toISOString() })
+            .update({ rol: setting.valor, updated_at: new Date().toISOString() })
             .eq('id', existing.id);
         } else {
           await supabase
             .from('permisos_roles')
-            .insert(setting);
+            .insert({
+              categoria: 'programacion_config',
+              permiso: setting.permiso,
+              rol: setting.valor,
+              habilitado: true,
+            });
         }
       }
 
@@ -149,6 +162,7 @@ export function ProgramacionConfig() {
 
   return (
     <div className="space-y-6">
+      {/* Restricciones de Fechas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -173,17 +187,25 @@ export function ProgramacionConfig() {
               <Input
                 id="dias_minimo"
                 type="number"
-                min={1}
+                min={0}
                 max={30}
                 value={settings.dias_bloqueo_minimo}
                 onChange={(e) =>
-                  setSettings({ ...settings, dias_bloqueo_minimo: parseInt(e.target.value) || 1 })
+                  setSettings({ ...settings, dias_bloqueo_minimo: parseInt(e.target.value) || 0 })
                 }
               />
               <p className="text-sm text-muted-foreground">
-                Los usuarios no pueden programar actividades con menos de {settings.dias_bloqueo_minimo} días de anticipación.
-                <br />
-                <span className="font-medium">Ejemplo:</span> Si hoy es el día 1, no puede programar hasta el día {settings.dias_bloqueo_minimo + 1}.
+                {settings.dias_bloqueo_minimo === 0 ? (
+                  <>
+                    <span className="font-semibold text-success">Sin restricción mínima:</span> Se pueden programar actividades desde hoy mismo.
+                  </>
+                ) : (
+                  <>
+                    Los usuarios no pueden programar actividades con menos de {settings.dias_bloqueo_minimo} días de anticipación.
+                    <br />
+                    <span className="font-medium">Ejemplo:</span> Si hoy es el día 1, no puede programar hasta el día {settings.dias_bloqueo_minimo + 1}.
+                  </>
+                )}
               </p>
             </div>
 
@@ -192,7 +214,7 @@ export function ProgramacionConfig() {
               <Input
                 id="dias_maximo"
                 type="number"
-                min={5}
+                min={1}
                 max={60}
                 value={settings.dias_bloqueo_maximo}
                 onChange={(e) =>
@@ -210,20 +232,111 @@ export function ProgramacionConfig() {
           <div className="bg-muted/50 rounded-lg p-4">
             <h4 className="font-medium mb-2">Resumen de la configuración actual:</h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li>• Los primeros <span className="font-semibold text-foreground">{settings.dias_bloqueo_minimo} días</span> desde hoy estarán bloqueados</li>
-              <li>• Se pueden programar actividades desde el día <span className="font-semibold text-foreground">{settings.dias_bloqueo_minimo + 1}</span> hasta el día <span className="font-semibold text-foreground">{settings.dias_bloqueo_maximo}</span></li>
+              {settings.dias_bloqueo_minimo === 0 ? (
+                <li>• Se pueden programar actividades <span className="font-semibold text-success">desde hoy mismo</span></li>
+              ) : (
+                <li>• Los primeros <span className="font-semibold text-foreground">{settings.dias_bloqueo_minimo} días</span> desde hoy estarán bloqueados</li>
+              )}
+              <li>• Se pueden programar actividades hasta el día <span className="font-semibold text-foreground">{settings.dias_bloqueo_maximo}</span></li>
               <li>• A partir del día <span className="font-semibold text-foreground">{settings.dias_bloqueo_maximo + 1}</span> en adelante estará bloqueado</li>
             </ul>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="flex justify-end">
-            <Button onClick={saveSettings} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Guardando...' : 'Guardar cambios'}
-            </Button>
+      {/* Requisitos de Evidencia */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Requisitos de Evidencia
+          </CardTitle>
+          <CardDescription>
+            Configure los requisitos de evidencia para el registro de actividades
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Foto de evidencia obligatoria</Label>
+                <p className="text-sm text-muted-foreground">
+                  Los asesores deben subir una foto para registrar su actividad
+                </p>
+              </div>
+              <Switch
+                checked={settings.requiere_foto_evidencia}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, requiere_foto_evidencia: checked })
+                }
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Ubicación GPS obligatoria
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Los asesores deben registrar su ubicación GPS al subir evidencia
+                </p>
+              </div>
+              <Switch
+                checked={settings.requiere_ubicacion_gps}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, requiere_ubicacion_gps: checked })
+                }
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Permitir evidencia fuera de horario</Label>
+                <p className="text-sm text-muted-foreground">
+                  Permite subir evidencia fuera del horario de la actividad programada
+                </p>
+              </div>
+              <Switch
+                checked={settings.permitir_evidencia_fuera_horario}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, permitir_evidencia_fuera_horario: checked })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="hora_limite" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Hora límite para subir evidencia
+            </Label>
+            <Input
+              id="hora_limite"
+              type="time"
+              value={settings.hora_limite_evidencia}
+              onChange={(e) =>
+                setSettings({ ...settings, hora_limite_evidencia: e.target.value })
+              }
+              className="w-40"
+            />
+            <p className="text-sm text-muted-foreground">
+              Después de esta hora no se podrá subir evidencia del día
+            </p>
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={saveSettings} disabled={saving} size="lg">
+          <Save className="h-4 w-4 mr-2" />
+          {saving ? 'Guardando...' : 'Guardar todos los cambios'}
+        </Button>
+      </div>
     </div>
   );
 }
