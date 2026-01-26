@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, addDays, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MapPin, Clock, Users, Calendar, Tag, Pencil, Trash2, Save, X } from 'lucide-react';
+import { MapPin, Clock, Users, Calendar, Tag, Pencil, Trash2, Save, X, CheckCircle, XCircle, Camera, Navigation, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
+import { useActivityEvidenceStatus, isActivityForToday } from '@/hooks/useActivityEvidenceStatus';
 import { TimeSelect } from './TimeSelect';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -72,7 +74,8 @@ interface ActivityDetailDialogProps {
 }
 
 export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: ActivityDetailDialogProps) {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
+  const navigate = useNavigate();
   const { diasBloqueoMinimo } = useSchedulingConfig();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -86,7 +89,24 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
     nombre: '',
   });
 
+  // Fetch evidence status for this activity
+  const { statusByActivity } = useActivityEvidenceStatus(
+    activity ? [{
+      fecha: activity.fecha,
+      user_ids: activity.user_ids,
+      user_names: activity.user_names,
+      tipo_actividad: activity.tipo_actividad,
+      key: activity.key,
+    }] : [],
+    isOpen && !!activity
+  );
+
   if (!activity) return null;
+
+  const evidenceStatus = statusByActivity[activity.key];
+  const isToday = isActivityForToday(activity.fecha);
+  const isUserAssigned = user?.id && activity.user_ids.includes(user.id);
+  const isCorriera = activity.tipo_actividad === 'correria';
 
   const activityDate = new Date(activity.fecha + 'T12:00:00');
   const isTeamActivity = activity.user_ids.length > 1;
@@ -316,28 +336,100 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
               </div>
             </div>
 
-            {/* Asesores asignados */}
+            {/* Asesores asignados con estado de evidencia */}
             <div className="flex items-start gap-3">
               <Users className="h-5 w-5 text-primary mt-0.5" />
               <div className="flex-1">
-                <p className="font-medium mb-2">
-                  {isTeamActivity 
-                    ? `Equipo (${activity.user_ids.length} asesores)` 
-                    : 'Asesor Asignado'}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {activity.user_names.map((name, idx) => (
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium">
+                    {isTeamActivity 
+                      ? `Equipo (${activity.user_ids.length} asesores)` 
+                      : 'Asesor Asignado'}
+                  </p>
+                  {evidenceStatus && (
                     <Badge 
-                      key={idx} 
-                      variant="secondary" 
-                      className="text-sm py-1 px-3"
+                      variant={evidenceStatus.with_evidence === evidenceStatus.total_assigned ? "default" : "outline"}
+                      className={cn(
+                        evidenceStatus.with_evidence === evidenceStatus.total_assigned 
+                          ? "bg-success text-success-foreground" 
+                          : evidenceStatus.with_evidence > 0 
+                            ? "border-warning text-warning"
+                            : "border-destructive text-destructive"
+                      )}
                     >
-                      {name}
+                      {evidenceStatus.with_evidence}/{evidenceStatus.total_assigned} con evidencia
                     </Badge>
-                  ))}
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {activity.user_names.map((name, idx) => {
+                    const userEvidence = evidenceStatus?.evidence_by_user[idx];
+                    const userId = activity.user_ids[idx];
+                    const isCurrentUser = user?.id === userId;
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded-lg",
+                          isCurrentUser ? "bg-accent" : "bg-muted/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm", isCurrentUser && "font-medium")}>
+                            {name}
+                            {isCurrentUser && <span className="text-xs text-muted-foreground ml-1">(tú)</span>}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {userEvidence && (
+                            <>
+                              {isCorriera && (
+                                <div className="flex items-center gap-1" title={userEvidence.has_photo ? "Foto subida" : "Sin foto"}>
+                                  <Camera className={cn("h-4 w-4", userEvidence.has_photo ? "text-success" : "text-muted-foreground")} />
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1" title={userEvidence.has_gps ? "Ubicación registrada" : "Sin ubicación"}>
+                                <Navigation className={cn("h-4 w-4", userEvidence.has_gps ? "text-success" : "text-muted-foreground")} />
+                              </div>
+                              {userEvidence.has_evidence ? (
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              )}
+                            </>
+                          )}
+                          {!userEvidence && (
+                            <span className="text-xs text-muted-foreground">Sin reporte</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
+
+            {/* Report button for assigned users on today's activity */}
+            {isUserAssigned && isToday && (
+              <div className="pt-4 border-t">
+                <Button 
+                  className="w-full" 
+                  onClick={() => {
+                    onClose();
+                    navigate('/actividades');
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Reportar Actividad
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  {isCorriera 
+                    ? 'Debes subir foto y registrar tu ubicación GPS'
+                    : 'Debes registrar tu ubicación GPS'}
+                </p>
+              </div>
+            )}
 
             {/* Action buttons for editors */}
             {canEdit && (
