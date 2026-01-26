@@ -47,7 +47,7 @@ const TIPOS_VENTA = [
   { value: 'CREDICONTADO', label: 'Credicontado', color: 'bg-blue-100 text-blue-800' },
   { value: 'CREDITO', label: 'Crédito', color: 'bg-purple-100 text-purple-800' },
   { value: 'CONVENIO', label: 'Convenio', color: 'bg-orange-100 text-orange-800' },
-  { value: 'OTROS', label: 'Otros', color: 'bg-gray-100 text-gray-800' },
+  { value: 'OTROS', label: 'No Aplica', color: 'bg-gray-100 text-gray-800' },
 ];
 
 export function FormasPagoConfig() {

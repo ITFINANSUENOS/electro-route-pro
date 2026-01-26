@@ -312,6 +312,36 @@ export type Database = {
         }
         Relationships: []
       }
+      permisos_roles: {
+        Row: {
+          categoria: string
+          created_at: string
+          habilitado: boolean
+          id: string
+          permiso: string
+          rol: string
+          updated_at: string
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          habilitado?: boolean
+          id?: string
+          permiso: string
+          rol: string
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          habilitado?: boolean
+          id?: string
+          permiso?: string
+          rol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           activo: boolean | null
