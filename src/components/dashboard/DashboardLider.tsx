@@ -453,12 +453,30 @@ export default function DashboardLider() {
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
 
     // Sort by net sales value (not absolute) - use net values for accurate ranking
+    // Also build metaByType for each advisor
     const byAdvisor = Object.values(byAdvisorMap)
-      .map(a => ({
-        ...a,
-        total: a.total, // Use net value, not abs - returns subtract from total
-        meta: metasData?.find(m => m.codigo_asesor === a.codigo)?.valor_meta || 0,
-      }))
+      .map(a => {
+        // Find all metas for this advisor and group by tipo_meta
+        const advisorMetas = metasData?.filter(m => 
+          normalizeCode(m.codigo_asesor) === normalizeCode(a.codigo) || 
+          m.codigo_asesor === a.codigo
+        ) || [];
+        
+        const metaByType: Record<string, number> = {};
+        advisorMetas.forEach(m => {
+          const tipoKey = (m.tipo_meta || 'ventas').toUpperCase();
+          metaByType[tipoKey] = (metaByType[tipoKey] || 0) + m.valor_meta;
+        });
+        
+        const totalMeta = advisorMetas.reduce((sum, m) => sum + m.valor_meta, 0);
+        
+        return {
+          ...a,
+          total: a.total, // Use net value, not abs - returns subtract from total
+          meta: totalMeta,
+          metaByType,
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     // Group by tipo_asesor - get COUNTS from profiles (source of truth), SALES from ventas
@@ -565,6 +583,37 @@ export default function DashboardLider() {
       };
     });
   }, [metasData, advancedFilteredSales]);
+
+  // Calculate metas by tipo_asesor
+  const metasByTipoAsesor = useMemo(() => {
+    if (!metasData || !profiles) return {};
+    
+    // Map codigo_asesor to tipo_asesor
+    const normalizeCode = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+    
+    const codigoToTipo = new Map<string, string>();
+    profiles.forEach(p => {
+      if (p.codigo_asesor) {
+        const normalized = normalizeCode(p.codigo_asesor);
+        codigoToTipo.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+        codigoToTipo.set(p.codigo_asesor, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+      }
+    });
+    
+    // Sum metas by tipo_asesor
+    const metasTotals: Record<string, number> = { INTERNO: 0, EXTERNO: 0, CORRETAJE: 0 };
+    
+    metasData.forEach(m => {
+      const normalizedCode = normalizeCode(m.codigo_asesor);
+      const tipo = codigoToTipo.get(normalizedCode) || codigoToTipo.get(m.codigo_asesor) || 'EXTERNO';
+      metasTotals[tipo] = (metasTotals[tipo] || 0) + m.valor_meta;
+    });
+    
+    return metasTotals;
+  }, [metasData, profiles]);
 
   // Calculate unique sales counts using the advanced grouping logic
   const salesCountData = useSalesCount(
@@ -763,11 +812,17 @@ export default function DashboardLider() {
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Desglose por tipo de venta"
-          tooltipItems={metrics.byType.map(t => ({
-            label: t.name,
-            value: formatCurrency(t.value),
-            color: t.color,
-          }))}
+          tooltipItems={metrics.byType.map(t => {
+            const tipoMeta = metasData
+              ?.filter(m => m.tipo_meta === t.key.toLowerCase())
+              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
+            return {
+              label: t.name,
+              value: `${formatCurrency(t.value)} (${tipoCompliance}%)`,
+              color: t.color,
+            };
+          })}
         />
         <KpiCard
           title="Q Ventas Mes"
@@ -775,11 +830,17 @@ export default function DashboardLider() {
           subtitle="Ventas únicas"
           icon={Hash}
           tooltipTitle="Cantidad por tipo de venta"
-          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => ({
-            label: tiposVentaLabels[key] || key,
-            value: `${data.count} ventas`,
-            color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
-          }))}
+          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => {
+            const tipoMeta = metasData
+              ?.filter(m => m.tipo_meta === key.toLowerCase())
+              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            const tipoCompliance = tipoMeta > 0 ? Math.round((data.value / tipoMeta) * 100) : 0;
+            return {
+              label: tiposVentaLabels[key] || key,
+              value: `${data.count} ventas (${tipoCompliance}%)`,
+              color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
+            };
+          })}
         />
         <KpiCard
           title="Asesores Activos"
@@ -871,7 +932,15 @@ export default function DashboardLider() {
                       borderRadius: 'var(--radius)',
                       fontSize: '12px',
                     }}
-                    formatter={(value: number) => [`$${value.toFixed(1)}M`, '']}
+                    formatter={(value: number, name: string, props: { payload?: { presupuesto?: number; ejecutado?: number } }) => {
+                      if (name === 'Ejecutado' && props.payload?.presupuesto) {
+                        const compliance = props.payload.presupuesto > 0 
+                          ? Math.round((value / props.payload.presupuesto) * 100) 
+                          : 0;
+                        return [`$${value.toFixed(1)}M (${compliance}%)`, name];
+                      }
+                      return [`$${value.toFixed(1)}M`, name];
+                    }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
                   <Bar dataKey="presupuesto" name="Presupuesto" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
@@ -897,6 +966,9 @@ export default function DashboardLider() {
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {metrics.byAdvisorType.map((tipo) => {
                 const salesCountForType = salesCountByAdvisorData.byTipoAsesor[tipo.tipo] || { count: 0, value: 0 };
+                const metaForType = metasByTipoAsesor[tipo.tipo] || 0;
+                const complianceForType = metaForType > 0 ? Math.round((tipo.total / metaForType) * 100) : 0;
+                
                 return (
                   <div
                     key={tipo.tipo}
@@ -911,9 +983,25 @@ export default function DashboardLider() {
                       </span>
                     </div>
                     <p className="text-lg sm:text-2xl font-bold text-foreground">{formatCurrency(tipo.total)}</p>
-                    <p className="text-xs sm:text-sm font-medium text-primary mt-1">
-                      {salesCountForType.count} {salesCountForType.count === 1 ? 'venta' : 'ventas'}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs sm:text-sm font-medium text-primary">
+                        {salesCountForType.count} {salesCountForType.count === 1 ? 'venta' : 'ventas'}
+                      </p>
+                      {metaForType > 0 && (
+                        <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                          complianceForType >= 100 ? 'bg-success/10 text-success' :
+                          complianceForType >= 80 ? 'bg-warning/10 text-warning' :
+                          'bg-danger/10 text-danger'
+                        }`}>
+                          {complianceForType}%
+                        </span>
+                      )}
+                    </div>
+                    {metaForType > 0 && (
+                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                        Meta: {formatCurrency(metaForType)}
+                      </p>
+                    )}
                     <div className="mt-1.5 sm:mt-2 h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full transition-all"
@@ -987,6 +1075,7 @@ export default function DashboardLider() {
             ranking={filteredRanking.map(a => ({
               ...a,
               meta: a.meta,
+              metaByType: a.metaByType,
               filteredTotal: (a as any).filteredTotal,
             }))}
             selectedFilters={selectedFilters}
