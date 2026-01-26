@@ -30,9 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X } from "lucide-react";
 import { roleLabels, UserRole } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
+import { Card, CardContent } from "@/components/ui/card";
 import * as XLSX from "xlsx";
 
 interface UserWithRole {
@@ -79,6 +80,12 @@ export default function Usuarios() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
+  // Filter states
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterNombre, setFilterNombre] = useState('');
+  const [filterRegional, setFilterRegional] = useState<string>('all');
+  const [filterEstado, setFilterEstado] = useState<string>('all');
+  
   // Form state
   const [formData, setFormData] = useState({
     email: '',
@@ -96,6 +103,33 @@ export default function Usuarios() {
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  
+  // Filtered users
+  const filteredUsers = users.filter((user) => {
+    // Filter by role
+    if (filterRole !== 'all' && user.role !== filterRole) return false;
+    
+    // Filter by name (case insensitive)
+    if (filterNombre && !user.nombre_completo.toLowerCase().includes(filterNombre.toLowerCase())) return false;
+    
+    // Filter by regional
+    if (filterRegional !== 'all' && user.regional_id !== filterRegional) return false;
+    
+    // Filter by estado
+    if (filterEstado === 'activo' && !user.activo) return false;
+    if (filterEstado === 'inactivo' && user.activo) return false;
+    
+    return true;
+  });
+  
+  const clearFilters = () => {
+    setFilterRole('all');
+    setFilterNombre('');
+    setFilterRegional('all');
+    setFilterEstado('all');
+  };
+  
+  const hasActiveFilters = filterRole !== 'all' || filterNombre !== '' || filterRegional !== 'all' || filterEstado !== 'all';
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -476,6 +510,93 @@ export default function Usuarios() {
         </div>
       </div>
 
+      {/* Filtros avanzados */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap items-end gap-4">
+            {/* Filtro por Rol */}
+            <div className="flex flex-col gap-1.5 min-w-[180px]">
+              <Label className="text-xs text-muted-foreground">Rol</Label>
+              <Select value={filterRole} onValueChange={setFilterRole}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todos los roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los roles</SelectItem>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {roleLabels[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Nombre */}
+            <div className="flex flex-col gap-1.5 min-w-[200px] flex-1 max-w-xs">
+              <Label className="text-xs text-muted-foreground">Nombre</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nombre..."
+                  value={filterNombre}
+                  onChange={(e) => setFilterNombre(e.target.value)}
+                  className="pl-8 h-9"
+                />
+              </div>
+            </div>
+
+            {/* Filtro por Regional */}
+            <div className="flex flex-col gap-1.5 min-w-[180px]">
+              <Label className="text-xs text-muted-foreground">Regional</Label>
+              <Select value={filterRegional} onValueChange={setFilterRegional}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todas las regionales" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las regionales</SelectItem>
+                  {regionales.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Estado */}
+            <div className="flex flex-col gap-1.5 min-w-[140px]">
+              <Label className="text-xs text-muted-foreground">Estado</Label>
+              <Select value={filterEstado} onValueChange={setFilterEstado}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="activo">Activo</SelectItem>
+                  <SelectItem value="inactivo">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Botón limpiar filtros */}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9">
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+          
+          {/* Contador de resultados */}
+          {hasActiveFilters && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Mostrando {filteredUsers.length} de {users.length} usuarios
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Tabla de usuarios */}
       <div className="border rounded-lg">
         <Table>
@@ -501,14 +622,16 @@ export default function Usuarios() {
                   <p className="text-muted-foreground mt-2">Cargando usuarios...</p>
                 </TableCell>
               </TableRow>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-8">
-                  <p className="text-muted-foreground">No hay usuarios registrados</p>
+                  <p className="text-muted-foreground">
+                    {hasActiveFilters ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
+              filteredUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <Badge variant={getRoleBadgeVariant(user.role)}>
