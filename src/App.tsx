@@ -13,6 +13,7 @@ import CargarVentas from "./pages/CargarVentas";
 import Mapa from "./pages/Mapa";
 import Informacion from "./pages/Informacion";
 import Usuarios from "./pages/Usuarios";
+import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,7 +36,7 @@ const App = () => (
               <Route path="/mapa" element={<Mapa />} />
               <Route path="/informacion" element={<Informacion />} />
               <Route path="/usuarios" element={<Usuarios />} />
-              <Route path="/configuracion" element={<Dashboard />} />
+              <Route path="/configuracion" element={<Configuracion />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
