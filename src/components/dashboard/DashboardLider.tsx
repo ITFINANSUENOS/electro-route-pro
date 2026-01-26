@@ -987,21 +987,19 @@ export default function DashboardLider() {
                       <p className="text-xs sm:text-sm font-medium text-primary">
                         {salesCountForType.count} {salesCountForType.count === 1 ? 'venta' : 'ventas'}
                       </p>
-                      {metaForType > 0 && (
-                        <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                          complianceForType >= 100 ? 'bg-success/10 text-success' :
-                          complianceForType >= 80 ? 'bg-warning/10 text-warning' :
-                          'bg-danger/10 text-danger'
-                        }`}>
-                          {complianceForType}%
-                        </span>
-                      )}
+                      <span className={`text-[10px] sm:text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                        metaForType > 0
+                          ? complianceForType >= 100 ? 'bg-success/10 text-success' :
+                            complianceForType >= 80 ? 'bg-warning/10 text-warning' :
+                            'bg-danger/10 text-danger'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {metaForType > 0 ? `${complianceForType}%` : '-%'}
+                      </span>
                     </div>
-                    {metaForType > 0 && (
-                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                        Meta: {formatCurrency(metaForType)}
-                      </p>
-                    )}
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                      Meta: {metaForType > 0 ? formatCurrency(metaForType) : 'Sin definir'}
+                    </p>
                     <div className="mt-1.5 sm:mt-2 h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full transition-all"
