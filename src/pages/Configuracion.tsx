@@ -1,11 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, CreditCard, History, Shield, Calendar } from "lucide-react";
+import { Building2, CreditCard, History, Shield, Calendar, Calculator } from "lucide-react";
 import { RegionalesConfig } from "@/components/configuracion/RegionalesConfig";
 import { FormasPagoConfig } from "@/components/configuracion/FormasPagoConfig";
 import { HistorialCambios } from "@/components/configuracion/HistorialCambios";
 import { PermisosConfig } from "@/components/configuracion/PermisosConfig";
 import ProgramacionConfig from "@/components/configuracion/ProgramacionConfig";
+import { MetasConfig } from "@/components/configuracion/MetasConfig";
 
 export default function Configuracion() {
   const { role } = useAuth();
@@ -28,26 +29,30 @@ export default function Configuracion() {
       </div>
 
       <Tabs defaultValue="regionales" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[900px]">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 lg:w-[1000px]">
           <TabsTrigger value="regionales" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Regionales
+            <span className="hidden sm:inline">Regionales</span>
           </TabsTrigger>
           <TabsTrigger value="formas-pago" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
-            Formas de Pago
+            <span className="hidden sm:inline">Formas Pago</span>
+          </TabsTrigger>
+          <TabsTrigger value="metas" className="flex items-center gap-2">
+            <Calculator className="h-4 w-4" />
+            <span className="hidden sm:inline">Metas</span>
           </TabsTrigger>
           <TabsTrigger value="programacion" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Programación
+            <span className="hidden sm:inline">Programación</span>
           </TabsTrigger>
           <TabsTrigger value="permisos" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Permisos
+            <span className="hidden sm:inline">Permisos</span>
           </TabsTrigger>
           <TabsTrigger value="historial" className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            Historial
+            <span className="hidden sm:inline">Historial</span>
           </TabsTrigger>
         </TabsList>
 
@@ -57,6 +62,10 @@ export default function Configuracion() {
 
         <TabsContent value="formas-pago">
           <FormasPagoConfig />
+        </TabsContent>
+
+        <TabsContent value="metas">
+          <MetasConfig />
         </TabsContent>
 
         <TabsContent value="programacion">
