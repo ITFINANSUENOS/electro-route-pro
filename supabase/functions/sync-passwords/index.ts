@@ -6,6 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Generic error messages
+const GENERIC_ERRORS = {
+  VALIDATION: 'Datos de entrada inválidos',
+  AUTH: 'Error de autenticación',
+  PERMISSION: 'Permisos insuficientes',
+  SERVER: 'Error procesando la solicitud',
+};
+
+// Maximum rows
+const MAX_ROWS = 500;
+const MAX_LENGTHS = {
+  nombre: 200,
+  email: 254,
+  cedula: 15,
+};
+
+// Sanitize field
+function sanitizeField(value: string | null | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return "'" + trimmed;
+  }
+  return trimmed;
+}
+
+// Truncate and sanitize
+function truncateField(value: string | null | undefined, maxLength: number): string {
+  if (!value) return '';
+  return sanitizeField(value).slice(0, maxLength);
+}
+
+// Validate cedula
+function validateCedula(cedula: string): boolean {
+  if (!cedula || cedula.length > MAX_LENGTHS.cedula) return false;
+  return /^\d{5,12}$/.test(cedula.trim());
+}
+
 interface UserCredential {
   cedula: string;
   correo: string;
@@ -41,7 +79,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: 'No autorizado' }),
+        JSON.stringify({ error: GENERIC_ERRORS.AUTH }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -51,7 +89,7 @@ serve(async (req) => {
     
     if (authError || !requestingUser) {
       return new Response(
-        JSON.stringify({ error: 'Token inválido' }),
+        JSON.stringify({ error: GENERIC_ERRORS.AUTH }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -64,7 +102,7 @@ serve(async (req) => {
 
     if (roleData?.role !== 'administrador') {
       return new Response(
-        JSON.stringify({ error: 'Solo administradores pueden ejecutar la sincronización' }),
+        JSON.stringify({ error: GENERIC_ERRORS.PERMISSION }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -73,7 +111,15 @@ serve(async (req) => {
 
     if (!users || !Array.isArray(users) || users.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'Se requiere el array de usuarios' }),
+        JSON.stringify({ error: GENERIC_ERRORS.VALIDATION }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate row count
+    if (users.length > MAX_ROWS) {
+      return new Response(
+        JSON.stringify({ error: `El archivo excede el máximo de ${MAX_ROWS} registros` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -104,8 +150,8 @@ serve(async (req) => {
       updated: 0,
       created: 0,
       skipped: 0,
-      notFound: 0,
-      errors: [] as string[],
+      validation_errors: 0,
+      total: users.length
     };
 
     console.log(`Processing ${users.length} users for password sync...`);
@@ -115,37 +161,49 @@ serve(async (req) => {
       try {
         const cedula = user.cedula?.toString().trim();
         const password = user.password?.trim();
-        const nombre = user.nombre?.trim();
+        const nombre = truncateField(user.nombre, MAX_LENGTHS.nombre);
         const rolOriginal = user.rol?.trim().toUpperCase();
         const rol = ROLE_MAP[rolOriginal] || 'asesor_comercial';
-        const zona = user.zona?.trim().toUpperCase() || '';
+        const zona = sanitizeField(user.zona?.trim().toUpperCase()) || '';
         
+        // Validate required fields
         if (!cedula || !password || !nombre) {
           stats.skipped++;
           continue;
         }
 
-        // Determine email: use provided correo or generate from cedula
-        const correoCSV = user.correo?.trim().toLowerCase();
+        // Validate cedula format
+        if (!validateCedula(cedula)) {
+          stats.validation_errors++;
+          continue;
+        }
+
+        // Validate password strength (basic check)
+        if (password.length < 8) {
+          stats.validation_errors++;
+          console.log(`Password too short for cedula ${cedula}`);
+          continue;
+        }
+
+        const correoCSV = truncateField(user.correo, MAX_LENGTHS.email).toLowerCase();
         const correoFinal = correoCSV || `${cedula}@electrocreditos.com`;
         const regionalId = regionalMap.get(zona) || null;
 
-        // PRIORITY: Find user by cedula in profiles table
         const profileData = profileByCedula.get(cedula);
 
         if (profileData?.user_id) {
-          // User exists - update password using user_id
+          // User exists - update password
           const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(profileData.user_id, {
             password: password,
             email_confirm: true,
           });
 
           if (updateError) {
-            stats.errors.push(`${cedula}: ${updateError.message}`);
+            console.error(`Error updating user ${cedula}:`, updateError.message);
+            stats.validation_errors++;
             continue;
           }
 
-          // Update profile with latest info
           await supabaseAdmin.from('profiles')
             .update({
               nombre_completo: nombre,
@@ -156,7 +214,6 @@ serve(async (req) => {
             })
             .eq('cedula', cedula);
 
-          // Update role - first delete existing, then insert
           await supabaseAdmin.from('user_roles')
             .delete()
             .eq('user_id', profileData.user_id);
@@ -168,7 +225,7 @@ serve(async (req) => {
             });
 
           stats.updated++;
-          console.log(`Updated by cedula: ${cedula} (${nombre})`);
+          console.log(`Updated: ${cedula} (${nombre})`);
         } else {
           // User doesn't exist - create new
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -179,18 +236,12 @@ serve(async (req) => {
           });
 
           if (createError) {
-            // Maybe email already exists with different cedula - try to find and update
-            if (createError.message.includes('already been registered')) {
-              console.log(`Email ${correoFinal} already exists, trying to find user...`);
-              stats.errors.push(`${cedula}: Email ${correoFinal} ya registrado con otra cédula`);
-            } else {
-              stats.errors.push(`${cedula}: ${createError.message}`);
-            }
+            console.error(`Error creating user ${cedula}:`, createError.message);
+            stats.validation_errors++;
             continue;
           }
 
           if (newUser?.user) {
-            // Create profile
             await supabaseAdmin.from('profiles').insert({
               user_id: newUser.user.id,
               cedula: cedula,
@@ -201,7 +252,6 @@ serve(async (req) => {
               regional_id: regionalId,
             });
 
-            // Create role - ensure no duplicates
             await supabaseAdmin.from('user_roles')
               .delete()
               .eq('user_id', newUser.user.id);
@@ -217,14 +267,14 @@ serve(async (req) => {
         }
 
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Error';
-        stats.errors.push(`Error: ${msg}`);
+        console.error('Error processing user:', err);
+        stats.validation_errors++;
       }
     }
 
-    console.log(`Sync completed: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped, ${stats.notFound} not found`);
-    console.log(`Errors: ${stats.errors.length}`);
+    console.log(`Sync completed: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped`);
 
+    // SECURITY: Do NOT return any password-related information
     return new Response(
       JSON.stringify({
         success: true,
@@ -235,10 +285,9 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    console.error('Error in sync-passwords:', errorMessage);
+    console.error('Error in sync-passwords:', error);
     return new Response(
-      JSON.stringify({ error: `Error interno: ${errorMessage}` }),
+      JSON.stringify({ error: GENERIC_ERRORS.SERVER }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

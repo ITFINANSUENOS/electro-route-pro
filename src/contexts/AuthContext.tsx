@@ -187,6 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole(null);
   };
 
+  /**
+   * SECURITY NOTE: This is a UI-ONLY permission check for showing/hiding UI elements.
+   * It does NOT provide security enforcement - that is handled by:
+   * - Row Level Security (RLS) policies on database tables
+   * - Edge function role checks using has_role() function
+   * - SECURITY DEFINER functions that verify user_roles
+   * 
+   * Do NOT rely on this function for authorization - always implement server-side checks.
+   */
   const hasPermission = (permission: string): boolean => {
     if (!role) return false;
     if (role === 'administrador') return true;
