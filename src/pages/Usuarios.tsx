@@ -35,7 +35,7 @@ import { roleLabels, UserRole } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface UserWithRole {
   id: string;
@@ -305,26 +305,57 @@ export default function Usuarios() {
     }
   };
 
-  const handleDownloadExcel = () => {
-    const excelData = users.map((user) => ({
-      'Rol': user.role ? roleLabels[user.role] : 'Sin rol',
-      'Tipo': user.tipo_asesor || '-',
-      'Email': user.correo || '-',
-      'Cédula': user.cedula,
-      'Nombre': user.nombre_completo,
-      'Teléfono': user.telefono || '-',
-      'Regional': user.regional_nombre || '-',
-      'Zona': user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
-      'Estado': user.activo ? 'Activo' : 'Inactivo',
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
+  const handleDownloadExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Usuarios');
     
-    // Generate filename with date
+    // Define columns
+    worksheet.columns = [
+      { header: 'Rol', key: 'rol', width: 20 },
+      { header: 'Tipo', key: 'tipo', width: 12 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Cédula', key: 'cedula', width: 15 },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'Teléfono', key: 'telefono', width: 15 },
+      { header: 'Regional', key: 'regional', width: 15 },
+      { header: 'Zona', key: 'zona', width: 12 },
+      { header: 'Estado', key: 'estado', width: 10 },
+    ];
+    
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4472C4' },
+    };
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    
+    // Add data
+    users.forEach((user) => {
+      worksheet.addRow({
+        rol: user.role ? roleLabels[user.role] : 'Sin rol',
+        tipo: user.tipo_asesor || '-',
+        email: user.correo || '-',
+        cedula: user.cedula,
+        nombre: user.nombre_completo,
+        telefono: user.telefono || '-',
+        regional: user.regional_nombre || '-',
+        zona: user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
+        estado: user.activo ? 'Activo' : 'Inactivo',
+      });
+    });
+    
+    // Generate and download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
     const date = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `usuarios_${date}.xlsx`);
+    link.download = `usuarios_${date}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
     toast.success('Archivo Excel descargado');
   };
 
