@@ -9,7 +9,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   role: UserRole | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (identifier: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, profileData: { cedula: string; nombre_completo: string; telefono?: string }) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
@@ -123,8 +123,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string) => {
     try {
+      let email = identifier;
+      
+      // Check if identifier is a cedula (only numbers) - look up email
+      const isCedula = /^\d+$/.test(identifier.trim());
+      if (isCedula) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('correo, user_id')
+          .eq('cedula', identifier.trim())
+          .maybeSingle();
+        
+        if (profileData?.correo) {
+          email = profileData.correo;
+        } else {
+          // Fallback: try cedula@electrocreditos.com
+          email = `${identifier.trim()}@electrocreditos.com`;
+        }
+      }
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
