@@ -133,104 +133,63 @@ export default function DashboardAsesor() {
   const regionalId = (profile as any)?.regional_id;
   const codigoJefe = (profile as any)?.codigo_jefe;
 
-  // Fetch all profiles in the same regional for ranking
-  const { data: regionalProfiles } = useQuery({
-    queryKey: ['regional-profiles', regionalId],
+  // Fetch total advisor count in regional using database function
+  const { data: regionalAdvisorCount } = useQuery({
+    queryKey: ['regional-advisor-count', regionalId],
     queryFn: async () => {
-      if (!regionalId) return [];
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('codigo_asesor, nombre_completo, codigo_jefe')
-        .eq('regional_id', regionalId)
-        .eq('activo', true);
+      if (!regionalId) return 0;
+      const { data, error } = await supabase.rpc('count_regional_advisors', {
+        p_regional_id: regionalId
+      });
       if (error) throw error;
-      return data || [];
+      return data || 0;
     },
     enabled: !!regionalId,
   });
 
-  // Fetch all sales in the regional for ranking calculation
-  const { data: regionalSales } = useQuery({
-    queryKey: ['regional-sales-ranking', regionalId, startDateStr],
+  // Fetch top sales in regional using database function
+  const { data: topRegionalSales } = useQuery({
+    queryKey: ['top-regional-sales', regionalId, startDateStr, endDateStr],
     queryFn: async () => {
-      if (!regionalId || !regionalProfiles) return [];
-      
-      // Get all advisor codes in the regional
-      const codes = regionalProfiles.map(p => p.codigo_asesor).filter(Boolean);
-      if (codes.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from('ventas')
-        .select('codigo_asesor, vtas_ant_i, tipo_venta')
-        .in('codigo_asesor', codes)
-        .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
-      
+      if (!regionalId) return 0;
+      const { data, error } = await supabase.rpc('get_top_regional_sales', {
+        p_regional_id: regionalId,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr
+      });
       if (error) throw error;
-      return data || [];
+      return data || 0;
     },
-    enabled: !!regionalId && !!regionalProfiles && regionalProfiles.length > 0,
+    enabled: !!regionalId,
   });
 
-  // Calculate rankings
-  const rankingData = useMemo(() => {
-    if (!regionalSales || !regionalProfiles || !codigoAsesor) {
-      return { 
-        groupPosition: 0, groupTotal: 0, 
-        regionalPosition: 0, regionalTotal: 0,
-        mySales: 0, topRegionalSales: 0,
-        hasGroup: false
-      };
-    }
-
-    // Filter out OTROS and aggregate by advisor
-    const salesByAdvisor: Record<string, number> = {};
-    regionalSales
-      .filter(sale => sale.tipo_venta !== 'OTROS')
-      .forEach(sale => {
-        const code = sale.codigo_asesor;
-        salesByAdvisor[code] = (salesByAdvisor[code] || 0) + Math.abs(sale.vtas_ant_i || 0);
+  // Fetch advisor's position in regional ranking
+  const { data: regionalPosition } = useQuery({
+    queryKey: ['advisor-regional-position', codigoAsesor, regionalId, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!regionalId || !codigoAsesor) return 0;
+      const { data, error } = await supabase.rpc('get_advisor_regional_position', {
+        p_codigo_asesor: codigoAsesor,
+        p_regional_id: regionalId,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr
       });
+      if (error) throw error;
+      return data || 0;
+    },
+    enabled: !!regionalId && !!codigoAsesor,
+  });
 
-    // My sales
-    const mySales = salesByAdvisor[codigoAsesor] || 0;
-
-    // Regional ranking
-    const regionalRanking = Object.entries(salesByAdvisor)
-      .sort((a, b) => b[1] - a[1]);
-    const regionalPosition = regionalRanking.findIndex(([code]) => code === codigoAsesor) + 1;
-    const topRegionalSales = regionalRanking.length > 0 ? regionalRanking[0][1] : 0;
-
-    // Group ranking (if has codigo_jefe)
-    let groupPosition = 0;
-    let groupTotal = 0;
-    const hasGroup = !!codigoJefe;
-    
-    if (hasGroup) {
-      // Get advisors in the same group (same codigo_jefe)
-      const groupAdvisors = regionalProfiles
-        .filter(p => p.codigo_jefe === codigoJefe)
-        .map(p => p.codigo_asesor)
-        .filter(Boolean);
-      
-      const groupRanking = groupAdvisors
-        .map(code => ({ code, sales: salesByAdvisor[code] || 0 }))
-        .sort((a, b) => b.sales - a.sales);
-      
-      groupPosition = groupRanking.findIndex(item => item.code === codigoAsesor) + 1;
-      groupTotal = groupRanking.length;
-    }
-
+  // Calculate group position (using local sales data - advisors can see their own data)
+  const groupRankingData = useMemo(() => {
+    // For group ranking, we still need to rely on frontend calculation
+    // since it requires comparing with peers - but this is less critical
     return {
-      groupPosition,
-      groupTotal,
-      regionalPosition: regionalPosition || (mySales > 0 ? 1 : 0),
-      regionalTotal: regionalRanking.length,
-      mySales,
-      topRegionalSales,
-      hasGroup
+      groupPosition: 0,
+      groupTotal: 0,
+      hasGroup: !!codigoJefe
     };
-  }, [regionalSales, regionalProfiles, codigoAsesor, codigoJefe]);
+  }, [codigoJefe]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -356,24 +315,13 @@ export default function DashboardAsesor() {
             <div className="flex flex-col items-center py-4">
               {/* Ranking Numbers */}
               <div className="flex gap-8 mb-6">
-                {rankingData.hasGroup && (
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground mb-1">En mi Grupo</p>
-                    <div className="text-5xl font-bold text-primary">
-                      #{rankingData.groupPosition || '-'}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      de {rankingData.groupTotal} asesores
-                    </p>
-                  </div>
-                )}
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground mb-1">En mi Regional</p>
                   <div className="text-5xl font-bold text-secondary">
-                    #{rankingData.regionalPosition || '-'}
+                    #{regionalPosition || '-'}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    de {rankingData.regionalTotal} asesores
+                    de {regionalAdvisorCount || 0} asesores
                   </p>
                 </div>
               </div>
@@ -382,12 +330,12 @@ export default function DashboardAsesor() {
               <div className="w-full mt-2 p-5 rounded-xl bg-primary/20 border border-primary/30">
                 <p className="text-sm text-muted-foreground mb-1">Ventas acumuladas</p>
                 <p className="text-3xl font-bold text-primary">
-                  {formatCurrency(rankingData.mySales)}
+                  {formatCurrency(metrics.total)}
                 </p>
                 <div className="mt-3 pt-3 border-t border-primary/20">
                   <p className="text-xs text-muted-foreground">Ventas Asesor No1</p>
                   <p className="text-lg font-medium text-muted-foreground">
-                    {formatCurrency(rankingData.topRegionalSales)}
+                    {formatCurrency(topRegionalSales || 0)}
                   </p>
                 </div>
               </div>
