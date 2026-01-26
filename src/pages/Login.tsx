@@ -11,7 +11,7 @@ import logoElectrocreditos from '@/assets/logo-electrocreditos.png';
 import logoFinansuenos from '@/assets/logo-finansuenos.png';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(identifier, password);
 
     if (error) {
       toast({
@@ -139,16 +139,19 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
+              <Label htmlFor="identifier">Cédula o Correo electrónico</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="usuario@electrocreditos.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="Cédula o correo@empresa.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 className="h-12"
               />
+              <p className="text-xs text-muted-foreground">
+                Asesores y Jefes: ingresar con cédula. Líderes y Coordinadores: cédula o correo corporativo.
+              </p>
             </div>
 
             <div className="space-y-2">
