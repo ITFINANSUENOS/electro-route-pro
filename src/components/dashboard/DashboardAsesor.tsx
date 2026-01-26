@@ -180,16 +180,38 @@ export default function DashboardAsesor() {
     enabled: !!regionalId && !!codigoAsesor,
   });
 
-  // Calculate group position (using local sales data - advisors can see their own data)
-  const groupRankingData = useMemo(() => {
-    // For group ranking, we still need to rely on frontend calculation
-    // since it requires comparing with peers - but this is less critical
-    return {
-      groupPosition: 0,
-      groupTotal: 0,
-      hasGroup: !!codigoJefe
-    };
-  }, [codigoJefe]);
+  // Fetch group advisor count using database function
+  const { data: groupAdvisorCount } = useQuery({
+    queryKey: ['group-advisor-count', codigoJefe],
+    queryFn: async () => {
+      if (!codigoJefe) return 0;
+      const { data, error } = await supabase.rpc('count_group_advisors', {
+        p_codigo_jefe: codigoJefe
+      });
+      if (error) throw error;
+      return data || 0;
+    },
+    enabled: !!codigoJefe,
+  });
+
+  // Fetch advisor's position in group ranking
+  const { data: groupPosition } = useQuery({
+    queryKey: ['advisor-group-position', codigoAsesor, codigoJefe, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!codigoJefe || !codigoAsesor) return 0;
+      const { data, error } = await supabase.rpc('get_advisor_group_position', {
+        p_codigo_asesor: codigoAsesor,
+        p_codigo_jefe: codigoJefe,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr
+      });
+      if (error) throw error;
+      return data || 0;
+    },
+    enabled: !!codigoJefe && !!codigoAsesor,
+  });
+
+  const hasGroup = !!codigoJefe && (groupAdvisorCount || 0) > 0;
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -314,16 +336,27 @@ export default function DashboardAsesor() {
           <CardContent>
             <div className="flex flex-col items-center py-4">
               {/* Ranking Numbers */}
-              <div className="flex gap-8 mb-6">
+              <div className="flex gap-6 mb-6 flex-wrap justify-center">
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground mb-1">En mi Regional</p>
-                  <div className="text-5xl font-bold text-secondary">
+                  <div className="text-4xl font-bold text-secondary">
                     #{regionalPosition || '-'}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
                     de {regionalAdvisorCount || 0} asesores
                   </p>
                 </div>
+                {hasGroup && (
+                  <div className="text-center border-l border-border pl-6">
+                    <p className="text-sm text-muted-foreground mb-1">En mi Grupo</p>
+                    <div className="text-4xl font-bold text-primary">
+                      #{groupPosition || '-'}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      de {groupAdvisorCount || 0} asesores
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Sales Summary Box */}
