@@ -134,24 +134,53 @@ export default function DashboardLider() {
   }, [isGlobalRole, role, regionalCodesToFilter, profile]);
 
   // Fetch real sales data - filter by regional for lider_zona (including mapped codes)
+  // Use pagination to fetch ALL records (Supabase default limit is 1000)
   const { data: salesData, isLoading: isLoadingSales } = useQuery({
     queryKey: ['dashboard-sales', isGlobalRole ? 'all' : regionalCodesToFilter, role, startDateStr],
     queryFn: async () => {
-      let query = supabase
-        .from('ventas')
-        .select('*')
-        .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
+      type SaleRow = {
+        id: string;
+        fecha: string;
+        tipo_venta: string | null;
+        vtas_ant_i: number;
+        codigo_asesor: string;
+        asesor_nombre: string | null;
+        cod_region: number | null;
+        [key: string]: unknown;
+      };
       
-      // If lider_zona, filter by their regional codes (can include multiple)
-      // Admin/Coordinador sees ALL data without regional filter
-      if (role === 'lider_zona' && regionalCodesToFilter.length > 0) {
-        query = query.in('cod_region', regionalCodesToFilter);
+      const allData: SaleRow[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        let query = supabase
+          .from('ventas')
+          .select('*')
+          .gte('fecha', startDateStr)
+          .lte('fecha', endDateStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        // If lider_zona, filter by their regional codes (can include multiple)
+        // Admin/Coordinador sees ALL data without regional filter
+        if (role === 'lider_zona' && regionalCodesToFilter.length > 0) {
+          query = query.in('cod_region', regionalCodesToFilter);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData.push(...(data as SaleRow[]));
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
       
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      return allData;
     },
     enabled: salesQueryEnabled,
   });

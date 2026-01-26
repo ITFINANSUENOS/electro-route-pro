@@ -95,13 +95,46 @@ export default function Reportes() {
   const { data: ventas = [] } = useQuery({
     queryKey: ['ventas-reportes', startDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ventas')
-        .select('*')
-        .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
-      if (error) throw error;
-      return data || [];
+      type SaleRow = {
+        id: string;
+        fecha: string;
+        tipo_venta: string | null;
+        vtas_ant_i: number;
+        total: number | null;
+        codigo_asesor: string;
+        asesor_nombre: string | null;
+        cod_region: number | null;
+        codigo_jefe: string | null;
+        cedula_asesor: string | null;
+        sede: string | null;
+        [key: string]: unknown;
+      };
+      
+      const allData: SaleRow[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('ventas')
+          .select('*')
+          .gte('fecha', startDateStr)
+          .lte('fecha', endDateStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData.push(...(data as SaleRow[]));
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allData;
     },
   });
 
