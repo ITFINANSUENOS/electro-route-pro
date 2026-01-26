@@ -7,7 +7,10 @@ import {
   Target,
   AlertCircle,
   Filter,
+  Download,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,7 +107,7 @@ export default function DashboardJefe() {
       if (!codigoJefe) return [];
       const { data, error } = await supabase
         .from('profiles')
-        .select('codigo_asesor, nombre_completo, tipo_asesor')
+        .select('codigo_asesor, nombre_completo, tipo_asesor, cedula')
         .eq('codigo_jefe', codigoJefe)
         .eq('activo', true)
         .not('codigo_asesor', 'is', null);
@@ -220,15 +223,25 @@ export default function DashboardJefe() {
       color: tiposVentaColors[name as keyof typeof tiposVentaColors] || 'hsl(var(--muted))',
     }));
 
-    // Group by advisor
+    // Group by advisor with sales by type
     const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisor = sale.codigo_asesor;
       if (!acc[advisor]) {
-        acc[advisor] = { codigo: advisor, nombre: sale.asesor_nombre || advisor, total: 0 };
+        const profileMatch = teamProfiles?.find(p => p.codigo_asesor === advisor);
+        acc[advisor] = { 
+          codigo: advisor, 
+          nombre: sale.asesor_nombre || advisor, 
+          tipoAsesor: profileMatch?.tipo_asesor || 'EXTERNO',
+          cedula: profileMatch?.cedula || '',
+          total: 0,
+          byType: {} as Record<string, number>
+        };
       }
       acc[advisor].total += sale.vtas_ant_i || 0;
+      const tipo = sale.tipo_venta || 'OTRO';
+      acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
-    }, {} as Record<string, { codigo: string; nombre: string; total: number }>);
+    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; total: number; byType: Record<string, number> }>);
 
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => ({
@@ -250,7 +263,7 @@ export default function DashboardJefe() {
       byAdvisor,
       totalMeta,
     };
-  }, [salesData, metasData]);
+  }, [salesData, metasData, teamProfiles]);
 
   // Team performance for bar chart
   const teamPerformance = useMemo(() => {
@@ -279,18 +292,44 @@ export default function DashboardJefe() {
     if (selectedFilters.length === 0) return metrics.byAdvisor;
     
     return metrics.byAdvisor.map(advisor => {
-      // Calculate total based on selected filters (using byType from sales)
-      const salesForAdvisor = salesData?.filter(s => s.codigo_asesor === advisor.codigo) || [];
-      const filteredTotal = salesForAdvisor
-        .filter(s => selectedFilters.includes(s.tipo_venta as TipoVentaKey))
-        .reduce((sum, s) => sum + Math.abs(s.vtas_ant_i || 0), 0);
+      const filteredTotal = selectedFilters.reduce((sum, tipo) => {
+        return sum + Math.abs(advisor.byType[tipo] || 0);
+      }, 0);
       
       return {
         ...advisor,
         filteredTotal,
       };
     }).sort((a, b) => b.filteredTotal - a.filteredTotal);
-  }, [metrics.byAdvisor, salesData, selectedFilters]);
+  }, [metrics.byAdvisor, selectedFilters]);
+
+  // Calculate total for ranking
+  const rankingTotal = useMemo(() => {
+    return filteredRanking.reduce((sum, advisor) => {
+      const displayTotal = selectedFilters.length > 0 
+        ? (advisor as any).filteredTotal 
+        : advisor.total;
+      return sum + displayTotal;
+    }, 0);
+  }, [filteredRanking, selectedFilters]);
+
+  // Handle Excel export
+  const handleExportExcel = () => {
+    const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => ({
+      codigo: advisor.codigo,
+      nombre: advisor.nombre,
+      tipoAsesor: advisor.tipoAsesor || 'EXTERNO',
+      cedula: advisor.cedula || '',
+      total: selectedFilters.length > 0 ? (advisor as any).filteredTotal : advisor.total,
+      byType: advisor.byType,
+    }));
+
+    exportRankingToExcel({
+      data: dataForExport,
+      includeRegional: false,
+      fileName: 'ranking_jefe_ventas',
+    });
+  };
 
   // Calculate incompliance
   const incompliance = useMemo(() => {
@@ -457,6 +496,15 @@ export default function DashboardJefe() {
                 </CardTitle>
                 <CardDescription>Ordenados por ventas según filtro</CardDescription>
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportExcel}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Descargar Excel
+              </Button>
             </div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mt-4">
@@ -533,6 +581,14 @@ export default function DashboardJefe() {
                     );
                   })}
                 </tbody>
+                <tfoot className="sticky bottom-0 bg-card border-t-2">
+                  <tr className="font-bold">
+                    <td className="py-3 px-2" colSpan={2}>TOTAL VENTAS</td>
+                    <td className="py-3 px-2 text-right text-primary">{formatCurrency(rankingTotal)}</td>
+                    <td className="py-3 px-2 text-right">-</td>
+                    <td className="py-3 px-2 text-right">-</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </CardContent>
