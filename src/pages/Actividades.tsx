@@ -27,12 +27,13 @@ export default function Actividades() {
     hasConsultasSubmitted,
     isFreeUser,
     hasScheduledActivity,
+    isAsesorComercial,
     submitEvidence,
     submitConsultas,
   } = useTodayActivity();
 
   const timeRestrictions = useActivityTimeRestrictions(todayAssignment);
-  const { showNotification: showConsultasNotification } = useActivityNotification();
+  const { showNotification: showConsultasNotification, isAsesorComercial: notificationIsAsesor } = useActivityNotification();
 
   // Determine if user can view activity reports
   const canViewReports = role === 'jefe_ventas' || role === 'lider_zona' || 
@@ -102,20 +103,24 @@ export default function Actividades() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Registro de Actividades</h1>
           <p className="text-muted-foreground mt-1">
-            {isFreeUser 
-              ? 'Día libre - Registra tus consultas y solicitudes' 
-              : 'Registra tu actividad comercial diaria'}
+            {isAsesorComercial 
+              ? (isFreeUser 
+                  ? 'Día libre - Registra tus consultas y solicitudes' 
+                  : 'Registra tu actividad comercial diaria')
+              : (hasScheduledActivity 
+                  ? 'Registra la evidencia de tu actividad asignada'
+                  : 'No tienes actividades asignadas para hoy')}
           </p>
         </div>
-        {showConsultasNotification && (
+        {showConsultasNotification && isAsesorComercial && (
           <Badge variant="destructive" className="animate-pulse">
             Pendiente registro
           </Badge>
         )}
       </div>
 
-      {/* Notification banner for consultas */}
-      {showConsultasNotification && (
+      {/* Notification banner for consultas - only for asesores */}
+      {showConsultasNotification && isAsesorComercial && (
         <Alert variant="destructive" className="bg-warning/10 border-warning">
           <AlertTriangle className="h-4 w-4 text-warning" />
           <AlertTitle className="text-warning">Recordatorio Importante</AlertTitle>
@@ -151,6 +156,7 @@ export default function Actividades() {
               hasEvidenceSubmitted={hasEvidenceSubmitted}
               timeRestrictions={timeRestrictions}
               showConsultasNotification={showConsultasNotification}
+              isAsesorComercial={isAsesorComercial}
               onSubmitEvidence={handleSubmitEvidence}
               onSubmitConsultas={handleSubmitConsultas}
               isSubmittingEvidence={submitEvidence.isPending}
@@ -172,6 +178,7 @@ export default function Actividades() {
           hasEvidenceSubmitted={hasEvidenceSubmitted}
           timeRestrictions={timeRestrictions}
           showConsultasNotification={showConsultasNotification}
+          isAsesorComercial={isAsesorComercial}
           onSubmitEvidence={handleSubmitEvidence}
           onSubmitConsultas={handleSubmitConsultas}
           isSubmittingEvidence={submitEvidence.isPending}
@@ -192,6 +199,7 @@ interface ActivityRegistrationContentProps {
   hasEvidenceSubmitted: boolean;
   timeRestrictions: ReturnType<typeof useActivityTimeRestrictions>;
   showConsultasNotification: boolean;
+  isAsesorComercial: boolean;
   onSubmitEvidence: (data: {
     photoUrl: string;
     latitude: number;
@@ -215,6 +223,7 @@ function ActivityRegistrationContent({
   hasEvidenceSubmitted,
   timeRestrictions,
   showConsultasNotification,
+  isAsesorComercial,
   onSubmitEvidence,
   onSubmitConsultas,
   isSubmittingEvidence,
@@ -261,43 +270,56 @@ function ActivityRegistrationContent({
           </Card>
         )}
 
-        {/* Consultas Section - Available for all users */}
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-secondary" />
-              Consultas y Solicitudes
-              {showConsultasNotification && (
-                <Badge variant="destructive" className="ml-2">Pendiente</Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              {isFreeUser 
-                ? 'Registra las consultas y solicitudes realizadas hoy (opcional)'
-                : 'Registra las consultas y solicitudes del día (4pm - 9pm)'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ConsultasSection
-              canUploadConsultas={timeRestrictions.canUploadConsultas}
-              consultasTimeMessage={timeRestrictions.consultasTimeMessage}
-              isInConsultasWindow={timeRestrictions.isInConsultasWindow}
-              todayReport={todayReport}
-              onSubmitConsultas={onSubmitConsultas}
-              isSubmitting={isSubmittingConsultas}
-              showNotificationBanner={showConsultasNotification}
-            />
-          </CardContent>
-        </Card>
+        {/* Consultas Section - Only for asesores comerciales */}
+        {isAsesorComercial && (
+          <Card className="card-elevated">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-secondary" />
+                Consultas y Solicitudes
+                {showConsultasNotification && (
+                  <Badge variant="destructive" className="ml-2">Pendiente</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {isFreeUser 
+                  ? 'Registra las consultas y solicitudes realizadas hoy (opcional)'
+                  : 'Registra las consultas y solicitudes del día (4pm - 9pm)'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ConsultasSection
+                canUploadConsultas={timeRestrictions.canUploadConsultas}
+                consultasTimeMessage={timeRestrictions.consultasTimeMessage}
+                isInConsultasWindow={timeRestrictions.isInConsultasWindow}
+                todayReport={todayReport}
+                onSubmitConsultas={onSubmitConsultas}
+                isSubmitting={isSubmittingConsultas}
+                showNotificationBanner={showConsultasNotification}
+              />
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Free user info */}
-        {isFreeUser && (
+        {/* Free user info - only for asesores */}
+        {isFreeUser && isAsesorComercial && (
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Día Libre</AlertTitle>
             <AlertDescription>
               No tienes actividades programadas para hoy. Si no realizaste consultas ni solicitudes, 
               no es necesario registrar nada.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Info for non-asesores without scheduled activity */}
+        {isFreeUser && !isAsesorComercial && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Sin Actividad Asignada</AlertTitle>
+            <AlertDescription>
+              No tienes actividades programadas para hoy.
             </AlertDescription>
           </Alert>
         )}

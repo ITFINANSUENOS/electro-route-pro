@@ -77,6 +77,10 @@ export function ActividadesViewer() {
   const [showFilters, setShowFilters] = useState(false);
   const [showOnlyWithEvidence, setShowOnlyWithEvidence] = useState(false);
 
+  // Check if user can see hierarchical filters
+  const canViewAllRegionales = role === 'administrador' || role === 'coordinador_comercial';
+  const canViewJefes = role === 'administrador' || role === 'coordinador_comercial' || role === 'lider_zona';
+
   // Fetch regionales
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales-actividades'],
@@ -89,11 +93,12 @@ export function ActividadesViewer() {
       if (error) throw error;
       return data || [];
     },
+    enabled: canViewAllRegionales,
   });
 
   // Fetch jefes de ventas
   const { data: jefesVentas = [] } = useQuery({
-    queryKey: ['jefes-ventas-actividades', selectedRegional],
+    queryKey: ['jefes-ventas-actividades', selectedRegional, profile?.regional_id, role],
     queryFn: async () => {
       let query = supabase
         .from('jefes_ventas')
@@ -101,7 +106,10 @@ export function ActividadesViewer() {
         .eq('activo', true)
         .order('nombre');
 
-      if (selectedRegional !== 'todos') {
+      // For lider_zona, only show jefes from their regional
+      if (role === 'lider_zona' && profile?.regional_id) {
+        query = query.eq('regional_id', profile.regional_id);
+      } else if (selectedRegional !== 'todos') {
         query = query.eq('regional_id', selectedRegional);
       }
 
@@ -109,6 +117,7 @@ export function ActividadesViewer() {
       if (error) throw error;
       return data || [];
     },
+    enabled: canViewJefes,
   });
 
   // Fetch profiles
@@ -166,13 +175,41 @@ export function ActividadesViewer() {
     return map;
   }, [regionales]);
 
-  // Filter programaciones based on filters
+  // Filter programaciones based on user role and hierarchy
   const filteredProgramaciones = useMemo(() => {
     return programaciones.filter(prog => {
       const userProfile = profilesMap.get(prog.user_id);
       if (!userProfile) return false;
 
-      // Filter by regional
+      // Hierarchical filter based on role
+      // Administrador and Coordinador can see all
+      // Lider can only see their regional
+      // Jefe can only see their team (same codigo_jefe) and their own activities
+      // Asesor can only see their own activities
+      
+      if (role === 'asesor_comercial') {
+        // Asesores only see their own activities
+        if (prog.user_id !== profile?.user_id) {
+          return false;
+        }
+      } else if (role === 'jefe_ventas') {
+        // Jefes see their own activities and their team's activities
+        const myProfile = profile;
+        const myCodigoJefe = myProfile?.codigo_jefe;
+        
+        // Check if it's the jefe's own activity or an advisor from their team
+        if (prog.user_id !== profile?.user_id && userProfile.codigo_jefe !== myCodigoJefe) {
+          return false;
+        }
+      } else if (role === 'lider_zona') {
+        // Lideres only see activities from their regional
+        if (userProfile.regional_id !== profile?.regional_id) {
+          return false;
+        }
+      }
+      // coordinador_comercial and administrador see all - no additional filter needed
+
+      // Filter by regional (only applies if role allows it)
       if (selectedRegional !== 'todos' && userProfile.regional_id !== selectedRegional) {
         return false;
       }
@@ -205,7 +242,7 @@ export function ActividadesViewer() {
 
       return true;
     });
-  }, [programaciones, profilesMap, selectedRegional, selectedJefe, selectedTipo, searchDate, searchText]);
+  }, [programaciones, profilesMap, selectedRegional, selectedJefe, selectedTipo, searchDate, searchText, role, profile]);
 
   // Group programaciones by key
   const groupedActivities = useMemo(() => {
@@ -380,40 +417,44 @@ export function ActividadesViewer() {
                 />
               </div>
 
-              {/* Regional filter */}
-              <div className="space-y-2">
-                <Label>Regional</Label>
-                <Select value={selectedRegional} onValueChange={(v) => {
-                  setSelectedRegional(v);
-                  setSelectedJefe('todos');
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas las regionales" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas las regionales</SelectItem>
-                    {regionales.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Regional filter - only for coordinadores and admins */}
+              {canViewAllRegionales && (
+                <div className="space-y-2">
+                  <Label>Regional</Label>
+                  <Select value={selectedRegional} onValueChange={(v) => {
+                    setSelectedRegional(v);
+                    setSelectedJefe('todos');
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas las regionales" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas las regionales</SelectItem>
+                      {regionales.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              {/* Jefe filter */}
-              <div className="space-y-2">
-                <Label>Jefe de Ventas</Label>
-                <Select value={selectedJefe} onValueChange={setSelectedJefe}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos los jefes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los jefes</SelectItem>
-                    {jefesVentas.map((j) => (
-                      <SelectItem key={j.id} value={j.codigo}>{j.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Jefe filter - for coordinadores, admins and lideres */}
+              {canViewJefes && jefesVentas.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Jefe de Ventas</Label>
+                  <Select value={selectedJefe} onValueChange={setSelectedJefe}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos los jefes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los jefes</SelectItem>
+                      {jefesVentas.map((j) => (
+                        <SelectItem key={j.id} value={j.codigo}>{j.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Type filter */}
               <div className="space-y-2">

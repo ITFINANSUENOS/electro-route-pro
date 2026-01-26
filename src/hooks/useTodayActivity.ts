@@ -31,9 +31,12 @@ export interface TodayReport {
 }
 
 export function useTodayActivity() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Only asesores comerciales need to register consultas/solicitudes
+  const isAsesorComercial = role === 'asesor_comercial';
 
   // Fetch today's assignment
   const { data: todayAssignment, isLoading: loadingAssignment } = useQuery({
@@ -76,8 +79,8 @@ export function useTodayActivity() {
   // Check if evidence was already submitted
   const hasEvidenceSubmitted = todayReport?.evidencia_completa === true;
   
-  // Check if consultas/solicitudes were submitted today
-  const hasConsultasSubmitted = !!todayReport && 
+  // Check if consultas/solicitudes were submitted today (only relevant for asesores)
+  const hasConsultasSubmitted = isAsesorComercial && !!todayReport && 
     (todayReport.consultas !== null || todayReport.solicitudes !== null);
 
   // Determine user status
@@ -192,6 +195,7 @@ export function useTodayActivity() {
     hasConsultasSubmitted,
     isFreeUser,
     hasScheduledActivity,
+    isAsesorComercial,
     submitEvidence,
     submitConsultas,
     refetchReport,
