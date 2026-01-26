@@ -54,7 +54,7 @@ const allNavItems: NavItem[] = [
     title: 'Actividades', 
     href: '/actividades', 
     icon: ClipboardCheck,
-    roles: ['asesor_comercial']
+    roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
     id: 'cargar-ventas',
