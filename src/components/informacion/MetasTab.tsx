@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react';
+import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAuth } from '@/contexts/AuthContext';
+import { exportMetasTemplate } from '@/utils/exportMetasTemplate';
 
 interface MetaData {
   id: string;
@@ -38,7 +40,9 @@ const formatCurrency = (value: number) => {
 export default function MetasTab() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [selectedTipoVenta, setSelectedTipoVenta] = useState('all');
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
+  const { role, profile } = useAuth();
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
@@ -100,6 +104,34 @@ export default function MetasTab() {
       }
     };
     input.click();
+  };
+
+  const handleDownloadTemplate = async () => {
+    setIsDownloading(true);
+    try {
+      const result = await exportMetasTemplate(role, profile?.regional_id || null, profile?.zona || null);
+      
+      if (result.success) {
+        toast({
+          title: 'Plantilla descargada',
+          description: `Se descargó la plantilla con ${result.count} asesores activos`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'No se pudo descargar la plantilla',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Error al generar la plantilla',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   // Calculate totals
@@ -169,8 +201,16 @@ export default function MetasTab() {
         </Card>
       </div>
 
-      {/* Upload Button */}
-      <div className="flex justify-end">
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-3">
+        <Button 
+          variant="outline" 
+          onClick={handleDownloadTemplate}
+          disabled={isDownloading}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          {isDownloading ? 'Descargando...' : 'Plantilla Metas'}
+        </Button>
         <Button onClick={handleUploadMetas} className="btn-brand">
           <Upload className="mr-2 h-4 w-4" />
           Cargar Metas (.CSV)
