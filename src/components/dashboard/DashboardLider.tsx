@@ -360,7 +360,7 @@ export default function DashboardLider() {
     // Use filtered sales
     const filteredSales = advancedFilteredSales;
 
-    // Group by tipo_venta
+    // Group by tipo_venta - use net values (SUM, not ABS) to account for returns
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
         const type = sale.tipo_venta || 'OTRO';
@@ -369,7 +369,7 @@ export default function DashboardLider() {
       }, {} as Record<string, number>)
     ).map(([name, value]) => ({
       name: tiposVentaLabels[name] || name,
-      value: Math.abs(value as number),
+      value: value as number, // Use net value, not abs - allows negatives for returns
       key: name,
       color: tiposVentaColors[name as TipoVentaKey] || 'hsl(var(--muted))',
     }));
@@ -450,10 +450,11 @@ export default function DashboardLider() {
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
 
+    // Sort by net sales value (not absolute) - use net values for accurate ranking
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => ({
         ...a,
-        total: Math.abs(a.total),
+        total: a.total, // Use net value, not abs - returns subtract from total
         meta: metasData?.find(m => m.codigo_asesor === a.codigo)?.valor_meta || 0,
       }))
       .sort((a, b) => b.total - a.total);
@@ -493,7 +494,7 @@ export default function DashboardLider() {
         tipo,
         label: tipoAsesorLabels[tipo] || tipo,
         count: profileCountsByType[tipo] || 0,
-        total: Math.abs(salesByTipoAsesor[tipo] || 0),
+        total: salesByTipoAsesor[tipo] || 0, // Use net value, not abs
         color: tipoAsesorColors[tipo] || 'hsl(var(--muted))',
       }))
       .sort((a, b) => b.total - a.total);
