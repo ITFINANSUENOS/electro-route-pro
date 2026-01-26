@@ -34,6 +34,7 @@ import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X, Upl
 import { roleLabels, UserRole } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 
 interface UserWithRole {
@@ -60,6 +61,13 @@ interface Regional {
   codigo: number;
 }
 
+interface JefeVentas {
+  id: string;
+  codigo: string;
+  nombre: string;
+  regional_id: string | null;
+}
+
 const ROLES: UserRole[] = [
   'asesor_comercial',
   'jefe_ventas',
@@ -70,6 +78,10 @@ const ROLES: UserRole[] = [
 ];
 
 const ZONAS = ['norte', 'sur', 'centro', 'oriente'];
+const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
+
+// Regionales that have jefes de ventas
+const REGIONALES_CON_JEFES = ['SANTANDER', 'POPAYAN', 'AMBIENTA', 'BORDO'];
 
 export default function Usuarios() {
   const { role } = useAuth();
@@ -99,11 +111,36 @@ export default function Usuarios() {
     regional_id: '',
     codigo_asesor: '',
     codigo_jefe: '',
+    tipo_asesor: '',
   });
   
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+
+  // Fetch jefes de ventas
+  const { data: jefesVentas = [] } = useQuery({
+    queryKey: ['jefes-ventas-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jefes_ventas')
+        .select('id, codigo, nombre, regional_id')
+        .order('nombre');
+      if (error) throw error;
+      return data as JefeVentas[];
+    },
+  });
+
+  // Filter jefes by selected regional
+  const filteredJefes = jefesVentas.filter(jefe => 
+    !formData.regional_id || jefe.regional_id === formData.regional_id
+  );
+
+  // Check if selected regional has jefes
+  const selectedRegionalName = regionales.find(r => r.id === formData.regional_id)?.nombre || '';
+  const regionalHasJefes = REGIONALES_CON_JEFES.some(r => 
+    selectedRegionalName.toUpperCase().includes(r)
+  );
   
   // Filtered users
   const filteredUsers = users.filter((user) => {
@@ -182,6 +219,7 @@ export default function Usuarios() {
       regional_id: '',
       codigo_asesor: '',
       codigo_jefe: '',
+      tipo_asesor: '',
     });
     setShowPassword(false);
   };
@@ -556,7 +594,14 @@ export default function Usuarios() {
                     <Label htmlFor="regional_id">Regional</Label>
                     <Select
                       value={formData.regional_id}
-                      onValueChange={(value) => setFormData({ ...formData, regional_id: value })}
+                      onValueChange={(value) => setFormData({ 
+                        ...formData, 
+                        regional_id: value,
+                        // Reset codigo_jefe when regional changes if it doesn't match
+                        codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
+                          ? formData.codigo_jefe 
+                          : ''
+                      })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione regional" />
@@ -571,16 +616,64 @@ export default function Usuarios() {
                     </Select>
                   </div>
 
+                  {/* Tipo Asesor - solo si rol es asesor */}
+                  {formData.role === 'asesor_comercial' && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="tipo_asesor">Tipo Asesor</Label>
+                      <Select
+                        value={formData.tipo_asesor}
+                        onValueChange={(value) => setFormData({ ...formData, tipo_asesor: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_ASESOR.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {t}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Código Asesor - solo si rol es asesor */}
                   {formData.role === 'asesor_comercial' && (
                     <div className="grid gap-2">
                       <Label htmlFor="codigo_asesor">Código Asesor</Label>
                       <Input
                         id="codigo_asesor"
-                        placeholder="ASE001"
+                        placeholder="12345"
                         value={formData.codigo_asesor}
                         onChange={(e) => setFormData({ ...formData, codigo_asesor: e.target.value })}
                       />
+                    </div>
+                  )}
+
+                  {/* Jefe de Ventas - solo si rol es asesor y regional tiene jefes */}
+                  {formData.role === 'asesor_comercial' && formData.regional_id && regionalHasJefes && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="jefe_ventas">Jefe de Ventas</Label>
+                      <Select
+                        value={formData.codigo_jefe}
+                        onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione jefe de ventas" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Sin asignar</SelectItem>
+                          {filteredJefes.map((jefe) => (
+                            <SelectItem key={jefe.id} value={jefe.codigo}>
+                              {jefe.nombre} ({jefe.codigo})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        El jefe de ventas determina el grupo al que pertenece el asesor
+                      </p>
                     </div>
                   )}
 
@@ -590,7 +683,7 @@ export default function Usuarios() {
                       <Label htmlFor="codigo_jefe">Código Jefe</Label>
                       <Input
                         id="codigo_jefe"
-                        placeholder="JEF001"
+                        placeholder="69334"
                         value={formData.codigo_jefe}
                         onChange={(e) => setFormData({ ...formData, codigo_jefe: e.target.value })}
                       />

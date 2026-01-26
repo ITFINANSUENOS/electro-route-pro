@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { roleLabels, UserRole } from "@/types/auth";
+import { useQuery } from "@tanstack/react-query";
 
 interface UserWithRole {
   id: string;
@@ -46,6 +47,13 @@ interface Regional {
   codigo: number;
 }
 
+interface JefeVentas {
+  id: string;
+  codigo: string;
+  nombre: string;
+  regional_id: string | null;
+}
+
 interface UserEditDialogProps {
   user: UserWithRole | null;
   open: boolean;
@@ -65,6 +73,9 @@ const ROLES: UserRole[] = [
 
 const ZONAS = ['norte', 'sur', 'centro', 'oriente'];
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
+
+// Regionales that have jefes de ventas
+const REGIONALES_CON_JEFES = ['SANTANDER', 'POPAYAN', 'AMBIENTA', 'BORDO'];
 
 export function UserEditDialog({ 
   user, 
@@ -86,6 +97,30 @@ export function UserEditDialog({
     codigo_jefe: '',
     tipo_asesor: '',
   });
+
+  // Fetch jefes de ventas
+  const { data: jefesVentas = [] } = useQuery({
+    queryKey: ['jefes-ventas-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('jefes_ventas')
+        .select('id, codigo, nombre, regional_id')
+        .order('nombre');
+      if (error) throw error;
+      return data as JefeVentas[];
+    },
+  });
+
+  // Filter jefes by selected regional
+  const filteredJefes = jefesVentas.filter(jefe => 
+    !formData.regional_id || jefe.regional_id === formData.regional_id
+  );
+
+  // Check if selected regional has jefes
+  const selectedRegionalName = regionales.find(r => r.id === formData.regional_id)?.nombre || '';
+  const regionalHasJefes = REGIONALES_CON_JEFES.some(r => 
+    selectedRegionalName.toUpperCase().includes(r)
+  );
 
   useEffect(() => {
     if (user) {
@@ -270,7 +305,14 @@ export function UserEditDialog({
               <Label htmlFor="edit_regional">Regional</Label>
               <Select
                 value={formData.regional_id}
-                onValueChange={(value) => setFormData({ ...formData, regional_id: value })}
+                onValueChange={(value) => setFormData({ 
+                  ...formData, 
+                  regional_id: value,
+                  // Reset codigo_jefe when regional changes if it doesn't match
+                  codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
+                    ? formData.codigo_jefe 
+                    : ''
+                })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione regional" />
@@ -294,6 +336,32 @@ export function UserEditDialog({
                   value={formData.codigo_asesor}
                   onChange={(e) => setFormData({ ...formData, codigo_asesor: e.target.value })}
                 />
+              </div>
+            )}
+
+            {/* Jefe de Ventas - solo si rol es asesor y regional tiene jefes */}
+            {formData.role === 'asesor_comercial' && formData.regional_id && regionalHasJefes && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit_jefe_ventas">Jefe de Ventas</Label>
+                <Select
+                  value={formData.codigo_jefe}
+                  onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione jefe de ventas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sin asignar</SelectItem>
+                    {filteredJefes.map((jefe) => (
+                      <SelectItem key={jefe.id} value={jefe.codigo}>
+                        {jefe.nombre} ({jefe.codigo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  El jefe de ventas determina el grupo al que pertenece el asesor
+                </p>
               </div>
             )}
 
