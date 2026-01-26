@@ -6,19 +6,16 @@ import {
   ShoppingCart,
   Target,
   AlertCircle,
-  Filter,
-  Download,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import {
   PieChart,
   Pie,
@@ -60,15 +57,6 @@ const tiposVentaColors = {
   CREDITO: 'hsl(var(--primary))',
   CONVENIO: 'hsl(var(--secondary))',
 };
-
-const tiposVentaLabels: Record<string, string> = {
-  CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
-};
-
-type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
 
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
@@ -352,22 +340,20 @@ export default function DashboardJefe() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="space-y-6"
+      className="space-y-4 sm:space-y-6"
     >
       {/* Header */}
-      <motion.div variants={item} className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {role && roleLabels[role]} • Equipo de {metrics.byAdvisor.length} asesores
-          </p>
-        </div>
+      <motion.div variants={item} className="flex flex-col gap-2">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+          ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
+        </h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          {role && roleLabels[role]} • Equipo de {metrics.byAdvisor.length} asesores
+        </p>
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Ventas del Equipo"
           value={formatCurrency(metrics.total)}
@@ -383,13 +369,13 @@ export default function DashboardJefe() {
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
         />
         <KpiCard
-          title="Asesores en Equipo"
+          title="Asesores"
           value={metrics.byAdvisor.length.toString()}
           subtitle="Con ventas este mes"
           icon={Users}
         />
         <KpiCard
-          title="Consultas del Equipo"
+          title="Consultas"
           value={reportesData?.reduce((sum, r) => sum + (r.consultas || 0), 0).toString() || '0'}
           subtitle="Este mes"
           icon={TrendingUp}
@@ -484,154 +470,59 @@ export default function DashboardJefe() {
         </Card>
       </motion.div>
 
-      {/* Ranking Table with Filters */}
+      {/* Ranking Table */}
       <motion.div variants={item}>
-        <Card className="card-elevated">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-secondary" />
-                  Ranking de Asesores
-                </CardTitle>
-                <CardDescription>Ordenados por ventas según filtro</CardDescription>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleExportExcel}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Descargar Excel
-              </Button>
-            </div>
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3 mt-4">
-              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                <Filter className="h-4 w-4" />
-                Filtrar:
-              </span>
-              {(Object.keys(tiposVentaLabels) as TipoVentaKey[]).map((tipo) => (
-                <label
-                  key={tipo}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedFilters.includes(tipo)}
-                    onCheckedChange={() => toggleFilter(tipo)}
-                  />
-                  <span className="text-sm">{tiposVentaLabels[tipo]}</span>
-                </label>
-              ))}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto max-h-[400px]">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Pos.</th>
-                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Asesor</th>
-                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Ventas</th>
-                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Meta</th>
-                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRanking.map((advisor, index) => {
-                    const displayTotal = selectedFilters.length > 0 
-                      ? (advisor as any).filteredTotal 
-                      : advisor.total;
-                    const compliancePercent = advisor.meta > 0 
-                      ? Math.round((displayTotal / advisor.meta) * 100) 
-                      : 0;
-
-                    return (
-                      <tr key={advisor.codigo} className="border-b hover:bg-muted/50 transition-colors">
-                        <td className="py-3 px-2">
-                          <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold ${
-                            index === 0 ? 'bg-yellow-100 text-yellow-700' :
-                            index === 1 ? 'bg-gray-100 text-gray-700' :
-                            index === 2 ? 'bg-orange-100 text-orange-700' :
-                            'bg-muted text-muted-foreground'
-                          }`}>
-                            {index + 1}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 font-medium truncate max-w-[150px]">
-                          {advisor.nombre}
-                        </td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(displayTotal)}</td>
-                        <td className="py-3 px-2 text-right text-muted-foreground">
-                          {advisor.meta > 0 ? formatCurrency(advisor.meta) : '-'}
-                        </td>
-                        <td className="py-3 px-2 text-right">
-                          {advisor.meta > 0 ? (
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              compliancePercent >= 100 ? 'bg-success/10 text-success' :
-                              compliancePercent >= 80 ? 'bg-warning/10 text-warning' :
-                              'bg-danger/10 text-danger'
-                            }`}>
-                              {compliancePercent}%
-                            </span>
-                          ) : '-'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="sticky bottom-0 bg-card border-t-2">
-                  <tr className="font-bold">
-                    <td className="py-3 px-2" colSpan={2}>TOTAL VENTAS</td>
-                    <td className="py-3 px-2 text-right text-primary">{formatCurrency(rankingTotal)}</td>
-                    <td className="py-3 px-2 text-right">-</td>
-                    <td className="py-3 px-2 text-right">-</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <RankingTable
+          ranking={filteredRanking.map(a => ({
+            ...a,
+            meta: a.meta,
+            filteredTotal: (a as any).filteredTotal,
+          }))}
+          selectedFilters={selectedFilters}
+          onToggleFilter={toggleFilter}
+          onExportExcel={handleExportExcel}
+          maxRows={20}
+          includeRegional={false}
+        />
       </motion.div>
 
       {/* Incompliance Section */}
       <motion.div variants={item}>
         <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
+          <CardHeader className="pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
               Indicadores de Incumplimiento
             </CardTitle>
-            <CardDescription>Asesores con registros pendientes hoy</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Asesores con registros pendientes</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="p-4 rounded-lg bg-danger/10 border border-danger/20">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+              <div className="p-3 sm:p-4 rounded-lg bg-danger/10 border border-danger/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sin evidencia fotográfica</span>
+                  <span className="text-xs sm:text-sm font-medium">Sin evidencia</span>
                   <StatusBadge status="danger" label={`${incompliance.sinFoto}`} size="sm" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  No subieron foto de actividad
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                  No subieron foto
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-warning/10 border border-warning/20">
+              <div className="p-3 sm:p-4 rounded-lg bg-warning/10 border border-warning/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sin registro GPS</span>
+                  <span className="text-xs sm:text-sm font-medium">Sin GPS</span>
                   <StatusBadge status="warning" label={`${incompliance.sinGPS}`} size="sm" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                   No validaron ubicación
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-accent border border-border">
+              <div className="p-3 sm:p-4 rounded-lg bg-accent border border-border">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sin consultas/solicitudes</span>
+                  <span className="text-xs sm:text-sm font-medium">Sin consultas</span>
                   <StatusBadge status="neutral" label={`${incompliance.sinConsultas}`} size="sm" />
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Cerraron sin registrar gestión
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                  Sin gestión registrada
                 </p>
               </div>
             </div>
