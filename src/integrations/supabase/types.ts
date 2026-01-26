@@ -746,8 +746,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      count_group_advisors: { Args: { p_codigo_jefe: string }; Returns: number }
       count_regional_advisors: {
         Args: { p_regional_id: string }
+        Returns: number
+      }
+      get_advisor_group_position: {
+        Args: {
+          p_codigo_asesor: string
+          p_codigo_jefe: string
+          p_end_date: string
+          p_start_date: string
+        }
         Returns: number
       }
       get_advisor_regional_position: {
