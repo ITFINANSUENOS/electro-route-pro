@@ -86,19 +86,30 @@ serve(async (req) => {
     const regionalMap = new Map<string, string>();
     regionales?.forEach(r => {
       regionalMap.set(r.nombre.toUpperCase(), r.id);
-      // Map variations
       if (r.nombre.toUpperCase() === 'CALI') regionalMap.set('VALLE', r.id);
       if (r.nombre.toUpperCase() === 'PASTO') regionalMap.set('SUR', r.id);
+    });
+
+    // Load all profiles to find by cedula
+    const { data: allProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, user_id, cedula, correo');
+    
+    const profileByCedula = new Map<string, { user_id: string; correo: string | null }>();
+    allProfiles?.forEach(p => {
+      profileByCedula.set(p.cedula, { user_id: p.user_id, correo: p.correo });
     });
 
     const stats = {
       updated: 0,
       created: 0,
       skipped: 0,
+      notFound: 0,
       errors: [] as string[],
     };
 
     console.log(`Processing ${users.length} users for password sync...`);
+    console.log(`Found ${profileByCedula.size} profiles in database`);
 
     for (const user of users) {
       try {
@@ -115,16 +126,16 @@ serve(async (req) => {
         }
 
         // Determine email: use provided correo or generate from cedula
-        const correo = user.correo?.trim().toLowerCase() || `${cedula}@electrocreditos.com`;
+        const correoCSV = user.correo?.trim().toLowerCase();
+        const correoFinal = correoCSV || `${cedula}@electrocreditos.com`;
         const regionalId = regionalMap.get(zona) || null;
 
-        // Check if auth user exists with this email
-        const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const existingAuth = existingAuthUsers?.users?.find(u => u.email?.toLowerCase() === correo);
+        // PRIORITY: Find user by cedula in profiles table
+        const profileData = profileByCedula.get(cedula);
 
-        if (existingAuth) {
-          // Update password for existing user
-          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingAuth.id, {
+        if (profileData?.user_id) {
+          // User exists - update password using user_id
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(profileData.user_id, {
             password: password,
             email_confirm: true,
           });
@@ -134,70 +145,57 @@ serve(async (req) => {
             continue;
           }
 
-          // Update profile
+          // Update profile with latest info
           await supabaseAdmin.from('profiles')
             .update({
               nombre_completo: nombre,
               activo: true,
-              correo: correo,
+              correo: correoFinal,
               zona: zona.toLowerCase() || null,
               regional_id: regionalId,
             })
-            .eq('user_id', existingAuth.id);
+            .eq('cedula', cedula);
 
-          // Update role if needed
+          // Update role
           await supabaseAdmin.from('user_roles')
-            .update({ role: rol })
-            .eq('user_id', existingAuth.id);
+            .upsert({
+              user_id: profileData.user_id,
+              role: rol,
+            }, { onConflict: 'user_id' });
 
           stats.updated++;
-          console.log(`Updated password for: ${correo}`);
+          console.log(`Updated by cedula: ${cedula} (${nombre})`);
         } else {
-          // Create new user
+          // User doesn't exist - create new
           const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email: correo,
+            email: correoFinal,
             password: password,
             email_confirm: true,
             user_metadata: { cedula, nombre_completo: nombre }
           });
 
           if (createError) {
-            stats.errors.push(`${cedula}: ${createError.message}`);
+            // Maybe email already exists with different cedula - try to find and update
+            if (createError.message.includes('already been registered')) {
+              console.log(`Email ${correoFinal} already exists, trying to find user...`);
+              stats.errors.push(`${cedula}: Email ${correoFinal} ya registrado con otra cédula`);
+            } else {
+              stats.errors.push(`${cedula}: ${createError.message}`);
+            }
             continue;
           }
 
           if (newUser?.user) {
-            // Check if profile exists by cedula
-            const { data: existingProfile } = await supabaseAdmin
-              .from('profiles')
-              .select('id')
-              .eq('cedula', cedula)
-              .maybeSingle();
-
-            if (existingProfile) {
-              // Update existing profile with new user_id
-              await supabaseAdmin.from('profiles')
-                .update({
-                  user_id: newUser.user.id,
-                  nombre_completo: nombre,
-                  activo: true,
-                  correo: correo,
-                  zona: zona.toLowerCase() || null,
-                  regional_id: regionalId,
-                })
-                .eq('cedula', cedula);
-            } else {
-              // Create new profile
-              await supabaseAdmin.from('profiles').insert({
-                user_id: newUser.user.id,
-                cedula: cedula,
-                nombre_completo: nombre,
-                activo: true,
-                correo: correo,
-                zona: zona.toLowerCase() || null,
-                regional_id: regionalId,
-              });
-            }
+            // Create profile
+            await supabaseAdmin.from('profiles').insert({
+              user_id: newUser.user.id,
+              cedula: cedula,
+              nombre_completo: nombre,
+              activo: true,
+              correo: correoFinal,
+              zona: zona.toLowerCase() || null,
+              regional_id: regionalId,
+            });
 
             // Create role
             await supabaseAdmin.from('user_roles').insert({
@@ -206,7 +204,7 @@ serve(async (req) => {
             });
 
             stats.created++;
-            console.log(`Created user: ${correo}`);
+            console.log(`Created: ${cedula} (${nombre})`);
           }
         }
 
@@ -216,7 +214,8 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Sync completed: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped`);
+    console.log(`Sync completed: ${stats.created} created, ${stats.updated} updated, ${stats.skipped} skipped, ${stats.notFound} not found`);
+    console.log(`Errors: ${stats.errors.length}`);
 
     return new Response(
       JSON.stringify({
