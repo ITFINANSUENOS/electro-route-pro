@@ -194,11 +194,24 @@ export default function Reportes() {
   });
 
   // Create a map of codigo_asesor to tipo_asesor from profiles
+  // Normalize codes to 5 digits with leading zeros for consistent matching
+  const normalizeCode = (code: string): string => {
+    const clean = (code || '').replace(/^0+/, '').trim();
+    return clean.padStart(5, '0');
+  };
+
   const asesorTipoMap = useMemo(() => {
     const map = new Map<string, string>();
     profiles.forEach((p) => {
-      if (p.codigo_asesor && p.tipo_asesor) {
-        map.set(p.codigo_asesor, p.tipo_asesor);
+      if (p.codigo_asesor) {
+        const normalizedCode = normalizeCode(p.codigo_asesor);
+        // GERENCIA (code 01 or 00001) counts as INTERNO
+        let tipoAsesor = p.tipo_asesor?.toUpperCase() || 'EXTERNO';
+        if (normalizedCode === '00001') {
+          tipoAsesor = 'INTERNO';
+        }
+        map.set(p.codigo_asesor, tipoAsesor);
+        map.set(normalizedCode, tipoAsesor);
       }
     });
     return map;
@@ -306,10 +319,22 @@ export default function Reportes() {
       ventasPorTipo[tipo] = (ventasPorTipo[tipo] || 0) + Math.abs(v.vtas_ant_i || 0);
     });
 
-    // Ventas por tipo de asesor
+    // Ventas por tipo de asesor - check both raw and normalized codes
+    // Also handle GERENCIA (code 01/00001) as INTERNO
     const ventasPorTipoAsesor: Record<string, number> = {};
     salesForMetrics.forEach((v) => {
-      const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '') || 'SIN TIPO';
+      const codigo = v.codigo_asesor || '';
+      const normalizedCode = normalizeCode(codigo);
+      const nombre = (v.asesor_nombre || '').toUpperCase();
+      
+      // Check for GERENCIA entries - should be counted as INTERNO
+      let tipoAsesor: string;
+      if (codigo === '01' || normalizedCode === '00001' || nombre.includes('GERENCIA')) {
+        tipoAsesor = 'INTERNO';
+      } else {
+        tipoAsesor = asesorTipoMap.get(codigo) || asesorTipoMap.get(normalizedCode) || 'EXTERNO';
+      }
+      
       ventasPorTipoAsesor[tipoAsesor] = (ventasPorTipoAsesor[tipoAsesor] || 0) + Math.abs(v.vtas_ant_i || 0);
     });
 
@@ -365,13 +390,13 @@ export default function Reportes() {
     );
   }, [profiles, reportesDiarios]);
 
-  // Budget vs Executed chart data
+  // Budget vs Executed chart data - use vtas_ant_i for consistency with dashboard
   const budgetVsExecuted = useMemo(() => {
     const tipos = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
     return tipos.map((tipo) => {
       const ventasTipo = filteredVentas
         .filter((v) => v.tipo_venta === tipo)
-        .reduce((sum, v) => sum + (v.total || 0), 0);
+        .reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
       const metasTipo = metas
         .filter((m) => m.tipo_meta === tipo)
         .reduce((sum, m) => sum + m.valor_meta, 0);
