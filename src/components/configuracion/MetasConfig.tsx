@@ -45,6 +45,18 @@ const formatCurrencyInput = (value: number): string => {
   }).format(value);
 };
 
+// Format percentage with comma as decimal separator
+const formatPercentageDisplay = (value: number): string => {
+  if (!value || value === 0) return '';
+  return value.toString().replace('.', ',');
+};
+
+// Parse percentage input (allows comma as decimal separator)
+const parsePercentageInput = (value: string): number => {
+  const cleanValue = value.replace(',', '.').replace(/[^\d.]/g, '');
+  return parseFloat(cleanValue) || 0;
+};
+
 interface PromedioConfig {
   regional_id: string;
   tipo_asesor: string;
@@ -64,6 +76,8 @@ export function MetasConfig() {
   const [selectedRegionales, setSelectedRegionales] = useState<string[]>([]);
   const [localPromedios, setLocalPromedios] = useState<Record<string, Record<string, Record<string, number>>>>({});
   const [localPorcentajes, setLocalPorcentajes] = useState<Record<string, PorcentajeConfig>>({});
+  // Store porcentaje input strings separately to allow typing with comma
+  const [porcentajeInputs, setPorcentajeInputs] = useState<Record<string, Record<string, string>>>({});
   const [hasChanges, setHasChanges] = useState(false);
 
   // Fetch regionales
@@ -135,13 +149,18 @@ export function MetasConfig() {
       ?? 0;
   };
 
-  const getPorcentajeValue = (regionalId: string, field: keyof PorcentajeConfig): string => {
-    if (field === 'regional_id') return '0';
-    const value = localPorcentajes[regionalId]?.[field] 
+  // Get porcentaje display value - use input string if available, else format from number
+  const getPorcentajeDisplayValue = (regionalId: string, field: keyof PorcentajeConfig): string => {
+    if (field === 'regional_id') return '';
+    // If there's an input string being edited, use that
+    const inputValue = porcentajeInputs[regionalId]?.[field];
+    if (inputValue !== undefined) return inputValue;
+    // Otherwise, format the stored number
+    const numValue = localPorcentajes[regionalId]?.[field] 
       ?? initialPorcentajes[regionalId]?.[field] 
       ?? 0;
-    // Display with comma as decimal separator for Spanish locale
-    return value.toString().replace('.', ',');
+    if (numValue === 0) return '';
+    return formatPercentageDisplay(numValue);
   };
 
   // Handle promedio change - allow full currency values
@@ -162,12 +181,27 @@ export function MetasConfig() {
     setHasChanges(true);
   };
 
-  // Handle porcentaje change - allow comma as decimal separator
-  const handlePorcentajeChange = (regionalId: string, field: keyof PorcentajeConfig, value: string) => {
+  // Handle porcentaje input change - store string for display
+  const handlePorcentajeInputChange = (regionalId: string, field: keyof PorcentajeConfig, value: string) => {
     if (field === 'regional_id') return;
-    // Replace comma with dot for decimal parsing, allow digits and decimal separator
-    const cleanValue = value.replace(',', '.').replace(/[^\d.]/g, '');
-    const numValue = parseFloat(cleanValue) || 0;
+    // Only allow digits and one comma
+    const filteredValue = value.replace(/[^\d,]/g, '').replace(/(,.*),/g, '$1');
+    setPorcentajeInputs(prev => ({
+      ...prev,
+      [regionalId]: {
+        ...prev[regionalId],
+        [field]: filteredValue,
+      },
+    }));
+    setHasChanges(true);
+  };
+
+  // Handle porcentaje blur - parse and store numeric value
+  const handlePorcentajeBlur = (regionalId: string, field: keyof PorcentajeConfig) => {
+    if (field === 'regional_id') return;
+    const inputValue = porcentajeInputs[regionalId]?.[field] ?? '';
+    const numValue = parsePercentageInput(inputValue);
+    
     setLocalPorcentajes(prev => ({
       ...prev,
       [regionalId]: {
@@ -179,7 +213,15 @@ export function MetasConfig() {
         [field]: numValue,
       },
     }));
-    setHasChanges(true);
+    
+    // Clear the input string so it uses the formatted number
+    setPorcentajeInputs(prev => {
+      const newInputs = { ...prev };
+      if (newInputs[regionalId]) {
+        delete newInputs[regionalId][field];
+      }
+      return newInputs;
+    });
   };
 
   // Toggle regional selection
@@ -262,7 +304,25 @@ export function MetasConfig() {
         });
       });
 
-      // Collect all porcentaje changes
+      // First, process any pending porcentaje inputs
+      Object.entries(porcentajeInputs).forEach(([regionalId, fields]) => {
+        Object.entries(fields).forEach(([field, inputValue]) => {
+          const numValue = parsePercentageInput(inputValue);
+          setLocalPorcentajes(prev => ({
+            ...prev,
+            [regionalId]: {
+              ...prev[regionalId],
+              regional_id: regionalId,
+              porcentaje_aumento_1: prev[regionalId]?.porcentaje_aumento_1 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_1 ?? 0,
+              porcentaje_aumento_2: prev[regionalId]?.porcentaje_aumento_2 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_2 ?? 0,
+              porcentaje_aumento_3: prev[regionalId]?.porcentaje_aumento_3 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_3 ?? 0,
+              [field]: numValue,
+            },
+          }));
+        });
+      });
+
+      // Collect all porcentaje changes (including just-processed inputs)
       const porcentajesToSave: PorcentajeConfig[] = Object.values(localPorcentajes);
 
       // Save both
@@ -275,6 +335,7 @@ export function MetasConfig() {
 
       setLocalPromedios({});
       setLocalPorcentajes({});
+      setPorcentajeInputs({});
       setHasChanges(false);
       toast.success('Configuración guardada correctamente');
     } catch (error) {
@@ -417,8 +478,9 @@ export function MetasConfig() {
                                 <div className="relative">
                                   <Input
                                     type="text"
-                                    value={getPorcentajeValue(regional.id, porcentajeField)}
-                                    onChange={(e) => handlePorcentajeChange(regional.id, porcentajeField, e.target.value)}
+                                    value={getPorcentajeDisplayValue(regional.id, porcentajeField)}
+                                    onChange={(e) => handlePorcentajeInputChange(regional.id, porcentajeField, e.target.value)}
+                                    onBlur={() => handlePorcentajeBlur(regional.id, porcentajeField)}
                                     className="pr-6 text-right h-9 w-24 font-mono text-sm"
                                     placeholder="0"
                                   />
