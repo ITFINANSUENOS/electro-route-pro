@@ -16,11 +16,8 @@ import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
-import { PaymentBreakdown } from './PaymentBreakdown';
+import { InteractiveSalesChart } from './InteractiveSalesChart';
 import {
-  PieChart,
-  Pie,
-  Cell,
   BarChart,
   Bar,
   XAxis,
@@ -398,59 +395,12 @@ export default function DashboardJefe() {
 
       {/* Charts Row */}
       <motion.div variants={item} className="grid gap-6 lg:grid-cols-2">
-        {/* Sales by Type Pie Chart */}
-        <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-secondary" />
-              Ventas del Equipo por Tipo
-            </CardTitle>
-            <CardDescription>Distribución acumulada</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px] flex items-center">
-              <ResponsiveContainer width="55%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={metrics.byType}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {metrics.byType.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: 'var(--radius)',
-                    }}
-                    formatter={(value: number) => [formatCurrency(value), 'Ventas']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-3 flex-1">
-                {metrics.byType.map((type) => (
-                  <div key={type.name} className="flex items-center gap-3">
-                    <div
-                      className="h-3 w-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: type.color }}
-                    />
-                    <span className="text-sm text-foreground flex-1">{type.name}</span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(type.value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Interactive Sales by Type Chart */}
+        <InteractiveSalesChart
+          salesByType={metrics.byType}
+          salesData={salesData || []}
+          formasPago={formasPago}
+        />
 
         {/* Team Performance */}
         <Card className="card-elevated">
@@ -497,15 +447,6 @@ export default function DashboardJefe() {
           onExportExcel={handleExportExcel}
           maxRows={20}
           includeRegional={false}
-        />
-      </motion.div>
-
-      {/* Payment Breakdown */}
-      <motion.div variants={item}>
-        <PaymentBreakdown
-          salesData={salesData || []}
-          formasPago={formasPago}
-          selectedFilters={selectedFilters}
         />
       </motion.div>
 
