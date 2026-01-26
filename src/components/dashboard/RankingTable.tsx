@@ -33,6 +33,7 @@ export interface RankingAdvisor {
   filteredTotal?: number;
   salesCount?: number;
   salesCountByType?: Record<string, number>;
+  metaByType?: Record<string, number>;  // Meta per sale type for compliance calculation
 }
 
 export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
@@ -286,6 +287,8 @@ export function RankingTable({
                         const typeValue = advisor.byType[tipo] || 0;
                         const advisorSalesCount = salesCountByAdvisor?.[advisor.codigo];
                         const typeCount = advisorSalesCount?.byType[tipo]?.count || 0;
+                        const typeMeta = advisor.metaByType?.[tipo] || 0;
+                        const typeCompliance = typeMeta > 0 ? Math.round((typeValue / typeMeta) * 100) : 0;
                         
                         return (
                           <TableCell key={tipo} className="text-right text-muted-foreground whitespace-nowrap">
@@ -297,9 +300,18 @@ export function RankingTable({
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
-                                  <div className="text-xs">
+                                  <div className="text-xs space-y-1">
                                     <p className="font-medium">{formatCurrency(typeValue)}</p>
                                     <p className="text-muted-foreground">{typeCount} {typeCount === 1 ? 'venta' : 'ventas'}</p>
+                                    {typeMeta > 0 && (
+                                      <p className={`font-medium ${
+                                        typeCompliance >= 100 ? 'text-success' :
+                                        typeCompliance >= 80 ? 'text-warning' :
+                                        'text-danger'
+                                      }`}>
+                                        {typeCompliance}% cumplimiento
+                                      </p>
+                                    )}
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
@@ -316,11 +328,20 @@ export function RankingTable({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
-                              <div className="text-xs">
+                              <div className="text-xs space-y-1">
                                 <p className="font-medium">{formatCurrency(displayTotal)}</p>
                                 <p className="text-muted-foreground">
                                   {salesCountByAdvisor?.[advisor.codigo]?.totalCount || 0} {(salesCountByAdvisor?.[advisor.codigo]?.totalCount || 0) === 1 ? 'venta' : 'ventas'}
                                 </p>
+                                {advisor.meta > 0 && (
+                                  <p className={`font-medium ${
+                                    compliancePercent >= 100 ? 'text-success' :
+                                    compliancePercent >= 80 ? 'text-warning' :
+                                    'text-danger'
+                                  }`}>
+                                    {compliancePercent}% cumplimiento total
+                                  </p>
+                                )}
                               </div>
                             </TooltipContent>
                           </Tooltip>
