@@ -583,14 +583,14 @@ export default function DashboardLider() {
       .slice(0, 5);
   }, [metrics.byAdvisor]);
 
-  // Filter ranking by selected types
+  // Filter ranking by selected types - use net values for accurate totals
   const filteredRanking = useMemo(() => {
     if (selectedFilters.length === 0) return metrics.byAdvisor;
     
     return metrics.byAdvisor
       .map(advisor => {
         const filteredTotal = selectedFilters.reduce((sum, tipo) => {
-          return sum + Math.abs(advisor.byType[tipo] || 0);
+          return sum + (advisor.byType[tipo] || 0); // Use net value, not abs
         }, 0);
         return { ...advisor, filteredTotal };
       })
