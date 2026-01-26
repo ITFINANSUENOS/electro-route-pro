@@ -5,7 +5,7 @@ import { RegionalesConfig } from "@/components/configuracion/RegionalesConfig";
 import { FormasPagoConfig } from "@/components/configuracion/FormasPagoConfig";
 import { HistorialCambios } from "@/components/configuracion/HistorialCambios";
 import { PermisosConfig } from "@/components/configuracion/PermisosConfig";
-import { ProgramacionConfig } from "@/components/configuracion/ProgramacionConfig";
+import ProgramacionConfig from "@/components/configuracion/ProgramacionConfig";
 
 export default function Configuracion() {
   const { role } = useAuth();
