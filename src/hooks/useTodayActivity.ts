@@ -77,7 +77,7 @@ export function useTodayActivity() {
   const hasEvidenceSubmitted = todayReport?.evidencia_completa === true;
   
   // Check if consultas/solicitudes were submitted today
-  const hasConsultasSubmitted = todayReport !== null && 
+  const hasConsultasSubmitted = !!todayReport && 
     (todayReport.consultas !== null || todayReport.solicitudes !== null);
 
   // Determine user status
