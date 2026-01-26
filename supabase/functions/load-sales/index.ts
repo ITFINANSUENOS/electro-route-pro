@@ -106,34 +106,43 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-function deriveTipoVenta(forma1Pago: string, formaPago: string): string | null {
+// Build a lookup map from formas_pago table: codigo -> tipo_venta
+async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from('formas_pago')
+    .select('codigo, tipo_venta')
+    .eq('activo', true);
+  
+  if (error) {
+    console.error("Error fetching formas_pago:", error.message);
+    return new Map();
+  }
+  
+  const lookup = new Map<string, string>();
+  for (const fp of (data || []) as { codigo: string; tipo_venta: string }[]) {
+    const normalizedCodigo = fp.codigo.toUpperCase().trim();
+    lookup.set(normalizedCodigo, fp.tipo_venta);
+  }
+  
+  console.log("Payment type lookup built with", lookup.size, "entries");
+  return lookup;
+}
+
+// Derive tipo_venta from FORMA1PAGO using the database lookup
+function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<string, string>): string | null {
   const forma1 = (forma1Pago || '').toUpperCase().trim();
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  // First: Check for OTROS (to be excluded from reports)
-  if (forma1.includes('REBATE') || forma1.includes('ARRENDAMIENTO') || forma1.includes('ACTIVOS FIJOS')) {
-    return 'OTROS';
+  // First try exact match with FORMA1PAGO
+  if (lookup.has(forma1)) {
+    return lookup.get(forma1)!;
   }
   
-  // CONVENIO: ADDI, BRILLA, SISTECREDITO
-  if (forma1.includes('ADDI') || forma1.includes('BRILLA') || 
-      forma1.includes('SISTECREDITO') || forma1.includes('SISTEMCREDITO')) {
-    return 'CONVENIO';
-  }
-  
-  // CREDITO: FINANSUENOS, ARPESOD, RETANQUEO
-  if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
-    return 'CREDITO';
-  }
-  
-  // CREDICONTADO: CUOTAS, INCREMENTO, OBSEQUIOS
-  if (forma1.includes('CUOTAS') || forma1.includes('INCREMENTO') || forma1.includes('OBSEQUIOS')) {
-    return 'CREDICONTADO';
-  }
-  
-  // CONTADO: All CONTADO variants and CREDITO ENTIDADES
-  if (forma1.includes('CONTADO') || forma1.includes('CREDITO ENTIDADES')) {
-    return 'CONTADO';
+  // Try partial matching for common patterns
+  for (const [codigo, tipoVenta] of lookup.entries()) {
+    if (forma1.includes(codigo) || codigo.includes(forma1)) {
+      return tipoVenta;
+    }
   }
   
   // Fallback to FORMAPAGO field for general classification
@@ -155,7 +164,10 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    console.log("Fetching CSV from public/data/VENTAS_ENERO_2026.csv...");
+    console.log("Loading sales data...");
+
+    // Build payment type lookup from database
+    const paymentTypeLookup = await buildPaymentTypeLookup(supabase);
 
     // First delete all existing records for this period to avoid duplicates
     const { error: deleteError } = await supabase
@@ -168,10 +180,6 @@ serve(async (req) => {
       console.log("Delete error (might be empty):", deleteError.message);
     }
 
-    // Fetch CSV content from public URL
-    const csvResponse = await fetch(`${supabaseUrl.replace('.supabase.co', '.supabase.co/storage/v1/object/public/data')}/VENTAS_ENERO_2026.csv`);
-    
-    // Try fetching from the app's public folder directly
     const body = await req.json().catch(() => ({}));
     const csvContent = body.csvContent;
     
@@ -234,10 +242,11 @@ serve(async (req) => {
       if (!venta.fecha) venta.fecha = '2026-01-15';
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
-      // Derive tipo_venta from FORMA1PAGO and FORMAPAGO
+      // Derive tipo_venta from database lookup
       venta.tipo_venta = deriveTipoVenta(
         (venta.forma1_pago as string) || '', 
-        (venta.forma_pago as string) || ''
+        (venta.forma_pago as string) || '',
+        paymentTypeLookup
       );
 
       if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
