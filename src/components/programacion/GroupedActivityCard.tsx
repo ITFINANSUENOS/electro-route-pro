@@ -3,6 +3,7 @@ import { MapPin, Clock, Users, CheckCircle, XCircle, Camera, Navigation } from "
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EvidenceStatus } from "@/hooks/useActivityEvidenceStatus";
+import { useAuth } from "@/contexts/AuthContext";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -42,8 +43,15 @@ interface GroupedActivityCardProps {
 }
 
 export function GroupedActivityCard({ group, showFullDetails = false, onClick, evidenceStatus }: GroupedActivityCardProps) {
+  const { user } = useAuth();
   const isTeamActivity = group.user_ids.length > 1;
   const isCorriera = group.tipo_actividad === 'correria';
+
+  // Check if current user is part of this activity
+  const isUserAssigned = user?.id && group.user_ids.includes(user.id);
+  const currentUserIdx = user?.id ? group.user_ids.indexOf(user.id) : -1;
+  const currentUserEvidence = currentUserIdx >= 0 ? evidenceStatus?.evidence_by_user[currentUserIdx] : null;
+  const currentUserHasEvidence = currentUserEvidence?.has_evidence || false;
 
   // Evidence count display
   const evidenceCount = evidenceStatus ? `${evidenceStatus.with_evidence}/${evidenceStatus.total_assigned}` : null;
@@ -53,11 +61,35 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
   return (
     <div 
       className={cn(
-        "p-4 rounded-lg border bg-card hover:shadow-md transition-shadow",
-        onClick && "cursor-pointer"
+        "p-4 rounded-lg border bg-card hover:shadow-md transition-shadow relative",
+        onClick && "cursor-pointer",
+        // Highlight if current user is assigned
+        isUserAssigned && "ring-2 ring-primary/50"
       )}
       onClick={onClick}
     >
+      {/* Personal status indicator for assigned users */}
+      {isUserAssigned && (
+        <div className={cn(
+          "absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1",
+          currentUserHasEvidence 
+            ? "bg-success text-success-foreground" 
+            : "bg-warning text-warning-foreground"
+        )}>
+          {currentUserHasEvidence ? (
+            <>
+              <CheckCircle className="h-3 w-3" />
+              Reportado
+            </>
+          ) : (
+            <>
+              <XCircle className="h-3 w-3" />
+              Pendiente
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className={cn(
@@ -99,22 +131,31 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
                     Evidencia {isCorriera ? '(Foto + GPS)' : '(GPS)'}
                   </p>
                   <div className="space-y-1">
-                    {evidenceStatus.evidence_by_user.map((user, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate max-w-[150px]">{user.user_name}</span>
-                        <div className="flex items-center gap-1">
-                          {isCorriera && (
-                            <Camera className={cn("h-3 w-3", user.has_photo ? "text-success" : "text-muted-foreground")} />
-                          )}
-                          <Navigation className={cn("h-3 w-3", user.has_gps ? "text-success" : "text-muted-foreground")} />
-                          {user.has_evidence ? (
-                            <CheckCircle className="h-3 w-3 text-success" />
-                          ) : (
-                            <XCircle className="h-3 w-3 text-destructive" />
-                          )}
+                    {evidenceStatus.evidence_by_user.map((userEvidence, idx) => {
+                      const isMe = user?.id === group.user_ids[idx];
+                      return (
+                        <div key={idx} className={cn(
+                          "flex items-center justify-between gap-2 text-xs",
+                          isMe && "font-medium bg-accent rounded px-1"
+                        )}>
+                          <span className="truncate max-w-[150px]">
+                            {userEvidence.user_name}
+                            {isMe && " (tú)"}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {isCorriera && (
+                              <Camera className={cn("h-3 w-3", userEvidence.has_photo ? "text-success" : "text-muted-foreground")} />
+                            )}
+                            <Navigation className={cn("h-3 w-3", userEvidence.has_gps ? "text-success" : "text-muted-foreground")} />
+                            {userEvidence.has_evidence ? (
+                              <CheckCircle className="h-3 w-3 text-success" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-destructive" />
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </TooltipContent>
@@ -129,28 +170,35 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
         </div>
       </div>
       <div className="space-y-2">
-        {/* Show team or individual */}
+        {/* Show team or individual - always show colleagues for team activities */}
         <div className="flex items-start gap-2 text-sm">
           <Users className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           {isTeamActivity ? (
             <div className="flex-1 min-w-0">
-              <span className="font-medium">Grupo ({group.user_ids.length} asesores)</span>
-              {showFullDetails && (
+              <span className="font-medium">
+                {isUserAssigned ? 'Tú y ' + (group.user_ids.length - 1) + ' compañero(s)' : `Grupo (${group.user_ids.length} asesores)`}
+              </span>
+              {/* Always show colleagues for advisor view or when showFullDetails */}
+              {(showFullDetails || isUserAssigned) && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {group.user_names.map((name, idx) => {
                     const userEvidence = evidenceStatus?.evidence_by_user[idx];
                     const hasEvidence = userEvidence?.has_evidence;
+                    const isMe = user?.id === group.user_ids[idx];
                     return (
                       <Badge 
                         key={idx} 
-                        variant={hasEvidence ? "default" : "secondary"} 
+                        variant={isMe ? "default" : hasEvidence ? "secondary" : "outline"} 
                         className={cn(
                           "text-xs",
-                          hasEvidence && "bg-success/10 text-success border-success/30"
+                          hasEvidence && !isMe && "bg-success/10 text-success border-success/30",
+                          isMe && hasEvidence && "bg-primary text-primary-foreground",
+                          isMe && !hasEvidence && "bg-warning text-warning-foreground"
                         )}
                       >
                         {hasEvidence && <CheckCircle className="h-3 w-3 mr-1" />}
-                        {name}
+                        {!hasEvidence && isMe && <XCircle className="h-3 w-3 mr-1" />}
+                        {isMe ? "Tú" : name.split(' ').slice(0, 2).join(' ')}
                       </Badge>
                     );
                   })}
@@ -159,7 +207,9 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{group.user_names[0] || 'Sin asignar'}</span>
+              <span className="font-medium truncate">
+                {isUserAssigned ? 'Tú' : (group.user_names[0] || 'Sin asignar')}
+              </span>
               {evidenceStatus && evidenceStatus.evidence_by_user[0] && (
                 evidenceStatus.evidence_by_user[0].has_evidence ? (
                   <CheckCircle className="h-4 w-4 text-success" />
