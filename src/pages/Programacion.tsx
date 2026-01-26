@@ -17,7 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -32,6 +31,7 @@ import { toast } from "sonner";
 import { TimeSelect } from "@/components/programacion/TimeSelect";
 import { ProgramacionFilters } from "@/components/programacion/ProgramacionFilters";
 import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
+import { GroupedActivityCard, groupActivities, GroupedActivity } from "@/components/programacion/GroupedActivityCard";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -149,10 +149,34 @@ export default function Programacion() {
     enabled: canEdit,
   });
 
+  // Fetch jefes de ventas for the dialog filter
+  const { data: jefesVentas = [] } = useQuery({
+    queryKey: ['jefes-ventas-dialog', filterRegional, profile?.regional_id, role],
+    queryFn: async () => {
+      let query = supabase
+        .from('jefes_ventas')
+        .select('*, regionales(nombre)')
+        .eq('activo', true)
+        .order('nombre');
+
+      // Filter by regional for global roles
+      if ((role === 'coordinador_comercial' || role === 'administrador') && filterRegional !== 'todos') {
+        query = query.eq('regional_id', filterRegional);
+      } else if (role === 'lider_zona' && profile?.regional_id) {
+        query = query.eq('regional_id', profile.regional_id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: canEdit,
+  });
+
   // Get profile name by user_id
   const getProfileName = (userId: string) => {
-    const profile = profiles.find((p) => p.user_id === userId);
-    return profile?.nombre_completo || 'Sin asignar';
+    const profileItem = profiles.find((p) => p.user_id === userId);
+    return profileItem?.nombre_completo || 'Sin asignar';
   };
 
   const getActivitiesForDate = (date: Date) => {
@@ -161,7 +185,16 @@ export default function Programacion() {
     );
   };
 
+  // Get grouped activities for a date (for calendar display)
+  const getGroupedActivitiesForDate = (date: Date): GroupedActivity[] => {
+    const activities = getActivitiesForDate(date);
+    return groupActivities(activities, getProfileName);
+  };
+
   const selectedActivities = selectedDate ? getActivitiesForDate(selectedDate) : [];
+  const selectedGroupedActivities = selectedDate 
+    ? groupActivities(selectedActivities, getProfileName) 
+    : [];
 
   const handleDateClick = (day: Date) => {
     // Always allow viewing the day's details
@@ -182,6 +215,34 @@ export default function Programacion() {
       } else {
         setSelectedDates([...selectedDates, day]);
       }
+    }
+  };
+
+  // When jefe filter changes, auto-select all asesores from that jefe
+  const handleJefeFilterChange = (jefeCode: string) => {
+    setFilterJefe(jefeCode);
+    
+    if (jefeCode !== 'todos') {
+      // Auto-select all asesores from this jefe
+      const asesoresDelJefe = profiles.filter(p => {
+        // Match by codigo_jefe
+        if (p.codigo_jefe !== jefeCode) return false;
+        // Also filter by regional if applicable
+        if (filterRegional !== 'todos' && p.regional_id !== filterRegional) return false;
+        if (role === 'lider_zona' && profile?.regional_id && p.regional_id !== profile.regional_id) return false;
+        return true;
+      });
+      
+      setNewActivity(prev => ({
+        ...prev,
+        user_ids: asesoresDelJefe.map(p => p.user_id)
+      }));
+    } else {
+      // Clear selection when "todos" is selected
+      setNewActivity(prev => ({
+        ...prev,
+        user_ids: []
+      }));
     }
   };
 
@@ -282,13 +343,53 @@ export default function Programacion() {
                   </div>
                 </div>
 
-                {/* Hierarchical Filters */}
+                {/* Hierarchical Filters - Regional */}
                 <ProgramacionFilters
                   selectedRegional={filterRegional}
-                  setSelectedRegional={setFilterRegional}
+                  setSelectedRegional={(value) => {
+                    setFilterRegional(value);
+                    setFilterJefe('todos');
+                    setNewActivity(prev => ({ ...prev, user_ids: [] }));
+                  }}
                   selectedJefe={filterJefe}
-                  setSelectedJefe={setFilterJefe}
+                  setSelectedJefe={handleJefeFilterChange}
                 />
+
+                {/* Jefe de Ventas filter - for selecting entire team */}
+                {canEdit && jefesVentas.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Jefe de Ventas (selecciona para asignar su equipo)</Label>
+                    <Select value={filterJefe} onValueChange={handleJefeFilterChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar jefe de ventas..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Selección manual de asesores</SelectItem>
+                        {jefesVentas.map((jefe) => {
+                          // Count asesores for this jefe
+                          const asesorCount = profiles.filter(p => {
+                            if (p.codigo_jefe !== jefe.codigo) return false;
+                            if (filterRegional !== 'todos' && p.regional_id !== filterRegional) return false;
+                            if (role === 'lider_zona' && profile?.regional_id && p.regional_id !== profile.regional_id) return false;
+                            return true;
+                          }).length;
+                          
+                          return (
+                            <SelectItem key={jefe.id} value={jefe.codigo}>
+                              {jefe.nombre} ({asesorCount} asesores)
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    {filterJefe !== 'todos' && (
+                      <p className="text-xs text-green-600">
+                        <Users className="inline h-3 w-3 mr-1" />
+                        Equipo completo seleccionado - se mostrará como grupo en el calendario
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Asesores - Multi-select */}
                 <div className="space-y-2">
@@ -303,7 +404,7 @@ export default function Programacion() {
                   />
                   <p className="text-xs text-muted-foreground">
                     <Users className="inline h-3 w-3 mr-1" />
-                    Puedes seleccionar varios asesores para trabajo en equipo
+                    Las actividades con múltiples asesores se mostrarán agrupadas
                   </p>
                 </div>
 
@@ -358,14 +459,14 @@ export default function Programacion() {
                 </div>
               </div>
 
-              <DialogFooter>
+              <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button onClick={handleCreateProgramacion} disabled={newActivity.user_ids.length === 0}>
                   Crear Programación ({newActivity.user_ids.length} asesor(es))
                 </Button>
-              </DialogFooter>
+              </div>
             </DialogContent>
           </Dialog>
         )}
@@ -434,7 +535,8 @@ export default function Programacion() {
               ))}
 
               {days.map((day) => {
-                const activities = getActivitiesForDate(day);
+                const groupedActivities = getGroupedActivitiesForDate(day);
+                const totalPeople = groupedActivities.reduce((sum, g) => sum + g.user_ids.length, 0);
                 const isSelected = selectedDate && format(day, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
                 const isMultiSelected = selectedDates.some((d) => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
                 const canScheduleThisDay = isDateSchedulable(day);
@@ -460,20 +562,27 @@ export default function Programacion() {
                       {format(day, 'd')}
                     </span>
                     <div className="mt-1 space-y-0.5">
-                      {activities.slice(0, 2).map((activity) => (
+                      {groupedActivities.slice(0, 2).map((group) => (
                         <div
-                          key={activity.id}
+                          key={group.key}
                           className={cn(
-                            'text-xs px-1 py-0.5 rounded truncate',
-                            activityColors[activity.tipo_actividad as ActivityType]
+                            'text-xs px-1 py-0.5 rounded truncate flex items-center gap-1',
+                            activityColors[group.tipo_actividad]
                           )}
                         >
-                          {getProfileName(activity.user_id).split(' ')[0]}
+                          {group.user_ids.length > 1 ? (
+                            <>
+                              <Users className="h-3 w-3 flex-shrink-0" />
+                              <span>Grupo ({group.user_ids.length})</span>
+                            </>
+                          ) : (
+                            <span>{group.user_names[0]?.split(' ')[0]}</span>
+                          )}
                         </div>
                       ))}
-                      {activities.length > 2 && (
+                      {groupedActivities.length > 2 && (
                         <div className="text-xs text-muted-foreground px-1">
-                          +{activities.length - 2} más
+                          +{groupedActivities.length - 2} más
                         </div>
                       )}
                     </div>
@@ -494,7 +603,7 @@ export default function Programacion() {
           </CardContent>
         </Card>
 
-        {/* Selected day details */}
+        {/* Selected day details - Now with grouped activities */}
         <Card className="card-elevated">
           <CardHeader>
             <CardTitle>
@@ -506,46 +615,22 @@ export default function Programacion() {
                 'Selecciona un día'
               )}
             </CardTitle>
-            {selectedDate && selectedActivities.length > 0 && (
+            {selectedDate && selectedGroupedActivities.length > 0 && (
               <CardDescription>
-                {selectedActivities.length} actividad(es) programada(s)
+                {selectedGroupedActivities.length} actividad(es) • {selectedActivities.length} asesor(es) en total
               </CardDescription>
             )}
           </CardHeader>
           <CardContent>
             {selectedDate ? (
-              selectedActivities.length > 0 ? (
+              selectedGroupedActivities.length > 0 ? (
                 <div className="space-y-4">
-                  {selectedActivities.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="p-4 rounded-lg border bg-card hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className={cn(
-                          'text-xs font-medium px-2 py-1 rounded',
-                          activityColors[activity.tipo_actividad as ActivityType]
-                        )}>
-                          {activityLabels[activity.tipo_actividad as ActivityType]}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{getProfileName(activity.user_id)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-4 w-4" />
-                          <span>{activity.municipio}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          <span>
-                            {activity.hora_inicio ? activity.hora_inicio.slice(0, 5) : '00:00'} - {activity.hora_fin ? activity.hora_fin.slice(0, 5) : '00:00'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  {selectedGroupedActivities.map((group) => (
+                    <GroupedActivityCard 
+                      key={group.key} 
+                      group={group} 
+                      showFullDetails={true}
+                    />
                   ))}
                 </div>
               ) : (
