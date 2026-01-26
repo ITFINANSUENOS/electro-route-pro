@@ -282,23 +282,32 @@ export default function DashboardLider() {
       }))
       .sort((a, b) => b.total - a.total);
 
-    // Group by tipo_asesor (INTERNO, EXTERNO, CORRETAJE, GERENCIA)
-    const byAdvisorTypeMap = byAdvisor.reduce((acc, advisor) => {
-      const tipo = advisor.tipoAsesor || 'EXTERNO';
-      if (!acc[tipo]) {
-        acc[tipo] = { count: 0, total: 0 };
-      }
-      acc[tipo].count += 1;
-      acc[tipo].total += advisor.total;
-      return acc;
-    }, {} as Record<string, { count: number; total: number }>);
+    // Group by tipo_asesor - get COUNTS from profiles (source of truth), SALES from ventas
+    // First, get actual advisor counts from profiles table
+    const profileCountsByType = (profiles || [])
+      .filter(p => p.activo && p.codigo_asesor)
+      .reduce((acc, p) => {
+        const tipo = (p.tipo_asesor?.toUpperCase()) || 'EXTERNO';
+        acc[tipo] = (acc[tipo] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-    const byAdvisorType = Object.entries(byAdvisorTypeMap)
-      .map(([tipo, data]) => ({
+    // Get sales totals by advisor type from actual sales data
+    const salesTotalsByType = byAdvisor.reduce((acc, advisor) => {
+      const tipo = advisor.tipoAsesor || 'EXTERNO';
+      acc[tipo] = (acc[tipo] || 0) + advisor.total;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Combine: counts from profiles, totals from sales
+    const allTypes = new Set([...Object.keys(profileCountsByType), ...Object.keys(salesTotalsByType)]);
+    const byAdvisorType = Array.from(allTypes)
+      .filter(tipo => tipo !== 'GERENCIA') // GERENCIA counts as INTERNO
+      .map(tipo => ({
         tipo,
         label: tipoAsesorLabels[tipo] || tipo,
-        count: data.count,
-        total: data.total,
+        count: profileCountsByType[tipo] || 0,
+        total: salesTotalsByType[tipo] || 0,
         color: tipoAsesorColors[tipo] || 'hsl(var(--muted))',
       }))
       .sort((a, b) => b.total - a.total);
