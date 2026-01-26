@@ -265,8 +265,11 @@ export default function DashboardLider() {
 
     const totalMeta = metasData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
 
-    // Count unique advisors (excluding code '01' which is GERENCIA)
-    const uniqueAdvisors = new Set(byAdvisor.filter(a => a.codigo !== '01').map(a => a.codigo));
+    // Count unique advisors with sales (excluding code '01' which is GERENCIA)
+    const advisorsWithSales = new Set(byAdvisor.filter(a => a.codigo !== '01' && a.codigo !== '00001').map(a => a.codigo));
+    
+    // Total active advisors from profiles (for display when sales data is low)
+    const totalActiveAdvisors = profiles?.filter(p => p.activo && p.codigo_asesor).length || 0;
 
     return {
       total: byType.reduce((sum, t) => sum + t.value, 0),
@@ -274,7 +277,9 @@ export default function DashboardLider() {
       byAdvisor,
       byAdvisorType,
       totalMeta,
-      advisorCount: uniqueAdvisors.size,
+      advisorCount: Math.max(advisorsWithSales.size, totalActiveAdvisors),
+      advisorsWithSales: advisorsWithSales.size,
+      totalActiveAdvisors,
     };
   }, [salesData, metasData, profiles]);
 
@@ -385,8 +390,8 @@ export default function DashboardLider() {
         />
         <KpiCard
           title="Asesores Activos"
-          value={metrics.advisorCount.toString()}
-          subtitle="Con ventas este mes"
+          value={metrics.totalActiveAdvisors.toString()}
+          subtitle={`${metrics.advisorsWithSales} con ventas este mes`}
           icon={Users}
         />
         <KpiCard
