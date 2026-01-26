@@ -460,8 +460,23 @@ export default function DashboardLider() {
 
     // Group by tipo_asesor - get COUNTS from profiles (source of truth), SALES from ventas
     // First, get actual advisor counts from profiles table
+    // For lider_zona, filter by their regional_id to show only their advisors
     const profileCountsByType = (profiles || [])
-      .filter(p => p.activo && p.codigo_asesor)
+      .filter(p => {
+        if (!p.activo || !p.codigo_asesor) return false;
+        // Exclude GERENCIA code 00001
+        if (p.codigo_asesor === '00001') return false;
+        // For lider_zona, filter by regional_id
+        if (role === 'lider_zona' && profile?.regional_id) {
+          return p.regional_id === profile.regional_id;
+        }
+        // For admin/coordinador with selectedRegional filter
+        if (isGlobalRole && selectedRegional !== 'todos') {
+          const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+          return selectedReg && p.regional_id === selectedReg.id;
+        }
+        return true;
+      })
       .reduce((acc, p) => {
         const tipo = (p.tipo_asesor?.toUpperCase()) || 'EXTERNO';
         acc[tipo] = (acc[tipo] || 0) + 1;
@@ -497,7 +512,19 @@ export default function DashboardLider() {
     );
     
     // Total active advisors from profiles (for display when sales data is low)
-    const totalActiveAdvisors = profiles?.filter(p => p.activo && p.codigo_asesor).length || 0;
+    // Apply same regional filter as profileCountsByType
+    const totalActiveAdvisors = (profiles || []).filter(p => {
+      if (!p.activo || !p.codigo_asesor) return false;
+      if (p.codigo_asesor === '00001') return false;
+      if (role === 'lider_zona' && profile?.regional_id) {
+        return p.regional_id === profile.regional_id;
+      }
+      if (isGlobalRole && selectedRegional !== 'todos') {
+        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+        return selectedReg && p.regional_id === selectedReg.id;
+      }
+      return true;
+    }).length;
 
     return {
       total: byType.reduce((sum, t) => sum + t.value, 0),
@@ -509,7 +536,7 @@ export default function DashboardLider() {
       advisorsWithSales: advisorsWithSales.size,
       totalActiveAdvisors,
     };
-  }, [advancedFilteredSales, metasData, profiles]);
+  }, [advancedFilteredSales, metasData, profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
 
   // Calculate budget vs executed by type
   const budgetVsExecuted = useMemo(() => {
