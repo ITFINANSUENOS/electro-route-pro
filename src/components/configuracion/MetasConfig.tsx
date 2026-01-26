@@ -135,16 +135,20 @@ export function MetasConfig() {
       ?? 0;
   };
 
-  const getPorcentajeValue = (regionalId: string, field: keyof PorcentajeConfig): number => {
-    if (field === 'regional_id') return 0;
-    return localPorcentajes[regionalId]?.[field] 
+  const getPorcentajeValue = (regionalId: string, field: keyof PorcentajeConfig): string => {
+    if (field === 'regional_id') return '0';
+    const value = localPorcentajes[regionalId]?.[field] 
       ?? initialPorcentajes[regionalId]?.[field] 
       ?? 0;
+    // Display with comma as decimal separator for Spanish locale
+    return value.toString().replace('.', ',');
   };
 
-  // Handle promedio change
+  // Handle promedio change - allow full currency values
   const handlePromedioChange = (regionalId: string, tipoAsesor: string, tipoVenta: string, value: string) => {
-    const numValue = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
+    // Remove all non-numeric characters (dots are thousand separators in CO format)
+    const cleanValue = value.replace(/[^\d]/g, '');
+    const numValue = parseInt(cleanValue, 10) || 0;
     setLocalPromedios(prev => ({
       ...prev,
       [regionalId]: {
@@ -158,15 +162,20 @@ export function MetasConfig() {
     setHasChanges(true);
   };
 
-  // Handle porcentaje change
+  // Handle porcentaje change - allow comma as decimal separator
   const handlePorcentajeChange = (regionalId: string, field: keyof PorcentajeConfig, value: string) => {
     if (field === 'regional_id') return;
-    const numValue = parseFloat(value.replace(/[^0-9.-]/g, '')) || 0;
+    // Replace comma with dot for decimal parsing, allow digits and decimal separator
+    const cleanValue = value.replace(',', '.').replace(/[^\d.]/g, '');
+    const numValue = parseFloat(cleanValue) || 0;
     setLocalPorcentajes(prev => ({
       ...prev,
       [regionalId]: {
         ...prev[regionalId],
         regional_id: regionalId,
+        porcentaje_aumento_1: prev[regionalId]?.porcentaje_aumento_1 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_1 ?? 0,
+        porcentaje_aumento_2: prev[regionalId]?.porcentaje_aumento_2 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_2 ?? 0,
+        porcentaje_aumento_3: prev[regionalId]?.porcentaje_aumento_3 ?? initialPorcentajes[regionalId]?.porcentaje_aumento_3 ?? 0,
         [field]: numValue,
       },
     }));
