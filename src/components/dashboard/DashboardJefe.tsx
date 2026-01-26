@@ -246,7 +246,7 @@ export default function DashboardJefe() {
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => ({
         ...a,
-        total: Math.abs(a.total),
+        total: a.total, // Use net value, not abs - allows negatives for returns
         meta: metasData?.find(m => m.codigo_asesor === a.codigo)?.valor_meta || 0,
       }))
       .sort((a, b) => b.total - a.total);
@@ -287,13 +287,13 @@ export default function DashboardJefe() {
     );
   };
 
-  // Filtered ranking based on selected types
+  // Filtered ranking based on selected types - use net values (not abs) for accurate totals
   const filteredRanking = useMemo(() => {
     if (selectedFilters.length === 0) return metrics.byAdvisor;
     
     return metrics.byAdvisor.map(advisor => {
       const filteredTotal = selectedFilters.reduce((sum, tipo) => {
-        return sum + Math.abs(advisor.byType[tipo] || 0);
+        return sum + (advisor.byType[tipo] || 0); // Use net value, not abs
       }, 0);
       
       return {
