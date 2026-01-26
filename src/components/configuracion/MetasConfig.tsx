@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Calculator, Save, Building2, Users, Percent } from 'lucide-react';
+import { Calculator, Save, Building2, Users, Percent, Download, Upload } from 'lucide-react';
+import { exportPromediosTemplate } from '@/utils/exportPromediosTemplate';
+import { importPromediosFromExcel } from '@/utils/importPromediosTemplate';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
 const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as const;
@@ -73,12 +75,15 @@ interface PorcentajeConfig {
 
 export function MetasConfig() {
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedRegionales, setSelectedRegionales] = useState<string[]>([]);
   const [localPromedios, setLocalPromedios] = useState<Record<string, Record<string, Record<string, number>>>>({});
   const [localPorcentajes, setLocalPorcentajes] = useState<Record<string, PorcentajeConfig>>({});
   // Store porcentaje input strings separately to allow typing with comma
   const [porcentajeInputs, setPorcentajeInputs] = useState<Record<string, Record<string, string>>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch regionales
   const { data: regionales = [], isLoading: loadingRegionales } = useQuery({
@@ -344,6 +349,57 @@ export function MetasConfig() {
     }
   };
 
+  // Download template handler
+  const handleDownloadTemplate = async () => {
+    setIsDownloading(true);
+    try {
+      const result = await exportPromediosTemplate();
+      if (result.success) {
+        toast.success(`Plantilla descargada con ${result.count} regionales`);
+      } else {
+        toast.error(result.error || 'Error al descargar la plantilla');
+      }
+    } catch (error) {
+      toast.error('Error al generar la plantilla');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Upload file handler
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const result = await importPromediosFromExcel(file);
+      if (result.success) {
+        toast.success(`Se importaron ${result.imported} valores de promedio`);
+        queryClient.invalidateQueries({ queryKey: ['config-metas-promedio'] });
+        setLocalPromedios({});
+        setHasChanges(false);
+      } else {
+        toast.error(result.errors[0] || 'Error al importar los datos');
+      }
+      if (result.errors.length > 0 && result.imported > 0) {
+        console.warn('Errores durante la importación:', result.errors);
+      }
+    } catch (error) {
+      toast.error('Error al procesar el archivo');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const displayedRegionales = selectedRegionales.length > 0
     ? regionales.filter(r => selectedRegionales.includes(r.id))
     : regionales;
@@ -360,6 +416,15 @@ export function MetasConfig() {
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
       {/* Header with filter and save */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -371,14 +436,34 @@ export function MetasConfig() {
             Define los valores promedio de venta por regional, tipo de asesor y tipo de venta
           </p>
         </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={!hasChanges || savePromediosMutation.isPending || savePorcentajesMutation.isPending}
-          className="flex items-center gap-2"
-        >
-          <Save className="h-4 w-4" />
-          Guardar Cambios
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button 
+            variant="outline"
+            onClick={handleDownloadTemplate}
+            disabled={isDownloading}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isDownloading ? 'Descargando...' : 'Descargar Plantilla'}
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={handleUploadClick}
+            disabled={isUploading}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {isUploading ? 'Cargando...' : 'Cargar Promedios'}
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            disabled={!hasChanges || savePromediosMutation.isPending || savePorcentajesMutation.isPending}
+            className="flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            Guardar Cambios
+          </Button>
+        </div>
       </div>
 
       {/* Regional Filter */}
