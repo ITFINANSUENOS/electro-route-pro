@@ -64,17 +64,21 @@ export default function Login() {
             className="text-center"
           >
             <div className="flex items-center justify-center gap-6 mb-8">
-              <img
-                src={logoElectrocreditos}
-                alt="Electrocréditos del Cauca"
-                className="h-16 bg-white rounded-lg p-2"
-              />
-              <div className="w-px h-16 bg-white/30" />
-              <img
-                src={logoFinansuenos}
-                alt="FinanSueños"
-                className="h-14 bg-white rounded-lg p-2"
-              />
+            <img
+              src={logoElectrocreditos}
+              alt="Electrocréditos del Cauca"
+              width={150}
+              height={64}
+              className="h-16 bg-white rounded-lg p-2"
+            />
+            <div className="w-px h-16 bg-white/30" />
+            <img
+              src={logoFinansuenos}
+              alt="FinanSueños"
+              width={99}
+              height={56}
+              className="h-14 bg-white rounded-lg p-2"
+            />
             </div>
             
             <h1 className="text-4xl font-bold mb-4">
@@ -123,6 +127,8 @@ export default function Login() {
             <img
               src={logoFinansuenos}
               alt="FinanSueños"
+              width={132}
+              height={64}
               className="h-16"
             />
             <h1 className="text-2xl font-bold text-gradient">Sistema E-COM</h1>
