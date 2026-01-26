@@ -1,13 +1,6 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/types/auth';
-
-interface AdvisorData {
-  regional_nombre: string;
-  ccosto_asesor: string;
-  codigo_asesor: string;
-  nombre_completo: string;
-}
 
 export async function exportMetasTemplate(
   role: UserRole | null,
@@ -37,7 +30,6 @@ export async function exportMetasTemplate(
       // Admin sees all 156 active advisors - no additional filter
     } else if (role === 'coordinador_comercial' && zona) {
       // Coordinator sees advisors in their zone (norte/sur)
-      // Need to get regionales for this zone first
       const { data: zonalRegionales } = await supabase
         .from('regionales')
         .select('id')
@@ -66,58 +58,77 @@ export async function exportMetasTemplate(
       return { success: false, count: 0, error: 'No se encontraron asesores activos' };
     }
 
-    // Transform data for Excel
-    const excelData: (string | number)[][] = [
-      ['REGIONAL', 'CC ASESOR', 'CODIGO_ASESOR', 'NOMBRE ASESOR', 'CONTADO', 'CREDICONTADO', 'CRÉDITO', 'CONVENIO', 'TOTAL']
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'E-COM Sistema';
+    workbook.created = new Date();
+
+    const worksheet = workbook.addWorksheet('Plantilla Metas');
+
+    // Define columns
+    worksheet.columns = [
+      { header: 'REGIONAL', key: 'regional', width: 20 },
+      { header: 'CC ASESOR', key: 'cedula', width: 15 },
+      { header: 'CODIGO_ASESOR', key: 'codigo_asesor', width: 15 },
+      { header: 'NOMBRE ASESOR', key: 'nombre', width: 35 },
+      { header: 'CONTADO', key: 'contado', width: 15 },
+      { header: 'CREDICONTADO', key: 'credicontado', width: 15 },
+      { header: 'CRÉDITO', key: 'credito', width: 15 },
+      { header: 'CONVENIO', key: 'convenio', width: 15 },
+      { header: 'TOTAL', key: 'total', width: 15 },
     ];
 
-    advisors.forEach((advisor: any) => {
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Add data rows
+    advisors.forEach((advisor: any, index: number) => {
+      const rowNumber = index + 2;
       const regionalName = advisor.regionales?.nombre || 'SIN REGIONAL';
-      excelData.push([
-        regionalName,
-        advisor.cedula || '',
-        advisor.codigo_asesor || '',
-        advisor.nombre_completo || '',
-        0, // CONTADO - empty for user to fill
-        0, // CREDICONTADO
-        0, // CRÉDITO
-        0, // CONVENIO
-        0  // TOTAL (formula will be added)
-      ]);
+      
+      worksheet.addRow({
+        regional: regionalName,
+        cedula: advisor.cedula || '',
+        codigo_asesor: advisor.codigo_asesor || '',
+        nombre: advisor.nombre_completo || '',
+        contado: 0,
+        credicontado: 0,
+        credito: 0,
+        convenio: 0,
+        total: { formula: `SUM(E${rowNumber}:H${rowNumber})` },
+      });
     });
 
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
-
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 20 }, // REGIONAL
-      { wch: 15 }, // CC ASESOR
-      { wch: 15 }, // CODIGO_ASESOR
-      { wch: 35 }, // NOMBRE ASESOR
-      { wch: 15 }, // CONTADO
-      { wch: 15 }, // CREDICONTADO
-      { wch: 15 }, // CRÉDITO
-      { wch: 15 }, // CONVENIO
-      { wch: 15 }, // TOTAL
-    ];
-
-    // Add formulas for TOTAL column (column I = sum of E:H)
-    for (let row = 2; row <= advisors.length + 1; row++) {
-      const cellRef = `I${row}`;
-      ws[cellRef] = { t: 'n', f: `SUM(E${row}:H${row})` };
-    }
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla Metas');
+    // Format number columns
+    worksheet.getColumn('contado').numFmt = '#,##0';
+    worksheet.getColumn('credicontado').numFmt = '#,##0';
+    worksheet.getColumn('credito').numFmt = '#,##0';
+    worksheet.getColumn('convenio').numFmt = '#,##0';
+    worksheet.getColumn('total').numFmt = '#,##0';
 
     // Generate filename with date
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const filename = `Plantilla_Metas_${dateStr}.xlsx`;
 
-    // Download file
-    XLSX.writeFile(wb, filename);
+    // Generate buffer and download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     return { success: true, count: advisors.length };
   } catch (error) {

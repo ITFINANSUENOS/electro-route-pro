@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from '@/integrations/supabase/client';
 
 const TIPOS_VENTA_MAP: Record<string, string> = {
@@ -42,38 +42,57 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
     
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(arrayBuffer);
         
         // Find the Promedios sheet
-        const sheetName = workbook.SheetNames.find(name => 
-          name.toLowerCase().includes('promedio') || name === 'Promedios'
-        ) || workbook.SheetNames[0];
-        
-        const worksheet = workbook.Sheets[sheetName];
+        let worksheet = workbook.getWorksheet('Promedios');
+        if (!worksheet) {
+          // Try to find by partial name match
+          worksheet = workbook.worksheets.find(ws => 
+            ws.name.toLowerCase().includes('promedio')
+          );
+        }
+        if (!worksheet) {
+          // Fall back to first non-instructions sheet
+          worksheet = workbook.worksheets.find(ws => 
+            !ws.name.toLowerCase().includes('instruc')
+          ) || workbook.worksheets[0];
+        }
         
         if (!worksheet) {
           resolve({ success: false, imported: 0, errors: ['No se encontró la hoja de promedios'] });
           return;
         }
 
-        // Convert to JSON
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { raw: true });
-        
-        if (jsonData.length === 0) {
-          resolve({ success: false, imported: 0, errors: ['El archivo está vacío'] });
-          return;
-        }
+        // Get headers from first row
+        const headerRow = worksheet.getRow(1);
+        const headers: Record<number, string> = {};
+        headerRow.eachCell((cell, colNumber) => {
+          headers[colNumber] = cell.value?.toString() || '';
+        });
 
-        // Get column headers
-        const firstRow = jsonData[0];
-        const headers = Object.keys(firstRow);
+        // Find required column indices
+        let regionalIdCol = 0;
+        let tipoAsesorCol = 0;
+        const tipoVentaCols: { colNumber: number; tipoVenta: string }[] = [];
 
-        // Find required columns
-        const regionalIdCol = headers.find(h => h.toLowerCase().includes('regional_id'));
-        const tipoAsesorCol = headers.find(h => 
-          h.toLowerCase().includes('tipo_asesor') || h.toLowerCase() === 'tipo asesor'
-        );
+        Object.entries(headers).forEach(([colStr, header]) => {
+          const colNumber = parseInt(colStr);
+          const headerLower = header.toLowerCase();
+          
+          if (headerLower.includes('regional_id')) {
+            regionalIdCol = colNumber;
+          } else if (headerLower.includes('tipo_asesor') || headerLower === 'tipo asesor') {
+            tipoAsesorCol = colNumber;
+          } else {
+            const normalized = TIPOS_VENTA_MAP[header];
+            if (normalized) {
+              tipoVentaCols.push({ colNumber, tipoVenta: normalized });
+            }
+          }
+        });
 
         if (!regionalIdCol) {
           resolve({ success: false, imported: 0, errors: ['No se encontró la columna REGIONAL_ID'] });
@@ -84,15 +103,6 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
           resolve({ success: false, imported: 0, errors: ['No se encontró la columna TIPO_ASESOR'] });
           return;
         }
-
-        // Find tipo venta columns
-        const tipoVentaCols: { header: string; tipoVenta: string }[] = [];
-        headers.forEach(header => {
-          const normalized = TIPOS_VENTA_MAP[header];
-          if (normalized) {
-            tipoVentaCols.push({ header, tipoVenta: normalized });
-          }
-        });
 
         if (tipoVentaCols.length === 0) {
           resolve({ 
@@ -106,37 +116,40 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
         // Process rows
         const promediosToInsert: PromedioRow[] = [];
         const errors: string[] = [];
-        let rowNum = 2; // Excel rows start at 1, plus header
 
-        for (const row of jsonData) {
-          const regionalId = row[regionalIdCol]?.toString().trim();
-          const tipoAsesorRaw = row[tipoAsesorCol]?.toString().trim();
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return; // Skip header
+
+          const regionalId = row.getCell(regionalIdCol).value?.toString().trim();
+          const tipoAsesorRaw = row.getCell(tipoAsesorCol).value?.toString().trim();
 
           if (!regionalId || !tipoAsesorRaw) {
-            errors.push(`Fila ${rowNum}: Falta REGIONAL_ID o TIPO_ASESOR`);
-            rowNum++;
-            continue;
+            if (regionalId || tipoAsesorRaw) {
+              errors.push(`Fila ${rowNumber}: Falta REGIONAL_ID o TIPO_ASESOR`);
+            }
+            return;
           }
 
           const tipoAsesor = TIPOS_ASESOR_MAP[tipoAsesorRaw];
           if (!tipoAsesor) {
-            errors.push(`Fila ${rowNum}: Tipo de asesor inválido: ${tipoAsesorRaw}`);
-            rowNum++;
-            continue;
+            errors.push(`Fila ${rowNumber}: Tipo de asesor inválido: ${tipoAsesorRaw}`);
+            return;
           }
 
           // Process each tipo venta column
-          for (const { header, tipoVenta } of tipoVentaCols) {
-            const valorRaw = row[header];
+          for (const { colNumber, tipoVenta } of tipoVentaCols) {
+            const cellValue = row.getCell(colNumber).value;
             let valor = 0;
 
-            if (valorRaw !== undefined && valorRaw !== null && valorRaw !== '') {
-              // Handle string values with formatting
-              if (typeof valorRaw === 'string') {
-                const cleaned = valorRaw.replace(/[$.,\s]/g, '');
+            if (cellValue !== undefined && cellValue !== null && cellValue !== '') {
+              if (typeof cellValue === 'number') {
+                valor = cellValue;
+              } else if (typeof cellValue === 'string') {
+                const cleaned = cellValue.replace(/[$.,\s]/g, '');
                 valor = parseInt(cleaned, 10) || 0;
-              } else {
-                valor = Number(valorRaw) || 0;
+              } else if (typeof cellValue === 'object' && 'result' in cellValue) {
+                // Handle formula results
+                valor = Number(cellValue.result) || 0;
               }
             }
 
@@ -149,9 +162,7 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
               });
             }
           }
-
-          rowNum++;
-        }
+        });
 
         if (promediosToInsert.length === 0) {
           resolve({ 

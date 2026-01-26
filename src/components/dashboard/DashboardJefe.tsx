@@ -358,7 +358,7 @@ export default function DashboardJefe() {
   }, [filteredRanking, selectedFilters]);
 
   // Handle Excel export
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => ({
       codigo: advisor.codigo,
       nombre: advisor.nombre,
@@ -368,7 +368,7 @@ export default function DashboardJefe() {
       byType: advisor.byType,
     }));
 
-    exportRankingToExcel({
+    await exportRankingToExcel({
       data: dataForExport,
       includeRegional: false,
       fileName: 'ranking_jefe_ventas',
