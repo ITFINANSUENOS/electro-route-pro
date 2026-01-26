@@ -45,7 +45,7 @@ export function useActivityNotification() {
   return {
     showNotification,
     isInNotificationWindow,
-    hasSubmittedConsultas: todayReport !== null && 
+    hasSubmittedConsultas: !!todayReport && 
       (todayReport.consultas !== null || todayReport.solicitudes !== null),
   };
 }
