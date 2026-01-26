@@ -175,7 +175,7 @@ export default function DashboardLider() {
 
   // Calculate metrics including sales by advisor type
   const metrics = useMemo(() => {
-    if (!salesData) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0 };
+    if (!salesData) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0, totalActiveAdvisors: 0, advisorsWithSales: 0 };
 
     // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
     const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
