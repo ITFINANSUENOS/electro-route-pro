@@ -9,6 +9,40 @@ const corsHeaders = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Generic error messages - avoid exposing internal details
+const GENERIC_ERRORS = {
+  VALIDATION: 'Datos de entrada inválidos',
+  SERVER: 'Error procesando la solicitud',
+};
+
+// Maximum rows to prevent DoS
+const MAX_CSV_ROWS = 15000;
+
+// Maximum field lengths
+const MAX_LENGTHS = {
+  nombre: 200,
+  direccion: 500,
+  email: 254,
+  telefono: 20,
+};
+
+// Sanitize field to prevent CSV injection
+function sanitizeCSVField(value: string | null | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return "'" + trimmed;
+  }
+  return trimmed;
+}
+
+// Truncate string to max length
+function truncateField(value: string | null | undefined, maxLength: number): string {
+  if (!value) return '';
+  const sanitized = sanitizeCSVField(value);
+  return sanitized.slice(0, maxLength);
+}
+
 // Mapping from CSV headers to DB fields
 const HEADER_MAP: Record<string, string> = {
   'tipo': 'tipo_docum',
@@ -56,6 +90,14 @@ const HEADER_MAP: Record<string, string> = {
 };
 
 const NUMERIC_FIELDS = ['cantidad', 'subtotal', 'iva', 'total', 'vtas_ant_i', 'cod_region'];
+const TEXT_FIELDS_WITH_LIMITS: Record<string, number> = {
+  'cliente_nombre': MAX_LENGTHS.nombre,
+  'cliente_direccion': MAX_LENGTHS.direccion,
+  'cliente_email': MAX_LENGTHS.email,
+  'cliente_telefono': MAX_LENGTHS.telefono,
+  'asesor_nombre': MAX_LENGTHS.nombre,
+  'jefe_ventas': MAX_LENGTHS.nombre,
+};
 
 function parseNumber(value: string): number {
   if (!value?.trim()) return 0;
@@ -64,8 +106,8 @@ function parseNumber(value: string): number {
   return isNaN(num) ? 0 : num;
 }
 
-function parseDate(value: string): string {
-  if (!value?.trim()) return new Date().toISOString().split('T')[0];
+function parseDate(value: string): string | null {
+  if (!value?.trim()) return null;
   const clean = value.trim();
   
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
@@ -73,10 +115,19 @@ function parseDate(value: string): string {
   const parts = clean.split(/[\/\-]/);
   if (parts.length === 3) {
     const [first, second, third] = parts;
-    if (first.length === 4) return `${first}-${second.padStart(2, '0')}-${third.padStart(2, '0')}`;
-    return `${third.length === 2 ? '20' + third : third}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    let dateStr: string;
+    if (first.length === 4) {
+      dateStr = `${first}-${second.padStart(2, '0')}-${third.padStart(2, '0')}`;
+    } else {
+      dateStr = `${third.length === 2 ? '20' + third : third}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    }
+    // Validate the parsed date
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return dateStr;
+    }
   }
-  return new Date().toISOString().split('T')[0];
+  return null;
 }
 
 function normalizeHeader(header: string): string {
@@ -108,6 +159,7 @@ function parseCSVLine(line: string, delimiter: string): string[] {
 }
 
 // Build a lookup map from formas_pago table: codigo -> tipo_venta
+// deno-lint-ignore no-explicit-any
 async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string>> {
   const { data, error } = await supabase
     .from('formas_pago')
@@ -120,9 +172,13 @@ async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string
   }
   
   const lookup = new Map<string, string>();
-  for (const fp of (data || []) as { codigo: string; tipo_venta: string }[]) {
-    const normalizedCodigo = fp.codigo.toUpperCase().trim();
-    lookup.set(normalizedCodigo, fp.tipo_venta);
+  if (data && Array.isArray(data)) {
+    for (const fp of data) {
+      if (fp.codigo && fp.tipo_venta) {
+        const normalizedCodigo = String(fp.codigo).toUpperCase().trim();
+        lookup.set(normalizedCodigo, String(fp.tipo_venta));
+      }
+    }
   }
   
   console.log("Payment type lookup built with", lookup.size, "entries");
@@ -134,19 +190,16 @@ function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<stri
   const forma1 = (forma1Pago || '').toUpperCase().trim();
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  // First try exact match with FORMA1PAGO
   if (lookup.has(forma1)) {
     return lookup.get(forma1)!;
   }
   
-  // Try partial matching for common patterns
   for (const [codigo, tipoVenta] of lookup.entries()) {
     if (forma1.includes(codigo) || codigo.includes(forma1)) {
       return tipoVenta;
     }
   }
   
-  // Fallback to FORMAPAGO field for general classification
   if (formaGeneral === 'CONTADO') return 'CONTADO';
   if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
   if (formaGeneral === 'CREDITO') return 'CREDITO';
@@ -167,7 +220,6 @@ serve(async (req) => {
 
     console.log("Loading sales data...");
 
-    // Build payment type lookup from database
     const paymentTypeLookup = await buildPaymentTypeLookup(supabase);
 
     // First delete all existing records for this period to avoid duplicates
@@ -186,7 +238,7 @@ serve(async (req) => {
     
     if (!csvContent) {
       return new Response(
-        JSON.stringify({ error: "CSV content required in request body" }),
+        JSON.stringify({ error: GENERIC_ERRORS.VALIDATION }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -196,7 +248,15 @@ serve(async (req) => {
     const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
     if (lines.length < 2) {
       return new Response(
-        JSON.stringify({ error: "CSV file is empty" }),
+        JSON.stringify({ error: GENERIC_ERRORS.VALIDATION }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate row count
+    if (lines.length > MAX_CSV_ROWS) {
+      return new Response(
+        JSON.stringify({ error: `El archivo excede el máximo de ${MAX_CSV_ROWS} registros` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -204,7 +264,6 @@ serve(async (req) => {
     const delimiter = ';';
     const headers = parseCSVLine(lines[0], delimiter);
     
-    // Build column mapping
     const columnMapping: Record<number, string> = {};
     headers.forEach((h: string, i: number) => {
       const normalized = normalizeHeader(h);
@@ -214,14 +273,17 @@ serve(async (req) => {
 
     console.log("Mapped columns:", Object.keys(columnMapping).length);
 
-    // Process rows
     const ventas: Record<string, unknown>[] = [];
     const dataRows = lines.slice(1);
+    let invalidRows = 0;
 
     for (const line of dataRows) {
       if (!line.trim()) continue;
       const values = parseCSVLine(line, delimiter);
-      if (values.length < 5) continue;
+      if (values.length < 5) {
+        invalidRows++;
+        continue;
+      }
 
       const venta: Record<string, unknown> = {};
 
@@ -231,19 +293,26 @@ serve(async (req) => {
           if (NUMERIC_FIELDS.includes(field)) {
             venta[field] = parseNumber(val);
           } else if (field === 'fecha') {
-            venta[field] = parseDate(val);
+            const parsedDate = parseDate(val);
+            if (parsedDate) {
+              venta[field] = parsedDate;
+            }
           } else {
-            venta[field] = val.trim();
+            // Apply length limits and sanitization for text fields
+            const maxLen = TEXT_FIELDS_WITH_LIMITS[field] || 500;
+            venta[field] = truncateField(val, maxLen);
           }
         }
       });
 
-      // Required fields
+      // Validate required fields
       if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || 'UNKNOWN';
-      if (!venta.fecha) venta.fecha = '2026-01-15';
+      if (!venta.fecha) {
+        invalidRows++;
+        continue; // Skip rows with invalid dates
+      }
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
-      // Use tipo_venta from CSV if available, otherwise derive from formas_pago
       if (!venta.tipo_venta) {
         venta.tipo_venta = deriveTipoVenta(
           (venta.forma1_pago as string) || '', 
@@ -253,17 +322,18 @@ serve(async (req) => {
       }
 
       if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
+        invalidRows++;
         continue;
       }
 
       ventas.push(venta);
     }
 
-    console.log("Parsed ventas:", ventas.length);
+    console.log("Parsed ventas:", ventas.length, "Invalid rows:", invalidRows);
 
     if (ventas.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No valid records found" }),
+        JSON.stringify({ error: "No se encontraron registros válidos en el archivo" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -278,14 +348,17 @@ serve(async (req) => {
       
       if (error) {
         console.error("Batch error at", i, ":", error.message);
-        throw new Error(`Error inserting batch: ${error.message}`);
+        // Return generic error to client, log details server-side
+        return new Response(
+          JSON.stringify({ error: GENERIC_ERRORS.SERVER }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
       
       inserted += batch.length;
       console.log(`Inserted ${inserted} of ${ventas.length}`);
     }
 
-    // Verify insertion
     const { count } = await supabase
       .from('ventas')
       .select('*', { count: 'exact', head: true })
@@ -297,7 +370,8 @@ serve(async (req) => {
         success: true, 
         inserted,
         total_in_db: count,
-        message: `Successfully loaded ${inserted} sales records` 
+        invalid_rows: invalidRows,
+        message: `Cargados ${inserted} registros de ventas exitosamente` 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -305,7 +379,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: (error as Error).message }),
+      JSON.stringify({ error: GENERIC_ERRORS.SERVER }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
