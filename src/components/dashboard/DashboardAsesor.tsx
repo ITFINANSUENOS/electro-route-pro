@@ -129,31 +129,108 @@ export default function DashboardAsesor() {
     enabled: !!user?.id,
   });
 
-  // Calculate advisor's ranking using multi-key matching
-  const { data: rankingData } = useQuery({
-    queryKey: ['asesor-ranking', codigoAsesor, cedulaAsesor, nombreAsesor, startDateStr],
+  // Get advisor's regional_id and codigo_jefe for ranking queries
+  const regionalId = (profile as any)?.regional_id;
+  const codigoJefe = (profile as any)?.codigo_jefe;
+
+  // Fetch all profiles in the same regional for ranking
+  const { data: regionalProfiles } = useQuery({
+    queryKey: ['regional-profiles', regionalId],
     queryFn: async () => {
-      // Fetch all sales for ranking calculation (uses service role on backend for full view)
-      // For the advisor, we use their own sales data which is already filtered by RLS
-      if (!salesData || salesData.length === 0) {
-        return { position: 0, total: 0 };
-      }
-      
-      // Get total sales for this advisor (excluding OTROS)
-      const mySales = salesData
-        .filter(sale => sale.tipo_venta !== 'OTROS')
-        .reduce((sum, sale) => sum + Math.abs(sale.vtas_ant_i || 0), 0);
-      
-      // For now, show position based on own data
-      // Full ranking requires leader/admin view
-      return { 
-        position: mySales > 0 ? 1 : 0, 
-        total: 1,
-        mySales 
-      };
+      if (!regionalId) return [];
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('codigo_asesor, nombre_completo, codigo_jefe')
+        .eq('regional_id', regionalId)
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
     },
-    enabled: !!(codigoAsesor || cedulaAsesor || nombreAsesor) && !!salesData,
+    enabled: !!regionalId,
   });
+
+  // Fetch all sales in the regional for ranking calculation
+  const { data: regionalSales } = useQuery({
+    queryKey: ['regional-sales-ranking', regionalId, startDateStr],
+    queryFn: async () => {
+      if (!regionalId || !regionalProfiles) return [];
+      
+      // Get all advisor codes in the regional
+      const codes = regionalProfiles.map(p => p.codigo_asesor).filter(Boolean);
+      if (codes.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('ventas')
+        .select('codigo_asesor, vtas_ant_i, tipo_venta')
+        .in('codigo_asesor', codes)
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!regionalId && !!regionalProfiles && regionalProfiles.length > 0,
+  });
+
+  // Calculate rankings
+  const rankingData = useMemo(() => {
+    if (!regionalSales || !regionalProfiles || !codigoAsesor) {
+      return { 
+        groupPosition: 0, groupTotal: 0, 
+        regionalPosition: 0, regionalTotal: 0,
+        mySales: 0, topRegionalSales: 0,
+        hasGroup: false
+      };
+    }
+
+    // Filter out OTROS and aggregate by advisor
+    const salesByAdvisor: Record<string, number> = {};
+    regionalSales
+      .filter(sale => sale.tipo_venta !== 'OTROS')
+      .forEach(sale => {
+        const code = sale.codigo_asesor;
+        salesByAdvisor[code] = (salesByAdvisor[code] || 0) + Math.abs(sale.vtas_ant_i || 0);
+      });
+
+    // My sales
+    const mySales = salesByAdvisor[codigoAsesor] || 0;
+
+    // Regional ranking
+    const regionalRanking = Object.entries(salesByAdvisor)
+      .sort((a, b) => b[1] - a[1]);
+    const regionalPosition = regionalRanking.findIndex(([code]) => code === codigoAsesor) + 1;
+    const topRegionalSales = regionalRanking.length > 0 ? regionalRanking[0][1] : 0;
+
+    // Group ranking (if has codigo_jefe)
+    let groupPosition = 0;
+    let groupTotal = 0;
+    const hasGroup = !!codigoJefe;
+    
+    if (hasGroup) {
+      // Get advisors in the same group (same codigo_jefe)
+      const groupAdvisors = regionalProfiles
+        .filter(p => p.codigo_jefe === codigoJefe)
+        .map(p => p.codigo_asesor)
+        .filter(Boolean);
+      
+      const groupRanking = groupAdvisors
+        .map(code => ({ code, sales: salesByAdvisor[code] || 0 }))
+        .sort((a, b) => b.sales - a.sales);
+      
+      groupPosition = groupRanking.findIndex(item => item.code === codigoAsesor) + 1;
+      groupTotal = groupRanking.length;
+    }
+
+    return {
+      groupPosition,
+      groupTotal,
+      regionalPosition: regionalPosition || (mySales > 0 ? 1 : 0),
+      regionalTotal: regionalRanking.length,
+      mySales,
+      topRegionalSales,
+      hasGroup
+    };
+  }, [regionalSales, regionalProfiles, codigoAsesor, codigoJefe]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -273,21 +350,44 @@ export default function DashboardAsesor() {
               <Trophy className="h-5 w-5 text-warning" />
               Mi Posición en el Ranking
             </CardTitle>
-            <CardDescription>Tu lugar entre los asesores de tu regional</CardDescription>
+            <CardDescription>Tu lugar entre los asesores</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="text-6xl font-bold text-primary">
-                  #{rankingData?.position || '-'}
+            <div className="flex flex-col items-center py-4">
+              {/* Ranking Numbers */}
+              <div className="flex gap-8 mb-6">
+                {rankingData.hasGroup && (
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-1">En mi Grupo</p>
+                    <div className="text-5xl font-bold text-primary">
+                      #{rankingData.groupPosition || '-'}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      de {rankingData.groupTotal} asesores
+                    </p>
+                  </div>
+                )}
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground mb-1">En mi Regional</p>
+                  <div className="text-5xl font-bold text-secondary">
+                    #{rankingData.regionalPosition || '-'}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    de {rankingData.regionalTotal} asesores
+                  </p>
                 </div>
-                <p className="text-lg text-muted-foreground mt-2">
-                  de {rankingData?.total || '-'} asesores
+              </div>
+
+              {/* Sales Summary Box */}
+              <div className="w-full mt-2 p-5 rounded-xl bg-primary/20 border border-primary/30">
+                <p className="text-sm text-muted-foreground mb-1">Ventas acumuladas</p>
+                <p className="text-3xl font-bold text-primary">
+                  {formatCurrency(rankingData.mySales)}
                 </p>
-                <div className="mt-4 p-4 rounded-lg bg-accent">
-                  <p className="text-sm text-muted-foreground">Ventas acumuladas</p>
-                  <p className="text-2xl font-semibold text-foreground">
-                    {formatCurrency(metrics.total)}
+                <div className="mt-3 pt-3 border-t border-primary/20">
+                  <p className="text-xs text-muted-foreground">Ventas Asesor No1</p>
+                  <p className="text-lg font-medium text-muted-foreground">
+                    {formatCurrency(rankingData.topRegionalSales)}
                   </p>
                 </div>
               </div>
