@@ -1,10 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, CreditCard, History, Shield } from "lucide-react";
+import { Building2, CreditCard, History, Shield, Calendar } from "lucide-react";
 import { RegionalesConfig } from "@/components/configuracion/RegionalesConfig";
 import { FormasPagoConfig } from "@/components/configuracion/FormasPagoConfig";
 import { HistorialCambios } from "@/components/configuracion/HistorialCambios";
 import { PermisosConfig } from "@/components/configuracion/PermisosConfig";
+import { ProgramacionConfig } from "@/components/configuracion/ProgramacionConfig";
 
 export default function Configuracion() {
   const { role } = useAuth();
@@ -27,7 +28,7 @@ export default function Configuracion() {
       </div>
 
       <Tabs defaultValue="regionales" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[900px]">
           <TabsTrigger value="regionales" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Regionales
@@ -35,6 +36,10 @@ export default function Configuracion() {
           <TabsTrigger value="formas-pago" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Formas de Pago
+          </TabsTrigger>
+          <TabsTrigger value="programacion" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Programación
           </TabsTrigger>
           <TabsTrigger value="permisos" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
@@ -52,6 +57,10 @@ export default function Configuracion() {
 
         <TabsContent value="formas-pago">
           <FormasPagoConfig />
+        </TabsContent>
+
+        <TabsContent value="programacion">
+          <ProgramacionConfig />
         </TabsContent>
 
         <TabsContent value="permisos">
