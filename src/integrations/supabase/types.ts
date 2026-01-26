@@ -415,6 +415,7 @@ export type Database = {
           latitud: number | null
           longitud: number | null
           municipio: string
+          nombre: string | null
           tipo_actividad: Database["public"]["Enums"]["activity_type"]
           updated_at: string
           user_id: string
@@ -429,6 +430,7 @@ export type Database = {
           latitud?: number | null
           longitud?: number | null
           municipio: string
+          nombre?: string | null
           tipo_actividad: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
           user_id: string
@@ -443,6 +445,7 @@ export type Database = {
           latitud?: number | null
           longitud?: number | null
           municipio?: string
+          nombre?: string | null
           tipo_actividad?: Database["public"]["Enums"]["activity_type"]
           updated_at?: string
           user_id?: string
