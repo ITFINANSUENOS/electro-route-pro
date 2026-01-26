@@ -33,6 +33,7 @@ import { ProgramacionFilters } from "@/components/programacion/ProgramacionFilte
 import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
 import { GroupedActivityCard, groupActivities, GroupedActivity } from "@/components/programacion/GroupedActivityCard";
 import { ActivityDetailDialog } from "@/components/programacion/ActivityDetailDialog";
+import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -50,6 +51,7 @@ const activityLabels: Record<ActivityType, string> = {
 
 export default function Programacion() {
   const { role, user, profile } = useAuth();
+  const { diasBloqueoMinimo, diasBloqueoMaximo } = useSchedulingConfig();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,14 +73,19 @@ export default function Programacion() {
   const [filterRegional, setFilterRegional] = useState('todos');
   const [filterJefe, setFilterJefe] = useState('todos');
 
-  // Calculate minimum schedulable date (today + 4 days)
+  // Calculate minimum and maximum schedulable dates using config
   const minSchedulableDate = useMemo(() => {
-    return startOfDay(addDays(new Date(), 4));
-  }, []);
+    return startOfDay(addDays(new Date(), diasBloqueoMinimo));
+  }, [diasBloqueoMinimo]);
 
-  // Check if a date is schedulable
+  const maxSchedulableDate = useMemo(() => {
+    return startOfDay(addDays(new Date(), diasBloqueoMaximo));
+  }, [diasBloqueoMaximo]);
+
+  // Check if a date is schedulable (within the allowed window)
   const isDateSchedulable = (date: Date) => {
-    return !isBefore(startOfDay(date), minSchedulableDate);
+    const dayStart = startOfDay(date);
+    return !isBefore(dayStart, minSchedulableDate) && !isBefore(maxSchedulableDate, dayStart);
   };
 
   const canEdit = role === 'lider_zona' || role === 'coordinador_comercial' || role === 'administrador';
@@ -261,7 +268,7 @@ export default function Programacion() {
     // Validate all selected dates are schedulable
     const invalidDates = selectedDates.filter(d => !isDateSchedulable(d));
     if (invalidDates.length > 0) {
-      toast.error('Algunas fechas seleccionadas no son válidas (deben ser al menos 4 días en el futuro)');
+      toast.error(`Algunas fechas seleccionadas no son válidas (deben estar entre ${diasBloqueoMinimo} y ${diasBloqueoMaximo} días en el futuro)`);
       return;
     }
 
@@ -507,7 +514,7 @@ export default function Programacion() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <AlertCircle className="h-3 w-3" />
               <span>
-                Solo puedes programar desde el {format(minSchedulableDate, "d 'de' MMMM", { locale: es })} (4 días a partir de hoy)
+                Puedes programar desde el {format(minSchedulableDate, "d 'de' MMMM", { locale: es })} hasta el {format(maxSchedulableDate, "d 'de' MMMM", { locale: es })} ({diasBloqueoMinimo}-{diasBloqueoMaximo} días)
               </span>
             </div>
           </CardContent>
@@ -682,6 +689,7 @@ export default function Programacion() {
         activity={selectedActivity}
         isOpen={isDetailDialogOpen}
         onClose={() => setIsDetailDialogOpen(false)}
+        onRefresh={() => refetchProgramacion()}
       />
     </motion.div>
   );
