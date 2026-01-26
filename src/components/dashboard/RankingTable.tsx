@@ -4,6 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { exportRankingToExcel, RankingAdvisor as ExportAdvisor } from '@/utils/exportRankingExcel';
 
 export interface RankingAdvisor {
@@ -16,6 +22,8 @@ export interface RankingAdvisor {
   meta: number;
   byType: Record<string, number>;
   filteredTotal?: number;
+  salesCount?: number;
+  salesCountByType?: Record<string, number>;
 }
 
 export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
@@ -62,6 +70,7 @@ interface RankingTableProps {
   includeRegional?: boolean;
   title?: string;
   description?: string;
+  salesCountByAdvisor?: Record<string, { totalCount: number; byType: Record<string, { count: number; value: number }> }>;
 }
 
 export function RankingTable({
@@ -73,6 +82,7 @@ export function RankingTable({
   includeRegional = false,
   title = 'Ranking de Asesores',
   description = 'Ordenados por ventas según filtro',
+  salesCountByAdvisor,
 }: RankingTableProps) {
   // Calculate totals for selected types
   const typeTotals = useMemo(() => {
@@ -186,14 +196,50 @@ export function RankingTable({
                         </span>
                       </td>
                       {/* Dynamic columns for selected sale types */}
-                      {selectedFilters.map(tipo => (
-                        <td key={tipo} className="py-2 px-1 sm:py-3 sm:px-2 text-right text-muted-foreground hidden md:table-cell whitespace-nowrap">
-                          {formatCurrencyCompact(advisor.byType[tipo] || 0)}
-                        </td>
-                      ))}
+                      {selectedFilters.map(tipo => {
+                        const typeValue = advisor.byType[tipo] || 0;
+                        const advisorSalesCount = salesCountByAdvisor?.[advisor.codigo];
+                        const typeCount = advisorSalesCount?.byType[tipo]?.count || 0;
+                        
+                        return (
+                          <td key={tipo} className="py-2 px-1 sm:py-3 sm:px-2 text-right text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                            <TooltipProvider delayDuration={100}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-pointer hover:underline">
+                                    {formatCurrencyCompact(typeValue)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
+                                  <div className="text-xs">
+                                    <p className="font-medium">{formatCurrency(typeValue)}</p>
+                                    <p className="text-muted-foreground">{typeCount} {typeCount === 1 ? 'venta' : 'ventas'}</p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </td>
+                        );
+                      })}
                       <td className="py-2 px-1 sm:py-3 sm:px-2 text-right whitespace-nowrap">
-                        <span className="hidden sm:inline">{formatCurrency(displayTotal)}</span>
-                        <span className="sm:hidden">{formatCurrencyCompact(displayTotal)}</span>
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-pointer hover:underline">
+                                <span className="hidden sm:inline">{formatCurrency(displayTotal)}</span>
+                                <span className="sm:hidden">{formatCurrencyCompact(displayTotal)}</span>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
+                              <div className="text-xs">
+                                <p className="font-medium">{formatCurrency(displayTotal)}</p>
+                                <p className="text-muted-foreground">
+                                  {salesCountByAdvisor?.[advisor.codigo]?.totalCount || 0} {(salesCountByAdvisor?.[advisor.codigo]?.totalCount || 0) === 1 ? 'venta' : 'ventas'}
+                                </p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </td>
                       <td className="py-2 px-1 sm:py-3 sm:px-2 text-right text-muted-foreground hidden sm:table-cell whitespace-nowrap">
                         {advisor.meta > 0 ? formatCurrencyCompact(advisor.meta) : '-'}
