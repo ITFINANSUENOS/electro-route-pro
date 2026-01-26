@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search, CheckCircle, Navigation } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -74,6 +75,7 @@ export function ActividadesViewer() {
     profiles: Profile[];
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showOnlyWithEvidence, setShowOnlyWithEvidence] = useState(false);
 
   // Fetch regionales
   const { data: regionales = [] } = useQuery({
@@ -243,14 +245,21 @@ export function ActividadesViewer() {
       });
     });
 
-    return Array.from(groups.entries()).map(([key, value]) => ({
+    let result = Array.from(groups.entries()).map(([key, value]) => ({
       key,
       ...value.programaciones[0],
       users: value.profiles,
       reportes: value.reportes,
       isGroup: value.profiles.length > 1,
     }));
-  }, [filteredProgramaciones, profilesMap, reportes]);
+
+    // Filter by evidence if toggle is active
+    if (showOnlyWithEvidence) {
+      result = result.filter(activity => activity.reportes.length > 0);
+    }
+
+    return result;
+  }, [filteredProgramaciones, profilesMap, reportes, showOnlyWithEvidence]);
 
   const handleActivityClick = (activity: typeof groupedActivities[0]) => {
     const relatedProgramaciones = programaciones.filter(
@@ -427,11 +436,27 @@ export function ActividadesViewer() {
         )}
       </Card>
 
-      {/* Results */}
-      <div className="flex items-center justify-between">
+      {/* Results header with toggle */}
+      <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           {groupedActivities.length} actividades encontradas
         </p>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="evidence-toggle" className="text-sm text-muted-foreground cursor-pointer">
+            Solo con evidencia
+          </Label>
+          <Switch
+            id="evidence-toggle"
+            checked={showOnlyWithEvidence}
+            onCheckedChange={setShowOnlyWithEvidence}
+          />
+          {showOnlyWithEvidence && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" />
+              Con evidencia
+            </Badge>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
