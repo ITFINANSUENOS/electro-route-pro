@@ -804,6 +804,18 @@ export default function DashboardLider() {
           subtitle={`${100 - compliance}% para meta`}
           icon={Target}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+          tooltipTitle="Cumplimiento por tipo de venta"
+          tooltipItems={metrics.byType.map(t => {
+            const tipoMeta = metasData
+              ?.filter(m => m.tipo_meta === t.key.toLowerCase())
+              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
+            return {
+              label: t.name,
+              value: `${tipoCompliance}%`,
+              color: t.color,
+            };
+          })}
         />
         <KpiCard
           title="Consultas"
