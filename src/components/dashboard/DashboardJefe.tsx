@@ -114,6 +114,7 @@ export default function DashboardJefe() {
   }, [teamProfiles]);
 
   // Fetch sales for team - filter by codigo_jefe in ventas table
+  // Use pagination to fetch ALL records (Supabase default limit is 1000)
   const { data: salesData } = useQuery({
     queryKey: ['jefe-team-sales', codigoJefe, startDateStr],
     queryFn: async () => {
@@ -122,15 +123,43 @@ export default function DashboardJefe() {
       // Normalize codigo_jefe to 5 digits with leading zeros
       const normalizedJefe = codigoJefe.toString().padStart(5, '0');
       
-      const { data, error } = await supabase
-        .from('ventas')
-        .select('*')
-        .eq('codigo_jefe', normalizedJefe)
-        .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
+      type SaleRow = {
+        id: string;
+        fecha: string;
+        tipo_venta: string | null;
+        vtas_ant_i: number;
+        codigo_asesor: string;
+        asesor_nombre: string | null;
+        codigo_jefe: string | null;
+        [key: string]: unknown;
+      };
       
-      if (error) throw error;
-      return data;
+      const allData: SaleRow[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('ventas')
+          .select('*')
+          .eq('codigo_jefe', normalizedJefe)
+          .gte('fecha', startDateStr)
+          .lte('fecha', endDateStr)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData.push(...(data as SaleRow[]));
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allData;
     },
     enabled: !!codigoJefe,
   });
