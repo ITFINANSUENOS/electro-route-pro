@@ -25,6 +25,8 @@ import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
+import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
+import { Hash } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -576,6 +578,36 @@ export default function DashboardLider() {
     }>)
   );
 
+  // Build tipoAsesorMap for sales count by advisor
+  const tipoAsesorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const normalizeCode = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+    (profiles || []).forEach(p => {
+      if (p.codigo_asesor) {
+        const normalized = normalizeCode(p.codigo_asesor);
+        map.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+      }
+    });
+    return map;
+  }, [profiles]);
+
+  // Calculate sales count by advisor for ranking tooltips
+  const salesCountByAdvisorData = useSalesCountByAdvisor(
+    advancedFilteredSales.map(v => ({
+      identifica: (v as any).cliente_identificacion,
+      fecha: v.fecha,
+      tipo_venta: v.tipo_venta,
+      forma1_pago: (v as any).forma1_pago,
+      mcn_clase: (v as any).mcn_clase,
+      vtas_ant_i: v.vtas_ant_i,
+      codigo_asesor: v.codigo_asesor,
+    })),
+    tipoAsesorMap
+  );
+
   const advisorsAtRisk = useMemo(() => {
     const dayOfMonth = 19; // Current day
     const daysInMonth = 31;
@@ -730,13 +762,24 @@ export default function DashboardLider() {
           subtitle={`Meta: ${formatCurrency(metrics.totalMeta)}`}
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+          tooltipTitle="Desglose por tipo de venta"
+          tooltipItems={metrics.byType.map(t => ({
+            label: t.name,
+            value: formatCurrency(t.value),
+            color: t.color,
+          }))}
         />
         <KpiCard
-          title="Cumplimiento"
-          value={`${compliance}%`}
-          subtitle={`${100 - compliance}% para meta`}
-          icon={Target}
-          status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+          title="Q Ventas Mes"
+          value={salesCountData.totalSalesCount.toString()}
+          subtitle="Ventas únicas"
+          icon={Hash}
+          tooltipTitle="Cantidad por tipo de venta"
+          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => ({
+            label: tiposVentaLabels[key] || key,
+            value: `${data.count} ventas`,
+            color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
+          }))}
         />
         <KpiCard
           title="Asesores Activos"
@@ -753,8 +796,15 @@ export default function DashboardLider() {
         />
       </motion.div>
 
-      {/* KPI Cards - Row 2: Actividad y incumplimiento */}
-      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+      {/* KPI Cards - Row 2: Cumplimiento y actividad */}
+      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Cumplimiento"
+          value={`${compliance}%`}
+          subtitle={`${100 - compliance}% para meta`}
+          icon={Target}
+          status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+        />
         <KpiCard
           title="Consultas"
           value={totalConsultas.toString()}
@@ -833,33 +883,40 @@ export default function DashboardLider() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              {metrics.byAdvisorType.map((tipo) => (
-                <div
-                  key={tipo.tipo}
-                  className="p-3 sm:p-4 rounded-lg border"
-                  style={{ borderLeftColor: tipo.color, borderLeftWidth: 4 }}
-                >
-                  <div className="flex items-center justify-between mb-1 sm:mb-2">
-                    <span className="text-xs sm:text-sm font-medium text-foreground">{tipo.label}</span>
-                    <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full bg-muted text-muted-foreground">
-                      {tipo.count} asesores
-                    </span>
+              {metrics.byAdvisorType.map((tipo) => {
+                const salesCountForType = salesCountByAdvisorData.byTipoAsesor[tipo.tipo] || { count: 0, value: 0 };
+                return (
+                  <div
+                    key={tipo.tipo}
+                    className="p-3 sm:p-4 rounded-lg border group cursor-pointer hover:bg-muted/30 transition-colors"
+                    style={{ borderLeftColor: tipo.color, borderLeftWidth: 4 }}
+                    title={`${salesCountForType.count} ventas únicas`}
+                  >
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <span className="text-xs sm:text-sm font-medium text-foreground">{tipo.label}</span>
+                      <span className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full bg-muted text-muted-foreground">
+                        {tipo.count} asesores
+                      </span>
+                    </div>
+                    <p className="text-lg sm:text-2xl font-bold text-foreground">{formatCurrency(tipo.total)}</p>
+                    <p className="text-xs sm:text-sm font-medium text-primary mt-1">
+                      {salesCountForType.count} {salesCountForType.count === 1 ? 'venta' : 'ventas'}
+                    </p>
+                    <div className="mt-1.5 sm:mt-2 h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full transition-all"
+                        style={{ 
+                          width: `${Math.min((tipo.total / metrics.total) * 100, 100)}%`,
+                          backgroundColor: tipo.color,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                      {((tipo.total / metrics.total) * 100).toFixed(1)}% del total
+                    </p>
                   </div>
-                  <p className="text-lg sm:text-2xl font-bold text-foreground">{formatCurrency(tipo.total)}</p>
-                  <div className="mt-1.5 sm:mt-2 h-1.5 sm:h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full transition-all"
-                      style={{ 
-                        width: `${Math.min((tipo.total / metrics.total) * 100, 100)}%`,
-                        backgroundColor: tipo.color,
-                      }}
-                    />
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                    {((tipo.total / metrics.total) * 100).toFixed(1)}% del total
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -925,6 +982,7 @@ export default function DashboardLider() {
             onExportExcel={handleExportExcel}
             maxRows={15}
             includeRegional={isGlobalRole}
+            salesCountByAdvisor={salesCountByAdvisorData.byAdvisor}
           />
         </div>
       </motion.div>

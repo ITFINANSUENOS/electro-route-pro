@@ -6,6 +6,7 @@ import {
   ShoppingCart,
   Target,
   AlertCircle,
+  Hash,
 } from 'lucide-react';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { KpiCard } from '@/components/ui/kpi-card';
@@ -18,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
+import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import {
   BarChart,
   Bar,
@@ -277,6 +279,36 @@ export default function DashboardJefe() {
     }>)
   );
 
+  // Build tipoAsesorMap for sales count by advisor
+  const tipoAsesorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const normalizeCode = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+    (teamProfiles || []).forEach(p => {
+      if (p.codigo_asesor) {
+        const normalized = normalizeCode(p.codigo_asesor);
+        map.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+      }
+    });
+    return map;
+  }, [teamProfiles]);
+
+  // Calculate sales count by advisor for ranking tooltips
+  const salesCountByAdvisorData = useSalesCountByAdvisor(
+    (salesData || []).map(v => ({
+      identifica: (v as any).cliente_identificacion,
+      fecha: v.fecha,
+      tipo_venta: v.tipo_venta,
+      forma1_pago: (v as any).forma1_pago,
+      mcn_clase: (v as any).mcn_clase,
+      vtas_ant_i: v.vtas_ant_i,
+      codigo_asesor: v.codigo_asesor,
+    })),
+    tipoAsesorMap
+  );
+
   // Team performance for bar chart
   const teamPerformance = useMemo(() => {
     return metrics.byAdvisor.slice(0, 8).map(advisor => ({
@@ -377,13 +409,31 @@ export default function DashboardJefe() {
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-5">
         <KpiCard
           title="Ventas del Equipo"
           value={formatCurrency(metrics.total)}
           subtitle={`Meta: ${formatCurrency(metrics.totalMeta)}`}
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+          tooltipTitle="Desglose por tipo de venta"
+          tooltipItems={metrics.byType.map(t => ({
+            label: t.name,
+            value: formatCurrency(t.value),
+            color: t.color,
+          }))}
+        />
+        <KpiCard
+          title="Q Ventas Mes"
+          value={salesCountData.totalSalesCount.toString()}
+          subtitle="Ventas únicas"
+          icon={Hash}
+          tooltipTitle="Cantidad por tipo de venta"
+          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => ({
+            label: tiposVentaLabels[key] || key,
+            value: `${data.count} ventas`,
+            color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
+          }))}
         />
         <KpiCard
           title="Cumplimiento"
@@ -461,6 +511,7 @@ export default function DashboardJefe() {
           onExportExcel={handleExportExcel}
           maxRows={20}
           includeRegional={false}
+          salesCountByAdvisor={salesCountByAdvisorData.byAdvisor}
         />
       </motion.div>
 
