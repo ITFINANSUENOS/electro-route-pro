@@ -16,6 +16,7 @@ import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
+import { PaymentBreakdown } from './PaymentBreakdown';
 import {
   PieChart,
   Pie,
@@ -172,6 +173,19 @@ export default function DashboardJefe() {
       
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch formas_pago for payment breakdown
+  const { data: formasPago = [] } = useQuery({
+    queryKey: ['formas-pago-jefe'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('formas_pago')
+        .select('*')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -483,6 +497,15 @@ export default function DashboardJefe() {
           onExportExcel={handleExportExcel}
           maxRows={20}
           includeRegional={false}
+        />
+      </motion.div>
+
+      {/* Payment Breakdown */}
+      <motion.div variants={item}>
+        <PaymentBreakdown
+          salesData={salesData || []}
+          formasPago={formasPago}
+          selectedFilters={selectedFilters}
         />
       </motion.div>
 

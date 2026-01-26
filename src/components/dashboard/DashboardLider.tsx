@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
+import { PaymentBreakdown } from './PaymentBreakdown';
 import {
   PieChart,
   Pie,
@@ -115,6 +116,19 @@ export default function DashboardLider() {
       return data || [];
     },
     enabled: isGlobalRole,
+  });
+
+  // Fetch formas_pago for payment breakdown
+  const { data: formasPago = [] } = useQuery({
+    queryKey: ['formas-pago-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('formas_pago')
+        .select('*')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   // First fetch the regional code for the leader
@@ -953,6 +967,15 @@ export default function DashboardLider() {
             includeRegional={isGlobalRole}
           />
         </div>
+      </motion.div>
+
+      {/* Payment Breakdown */}
+      <motion.div variants={item}>
+        <PaymentBreakdown
+          salesData={advancedFilteredSales}
+          formasPago={formasPago}
+          selectedFilters={selectedFilters}
+        />
       </motion.div>
 
       {/* Incompliance Table */}
