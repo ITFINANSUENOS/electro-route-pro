@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download } from 'lucide-react';
+import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -11,6 +13,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportMetasTemplate } from '@/utils/exportMetasTemplate';
+import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
+import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMetaQuantity';
 
 interface MetaData {
   id: string;
@@ -19,6 +23,13 @@ interface MetaData {
   mes: number;
   anio: number;
   tipo_meta: string | null;
+}
+
+interface ProfileWithRegional {
+  codigo_asesor: string;
+  nombre_completo: string;
+  tipo_asesor: string | null;
+  regional_id: string | null;
 }
 
 const tiposVenta = [
@@ -62,22 +73,49 @@ export default function MetasTab() {
     },
   });
 
-  // Fetch profiles for advisor names
+  // Fetch profiles for advisor names and tipo_asesor
   const { data: profiles } = useQuery({
     queryKey: ['profiles-for-metas'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('codigo_asesor, nombre_completo');
+        .select('codigo_asesor, nombre_completo, tipo_asesor, regional_id');
       
       if (error) throw error;
-      return data;
+      return data as ProfileWithRegional[];
     },
   });
 
+  // Fetch meta quantity config (promedios y porcentajes)
+  const { data: metaQuantityConfig, isLoading: loadingConfig } = useMetaQuantityConfig();
+
+  const getAdvisorInfo = (codigoAsesor: string): ProfileWithRegional | undefined => {
+    return profiles?.find(p => p.codigo_asesor === codigoAsesor);
+  };
+
   const getAdvisorName = (codigoAsesor: string) => {
-    const profile = profiles?.find(p => p.codigo_asesor === codigoAsesor);
+    const profile = getAdvisorInfo(codigoAsesor);
     return profile?.nombre_completo || codigoAsesor;
+  };
+
+  // Calculate quantity for a meta value
+  const calculateQuantity = (
+    valorMeta: number,
+    tipoVenta: string,
+    codigoAsesor: string
+  ): MetaQuantityResult | null => {
+    if (!metaQuantityConfig || valorMeta <= 0) return null;
+    
+    const advisorInfo = getAdvisorInfo(codigoAsesor);
+    if (!advisorInfo?.tipo_asesor || !advisorInfo?.regional_id) return null;
+
+    return calculateMetaQuantity(
+      valorMeta,
+      advisorInfo.tipo_asesor,
+      tipoVenta,
+      advisorInfo.regional_id,
+      metaQuantityConfig
+    );
   };
 
   const toggleRow = (id: string) => {
@@ -245,15 +283,24 @@ export default function MetasTab() {
                 <tr className="border-b">
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground"></th>
                   <th className="text-left py-3 px-4 font-medium text-muted-foreground">Asesor</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Meta Total</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Crédito</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Convenio</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Credi Contado</th>
-                  <th className="text-right py-3 px-4 font-medium text-muted-foreground">Contado</th>
+                  <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                    <div className="flex flex-col items-center">
+                      <span>Meta Total</span>
+                      <span className="text-xs font-normal">($ / Uds)</span>
+                    </div>
+                  </th>
+                  {tiposVenta.map(tipo => (
+                    <th key={tipo.key} className="text-center py-3 px-4 font-medium text-muted-foreground">
+                      <div className="flex flex-col items-center">
+                        <span>{tipo.label}</span>
+                        <span className="text-xs font-normal">($ / Uds)</span>
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {isLoading || loadingConfig ? (
                   <tr>
                     <td colSpan={7} className="text-center py-8 text-muted-foreground">
                       Cargando metas...
@@ -269,10 +316,22 @@ export default function MetasTab() {
                   filteredAdvisors.map(([codigoAsesor, metasList]) => {
                     const isExpanded = expandedRows.includes(codigoAsesor);
                     const totalAsesor = metasList.reduce((sum, m) => sum + m.valor_meta, 0);
+                    const advisorInfo = getAdvisorInfo(codigoAsesor);
+                    
+                    // Calculate metas by tipo and quantities
                     const metasByTipo = tiposVenta.reduce((acc, tipo) => {
-                      acc[tipo.key] = metasList.find(m => m.tipo_meta === tipo.key)?.valor_meta || 0;
+                      const valorMeta = metasList.find(m => m.tipo_meta === tipo.key)?.valor_meta || 0;
+                      const quantityResult = calculateQuantity(valorMeta, tipo.key.toUpperCase(), codigoAsesor);
+                      acc[tipo.key] = {
+                        valor: valorMeta,
+                        cantidad: quantityResult?.cantidadFinal || 0,
+                        desglose: quantityResult,
+                      };
                       return acc;
-                    }, {} as Record<string, number>);
+                    }, {} as Record<string, { valor: number; cantidad: number; desglose: MetaQuantityResult | null }>);
+
+                    // Calculate total quantity
+                    const totalCantidad = Object.values(metasByTipo).reduce((sum, m) => sum + m.cantidad, 0);
 
                     return (
                       <motion.tr
@@ -289,17 +348,63 @@ export default function MetasTab() {
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           )}
                         </td>
-                        <td className="py-4 px-4 font-medium">
-                          {getAdvisorName(codigoAsesor)}
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{getAdvisorName(codigoAsesor)}</span>
+                            {advisorInfo?.tipo_asesor && (
+                              <Badge variant="outline" className="w-fit text-xs mt-1">
+                                {advisorInfo.tipo_asesor}
+                              </Badge>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-4 px-4 text-right font-semibold">
-                          {formatCurrency(totalAsesor)}
+                        <td className="py-4 px-4 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="font-semibold">{formatCurrency(totalAsesor)}</span>
+                            {totalCantidad > 0 && (
+                              <Badge variant="secondary" className="mt-1">
+                                <Hash className="h-3 w-3 mr-1" />
+                                {totalCantidad} uds
+                              </Badge>
+                            )}
+                          </div>
                         </td>
-                        {tiposVenta.map(tipo => (
-                          <td key={tipo.key} className="py-4 px-4 text-right">
-                            {metasByTipo[tipo.key] > 0 ? formatCurrency(metasByTipo[tipo.key]) : '-'}
-                          </td>
-                        ))}
+                        {tiposVenta.map(tipo => {
+                          const metaTipo = metasByTipo[tipo.key];
+                          return (
+                            <td key={tipo.key} className="py-4 px-4 text-center">
+                              {metaTipo.valor > 0 ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex flex-col items-center cursor-help">
+                                        <span>{formatCurrency(metaTipo.valor)}</span>
+                                        {metaTipo.cantidad > 0 && (
+                                          <Badge variant="outline" className="mt-1 text-xs">
+                                            {metaTipo.cantidad} uds
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    {metaTipo.desglose && (
+                                      <TooltipContent className="max-w-xs p-3">
+                                        <div className="space-y-1 text-xs">
+                                          <p><strong>Cálculo de cantidad:</strong></p>
+                                          <p>Meta: {formatCurrency(metaTipo.desglose.valorMeta)}</p>
+                                          <p>+ {metaTipo.desglose.porcentajeAumento}% aumento = {formatCurrency(metaTipo.desglose.valorConAumento)}</p>
+                                          <p>÷ Promedio: {formatCurrency(metaTipo.desglose.valorPromedio)}</p>
+                                          <p>= {metaTipo.desglose.cantidadCalculada.toFixed(2)} → <strong>{metaTipo.desglose.cantidadFinal} unidades</strong></p>
+                                        </div>
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
                       </motion.tr>
                     );
                   })
