@@ -251,7 +251,31 @@ export default function DashboardLider() {
       }
     });
 
-    // Group sales by unique advisor (using codigo + nombre as key for GERENCIA entries)
+    // Calculate sales by tipo_asesor directly (more accurate, matches SQL logic)
+    // Use the same normalization logic as the database query
+    const salesByTipoAsesor: Record<string, number> = { INTERNO: 0, EXTERNO: 0, CORRETAJE: 0 };
+    
+    filteredSales.forEach(sale => {
+      const codigo = sale.codigo_asesor || '';
+      const normalizedCode = normalizeCode(codigo);
+      const nombre = (sale.asesor_nombre || '').toUpperCase();
+      
+      // Check for GERENCIA/GENERAL entries - these count as INTERNO
+      const isGerencia = codigo === '01' || normalizedCode === '00001' || 
+        nombre.includes('GENERAL') || nombre.includes('GERENCIA');
+      
+      let tipoAsesor: string;
+      if (isGerencia) {
+        tipoAsesor = 'INTERNO';
+      } else {
+        // Try both original and normalized code for lookup
+        tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(codigo) || 'EXTERNO';
+      }
+      
+      salesByTipoAsesor[tipoAsesor] = (salesByTipoAsesor[tipoAsesor] || 0) + (sale.vtas_ant_i || 0);
+    });
+
+    // Group sales by unique advisor (using normalized code as key for consistency)
     const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisorCode = sale.codigo_asesor;
       const normalizedCode = normalizeCode(advisorCode);
@@ -261,8 +285,8 @@ export default function DashboardLider() {
       const isGerencia = advisorCode === '01' || normalizedCode === '00001' || 
         nombre.includes('GENERAL') || nombre.includes('GERENCIA');
       
-      // Use a unique key: for GERENCIA entries, use nombre to distinguish regionals
-      const uniqueKey = isGerencia ? `GERENCIA_${sale.asesor_nombre || 'UNKNOWN'}` : advisorCode;
+      // Use normalized code as key, but for GERENCIA use nombre to distinguish regionals
+      const uniqueKey = isGerencia ? `GERENCIA_${sale.asesor_nombre || 'UNKNOWN'}` : normalizedCode;
       
       if (!acc[uniqueKey]) {
         // Get tipo_asesor: GERENCIA = INTERNO, else lookup in map, else EXTERNO
@@ -270,7 +294,7 @@ export default function DashboardLider() {
         if (isGerencia) {
           tipoAsesor = 'INTERNO';
         } else {
-          tipoAsesor = tipoAsesorMap.get(normalizedCode) || 'EXTERNO';
+          tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(advisorCode) || 'EXTERNO';
         }
         
         acc[uniqueKey] = { 
@@ -305,25 +329,17 @@ export default function DashboardLider() {
         return acc;
       }, {} as Record<string, number>);
 
-    // Get sales totals by advisor type from actual sales data
-    // GERENCIA entries are counted as INTERNO
-    const salesTotalsByType = byAdvisor.reduce((acc, advisor) => {
-      // Map GERENCIA to INTERNO for totals
-      const tipo = advisor.tipoAsesor === 'GERENCIA' ? 'INTERNO' : (advisor.tipoAsesor || 'EXTERNO');
-      acc[tipo] = (acc[tipo] || 0) + advisor.total;
-      return acc;
-    }, {} as Record<string, number>);
-
+    // Use the pre-calculated salesByTipoAsesor for accurate totals (calculated directly from sales)
     // Combine: counts from profiles, totals from sales
-    // Only show INTERNO, EXTERNO, CORRETAJE (GERENCIA is merged into INTERNO)
+    // Only show INTERNO, EXTERNO, CORRETAJE
     const displayTypes = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
     const byAdvisorType = displayTypes
-      .filter(tipo => (profileCountsByType[tipo] || 0) > 0 || (salesTotalsByType[tipo] || 0) > 0)
+      .filter(tipo => (profileCountsByType[tipo] || 0) > 0 || (salesByTipoAsesor[tipo] || 0) > 0)
       .map(tipo => ({
         tipo,
         label: tipoAsesorLabels[tipo] || tipo,
         count: profileCountsByType[tipo] || 0,
-        total: salesTotalsByType[tipo] || 0,
+        total: Math.abs(salesByTipoAsesor[tipo] || 0),
         color: tipoAsesorColors[tipo] || 'hsl(var(--muted))',
       }))
       .sort((a, b) => b.total - a.total);
