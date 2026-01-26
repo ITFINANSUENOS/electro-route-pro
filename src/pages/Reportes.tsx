@@ -287,10 +287,18 @@ export default function Reportes() {
       filtered = filtered.filter((v) => v.cod_region?.toString() === selectedRegional);
     }
 
-    // Filter by tipo_asesor
+    // Filter by tipo_asesor (considering GERENCIA/GENERAL as INTERNO)
     if (selectedTipoAsesor !== 'all') {
       filtered = filtered.filter((v) => {
-        const tipoAsesor = asesorTipoMap.get(v.codigo_asesor || '');
+        const codigo = v.codigo_asesor || '';
+        const normalizedCode = normalizeCode(codigo);
+        const nombre = (v.asesor_nombre || '').toUpperCase();
+        
+        // Check for GERENCIA/GENERAL entries
+        const isGerencia = codigo === '01' || normalizedCode === '00001' || 
+          nombre.includes('GENERAL') || nombre.includes('GERENCIA');
+        
+        const tipoAsesor = isGerencia ? 'INTERNO' : (asesorTipoMap.get(codigo) || asesorTipoMap.get(normalizedCode) || 'EXTERNO');
         return tipoAsesor === selectedTipoAsesor;
       });
     }
@@ -306,6 +314,9 @@ export default function Reportes() {
   // Calculate metrics - use vtas_ant_i for consistency with dashboard
   // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
   const metrics = useMemo(() => {
+    // Wait for profiles to be loaded for accurate tipo_asesor mapping
+    if (profiles.length === 0) return { totalVentas: 0, totalMetas: 0, cumplimiento: 0, asesoresActivos: 0, ventasPorTipo: {}, ventasPorTipoAsesor: {} };
+    
     const salesForMetrics = filteredVentas.filter(v => v.tipo_venta !== 'OTROS');
     const totalVentas = salesForMetrics.reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
     const totalMetas = metas.reduce((sum, m) => sum + m.valor_meta, 0);
@@ -347,7 +358,7 @@ export default function Reportes() {
       ventasPorTipo,
       ventasPorTipoAsesor,
     };
-  }, [filteredVentas, metas, asesorTipoMap]);
+  }, [filteredVentas, metas, asesorTipoMap, profiles]);
 
   // Calculate incompliance data
   const incumplimientos = useMemo(() => {
