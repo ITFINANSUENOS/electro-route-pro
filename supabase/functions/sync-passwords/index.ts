@@ -156,12 +156,16 @@ serve(async (req) => {
             })
             .eq('cedula', cedula);
 
-          // Update role
+          // Update role - first delete existing, then insert
           await supabaseAdmin.from('user_roles')
-            .upsert({
+            .delete()
+            .eq('user_id', profileData.user_id);
+          
+          await supabaseAdmin.from('user_roles')
+            .insert({
               user_id: profileData.user_id,
               role: rol,
-            }, { onConflict: 'user_id' });
+            });
 
           stats.updated++;
           console.log(`Updated by cedula: ${cedula} (${nombre})`);
@@ -197,7 +201,11 @@ serve(async (req) => {
               regional_id: regionalId,
             });
 
-            // Create role
+            // Create role - ensure no duplicates
+            await supabaseAdmin.from('user_roles')
+              .delete()
+              .eq('user_id', newUser.user.id);
+            
             await supabaseAdmin.from('user_roles').insert({
               user_id: newUser.user.id,
               role: rol,
