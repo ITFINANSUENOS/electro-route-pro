@@ -52,6 +52,7 @@ const HEADER_MAP: Record<string, string> = {
   'totcontado': 'total',
   'vtas_ant_i': 'vtas_ant_i',
   'motivodev': 'motivo_dev',
+  'tipo_venta': 'tipo_venta',
 };
 
 const NUMERIC_FIELDS = ['cantidad', 'subtotal', 'iva', 'total', 'vtas_ant_i', 'cod_region'];
@@ -242,12 +243,14 @@ serve(async (req) => {
       if (!venta.fecha) venta.fecha = '2026-01-15';
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
-      // Derive tipo_venta from database lookup
-      venta.tipo_venta = deriveTipoVenta(
-        (venta.forma1_pago as string) || '', 
-        (venta.forma_pago as string) || '',
-        paymentTypeLookup
-      );
+      // Use tipo_venta from CSV if available, otherwise derive from formas_pago
+      if (!venta.tipo_venta) {
+        venta.tipo_venta = deriveTipoVenta(
+          (venta.forma1_pago as string) || '', 
+          (venta.forma_pago as string) || '',
+          paymentTypeLookup
+        );
+      }
 
       if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
         continue;

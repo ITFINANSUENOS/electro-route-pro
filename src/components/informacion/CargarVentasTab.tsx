@@ -460,6 +460,33 @@ export default function CargarVentasTab() {
 
   const insertSalesData = async (ventas: Record<string, unknown>[], cargaId: string) => {
     try {
+      setUploadProgress(35);
+      setUploadStatus('Eliminando datos anteriores del período...');
+
+      // Determine the date range from the ventas data
+      const dates = ventas.map(v => v.fecha as string).filter(Boolean).sort();
+      const startDate = dates[0] || `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
+      const endDate = dates[dates.length - 1] || `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
+
+      // Calculate month boundaries for deletion (delete entire month's data)
+      const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
+      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
+
+      // DELETE existing data for this month BEFORE inserting new data
+      // This ensures we REPLACE data instead of adding to it
+      const { error: deleteError } = await supabase
+        .from('ventas')
+        .delete()
+        .gte('fecha', monthStart)
+        .lte('fecha', monthEnd);
+
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        // Continue anyway - might be empty table
+      }
+
+      console.log(`Deleted existing data for period ${monthStart} to ${monthEnd}`);
+
       setUploadProgress(40);
       setUploadStatus(`Insertando ${ventas.length} registros...`);
 
