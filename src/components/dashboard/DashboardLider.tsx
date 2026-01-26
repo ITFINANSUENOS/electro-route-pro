@@ -11,12 +11,14 @@ import {
   MessageSquare,
   Camera,
   MapPin,
+  Building2,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -97,6 +99,8 @@ const tipoAsesorColors: Record<string, string> = {
 export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
+  const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
+  const [selectedRegional, setSelectedRegional] = useState<string>('todos');
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -106,6 +110,21 @@ export default function DashboardLider() {
 
   // Determine if user is admin/coordinador (sees all data) or lider (sees regional data)
   const isGlobalRole = role === 'administrador' || role === 'coordinador_comercial' || role === 'administrativo';
+
+  // Fetch regionales for filter
+  const { data: regionales = [] } = useQuery({
+    queryKey: ['regionales-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('regionales')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isGlobalRole,
+  });
 
   // First fetch the regional code for the leader
   const { data: leaderRegional, isLoading: isLoadingRegional } = useQuery({
@@ -278,13 +297,65 @@ export default function DashboardLider() {
     );
   }, [profiles, reportesDiarios]);
 
+  // Apply advanced filters to sales data
+  const advancedFilteredSales = useMemo(() => {
+    if (!salesData || !profiles) return [];
+    
+    // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
+    let filtered = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
+    
+    // Filter by regional if selected
+    if (selectedRegional !== 'todos') {
+      const regionalCode = parseInt(selectedRegional);
+      // Include mapped codes
+      const codesToInclude = REGIONAL_CODE_MAPPING[regionalCode] || [regionalCode];
+      filtered = filtered.filter(sale => codesToInclude.includes(sale.cod_region || 0));
+    }
+    
+    // Filter by tipo_asesor if selected
+    if (selectedTipoAsesor !== 'todos') {
+      const normalizeCode = (code: string): string => {
+        const clean = (code || '').replace(/^0+/, '').trim();
+        return clean.padStart(5, '0');
+      };
+      
+      const tipoAsesorMap = new Map<string, string>();
+      profiles.forEach(p => {
+        if (p.codigo_asesor) {
+          const normalized = normalizeCode(p.codigo_asesor);
+          tipoAsesorMap.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+        }
+      });
+      
+      filtered = filtered.filter(sale => {
+        const codigo = sale.codigo_asesor || '';
+        const normalizedCode = normalizeCode(codigo);
+        const nombre = (sale.asesor_nombre || '').toUpperCase();
+        
+        const isGerencia = codigo === '01' || normalizedCode === '00001' || 
+          nombre.includes('GENERAL') || nombre.includes('GERENCIA');
+        
+        let tipoAsesor: string;
+        if (isGerencia) {
+          tipoAsesor = 'INTERNO';
+        } else {
+          tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(codigo) || 'EXTERNO';
+        }
+        
+        return tipoAsesor === selectedTipoAsesor.toUpperCase();
+      });
+    }
+    
+    return filtered;
+  }, [salesData, profiles, selectedRegional, selectedTipoAsesor]);
+
   // Calculate metrics including sales by advisor type
   // Wait for both salesData AND profiles to be loaded for accurate calculations
   const metrics = useMemo(() => {
-    if (!salesData || !profiles) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0, totalActiveAdvisors: 0, advisorsWithSales: 0 };
+    if (!advancedFilteredSales || !profiles) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0, totalActiveAdvisors: 0, advisorsWithSales: 0 };
 
-    // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
-    const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
+    // Use filtered sales
+    const filteredSales = advancedFilteredSales;
 
     // Group by tipo_venta
     const byType = Object.entries(
@@ -435,11 +506,11 @@ export default function DashboardLider() {
       advisorsWithSales: advisorsWithSales.size,
       totalActiveAdvisors,
     };
-  }, [salesData, metasData, profiles]);
+  }, [advancedFilteredSales, metasData, profiles]);
 
   // Calculate budget vs executed by type
   const budgetVsExecuted = useMemo(() => {
-    if (!metasData || !salesData) return [];
+    if (!metasData || !advancedFilteredSales) return [];
 
     const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
     
@@ -449,7 +520,7 @@ export default function DashboardLider() {
         .reduce((sum, m) => sum + m.valor_meta, 0);
       
       const ejecutado = Math.abs(
-        salesData
+        advancedFilteredSales
           .filter(s => s.tipo_venta === tipo)
           .reduce((sum, s) => sum + (s.vtas_ant_i || 0), 0)
       );
@@ -460,7 +531,7 @@ export default function DashboardLider() {
         ejecutado: ejecutado / 1000000,
       };
     });
-  }, [metasData, salesData]);
+  }, [metasData, advancedFilteredSales]);
 
   // Advisors at risk of not meeting goals
   const advisorsAtRisk = useMemo(() => {
@@ -524,6 +595,39 @@ export default function DashboardLider() {
             {role && roleLabels[role]} • Hoy es {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
+        
+        {/* Advanced Filters - Only for global roles */}
+        {isGlobalRole && (
+          <div className="flex flex-wrap gap-3">
+            <Select value={selectedRegional} onValueChange={setSelectedRegional}>
+              <SelectTrigger className="w-[180px] bg-card">
+                <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Regional" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border z-50">
+                <SelectItem value="todos">Todas las regionales</SelectItem>
+                {regionales.map((r) => (
+                  <SelectItem key={r.id} value={r.codigo.toString()}>
+                    {r.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedTipoAsesor} onValueChange={setSelectedTipoAsesor}>
+              <SelectTrigger className="w-[160px] bg-card">
+                <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Tipo Asesor" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border z-50">
+                <SelectItem value="todos">Todos los tipos</SelectItem>
+                <SelectItem value="INTERNO">Internos</SelectItem>
+                <SelectItem value="EXTERNO">Externos</SelectItem>
+                <SelectItem value="CORRETAJE">Corretaje</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </motion.div>
 
       {/* KPI Cards - Row 1: Ventas */}
