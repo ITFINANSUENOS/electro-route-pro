@@ -303,15 +303,15 @@ export function RankingTable({
                                   <div className="text-xs space-y-1">
                                     <p className="font-medium">{formatCurrency(typeValue)}</p>
                                     <p className="text-muted-foreground">{typeCount} {typeCount === 1 ? 'venta' : 'ventas'}</p>
-                                    {typeMeta > 0 && (
-                                      <p className={`font-medium ${
-                                        typeCompliance >= 100 ? 'text-success' :
-                                        typeCompliance >= 80 ? 'text-warning' :
-                                        'text-danger'
-                                      }`}>
-                                        {typeCompliance}% cumplimiento
-                                      </p>
-                                    )}
+                                    <p className={`font-medium ${
+                                      typeMeta > 0
+                                        ? typeCompliance >= 100 ? 'text-success' :
+                                          typeCompliance >= 80 ? 'text-warning' :
+                                          'text-danger'
+                                        : 'text-muted-foreground'
+                                    }`}>
+                                      {typeMeta > 0 ? `${typeCompliance}% cumplimiento` : 'Sin meta asignada'}
+                                    </p>
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
