@@ -241,26 +241,30 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
 
+    // Group sales by unique advisor (using codigo + nombre as key for GERENCIA entries)
     const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisorCode = sale.codigo_asesor;
       const normalizedCode = normalizeCode(advisorCode);
+      const nombre = sale.asesor_nombre?.toUpperCase() || '';
       
-      if (!acc[advisorCode]) {
+      // Use a unique key: for code '01'/GERENCIA entries, use nombre to distinguish regionals
+      const isGerencia = advisorCode === '01' || normalizedCode === '00001' || nombre.includes('GENERAL') || nombre.includes('GERENCIA');
+      const uniqueKey = isGerencia ? `${advisorCode}_${sale.asesor_nombre || 'GERENCIA'}` : advisorCode;
+      
+      if (!acc[uniqueKey]) {
         // Match profile by normalized code (5-digit padded)
         const profile = profiles?.find(p => {
           const profileCode = normalizeCode(p.codigo_asesor || '');
           return profileCode === normalizedCode;
         });
         
+        // GERENCIA/GENERAL entries count as INTERNO, others use profile or default EXTERNO
         let tipoAsesor = profile?.tipo_asesor?.toUpperCase() || 'EXTERNO';
-        
-        // Special case: GERENCIA entries have code '01' or name contains 'GERENCIA'
-        const nombre = sale.asesor_nombre?.toUpperCase() || '';
-        if (advisorCode === '01' || advisorCode === '00001' || normalizedCode === '00001' || nombre.includes('GERENCIA')) {
-          tipoAsesor = 'INTERNO'; // Count GERENCIA as INTERNO
+        if (isGerencia) {
+          tipoAsesor = 'INTERNO';
         }
         
-        acc[advisorCode] = { 
+        acc[uniqueKey] = { 
           codigo: advisorCode, 
           nombre: sale.asesor_nombre || advisorCode,
           tipoAsesor: tipoAsesor,
@@ -268,9 +272,9 @@ export default function DashboardLider() {
           byType: {} as Record<string, number>
         };
       }
-      acc[advisorCode].total += sale.vtas_ant_i || 0;
+      acc[uniqueKey].total += sale.vtas_ant_i || 0;
       const tipo = sale.tipo_venta || 'OTRO';
-      acc[advisorCode].byType[tipo] = (acc[advisorCode].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
+      acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
 
@@ -317,8 +321,16 @@ export default function DashboardLider() {
 
     const totalMeta = metasData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
 
-    // Count unique advisors with sales (excluding code '01' which is GERENCIA)
-    const advisorsWithSales = new Set(byAdvisor.filter(a => a.codigo !== '01' && a.codigo !== '00001').map(a => a.codigo));
+    // Count unique advisors with sales (excluding GERENCIA/GENERAL entries)
+    const advisorsWithSales = new Set(
+      byAdvisor
+        .filter(a => {
+          const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+            a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+          return !isGerencia;
+        })
+        .map(a => a.codigo)
+    );
     
     // Total active advisors from profiles (for display when sales data is low)
     const totalActiveAdvisors = profiles?.filter(p => p.activo && p.codigo_asesor).length || 0;

@@ -320,16 +320,17 @@ export default function Reportes() {
     });
 
     // Ventas por tipo de asesor - check both raw and normalized codes
-    // Also handle GERENCIA (code 01/00001) as INTERNO
+    // Also handle GERENCIA/GENERAL (code 01/00001) as INTERNO
     const ventasPorTipoAsesor: Record<string, number> = {};
     salesForMetrics.forEach((v) => {
       const codigo = v.codigo_asesor || '';
       const normalizedCode = normalizeCode(codigo);
       const nombre = (v.asesor_nombre || '').toUpperCase();
       
-      // Check for GERENCIA entries - should be counted as INTERNO
+      // Check for GERENCIA/GENERAL entries - should be counted as INTERNO
+      const isGerencia = codigo === '01' || normalizedCode === '00001' || nombre.includes('GENERAL') || nombre.includes('GERENCIA');
       let tipoAsesor: string;
-      if (codigo === '01' || normalizedCode === '00001' || nombre.includes('GERENCIA')) {
+      if (isGerencia) {
         tipoAsesor = 'INTERNO';
       } else {
         tipoAsesor = asesorTipoMap.get(codigo) || asesorTipoMap.get(normalizedCode) || 'EXTERNO';
