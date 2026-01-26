@@ -47,6 +47,82 @@ export type Database = {
         }
         Relationships: []
       }
+      config_metas_porcentajes: {
+        Row: {
+          created_at: string
+          id: string
+          porcentaje_aumento_1: number
+          porcentaje_aumento_2: number
+          porcentaje_aumento_3: number
+          regional_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          porcentaje_aumento_1?: number
+          porcentaje_aumento_2?: number
+          porcentaje_aumento_3?: number
+          regional_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          porcentaje_aumento_1?: number
+          porcentaje_aumento_2?: number
+          porcentaje_aumento_3?: number
+          regional_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_metas_porcentajes_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: true
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_metas_promedio: {
+        Row: {
+          created_at: string
+          id: string
+          regional_id: string
+          tipo_asesor: string
+          tipo_venta: string
+          updated_at: string
+          valor_promedio: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          regional_id: string
+          tipo_asesor: string
+          tipo_venta: string
+          updated_at?: string
+          valor_promedio?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          regional_id?: string
+          tipo_asesor?: string
+          tipo_venta?: string
+          updated_at?: string
+          valor_promedio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_metas_promedio_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coordinadores: {
         Row: {
           activo: boolean | null
