@@ -559,6 +559,8 @@ export type Database = {
         Row: {
           consultas: number | null
           created_at: string
+          estado_evidencia: string | null
+          evidencia_completa: boolean | null
           fecha: string
           foto_url: string | null
           gps_latitud: number | null
@@ -572,6 +574,8 @@ export type Database = {
         Insert: {
           consultas?: number | null
           created_at?: string
+          estado_evidencia?: string | null
+          evidencia_completa?: boolean | null
           fecha?: string
           foto_url?: string | null
           gps_latitud?: number | null
@@ -585,6 +589,8 @@ export type Database = {
         Update: {
           consultas?: number | null
           created_at?: string
+          estado_evidencia?: string | null
+          evidencia_completa?: boolean | null
           fecha?: string
           foto_url?: string | null
           gps_latitud?: number | null

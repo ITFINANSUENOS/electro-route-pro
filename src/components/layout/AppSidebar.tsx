@@ -23,6 +23,7 @@ import logoFinansuenos from '@/assets/logo-finansuenos.png';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { useActivityNotification } from '@/hooks/useActivityNotification';
 
 interface NavItem {
   id: string;
@@ -100,6 +101,7 @@ function SidebarContent({
   role, 
   signOut,
   onNavClick,
+  showActivityNotification,
 }: {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
@@ -109,6 +111,7 @@ function SidebarContent({
   role: UserRole | null;
   signOut: () => void;
   onNavClick?: () => void;
+  showActivityNotification?: boolean;
 }) {
   return (
     <div className="flex flex-col h-full">
@@ -152,6 +155,7 @@ function SidebarContent({
           {filteredNavItems.map((item) => {
             const isActive = location.pathname === item.href;
             const Icon = item.icon;
+            const showBadge = item.id === 'actividades' && showActivityNotification;
 
             return (
               <li key={item.href}>
@@ -159,22 +163,30 @@ function SidebarContent({
                   to={item.href}
                   onClick={onNavClick}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 sm:py-2.5 text-sm font-medium transition-all duration-200',
+                    'flex items-center gap-3 rounded-lg px-3 py-2 sm:py-2.5 text-sm font-medium transition-all duration-200 relative',
                     isActive
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
                   )}
                 >
-                  <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-secondary')} />
+                  <div className="relative">
+                    <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-secondary')} />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-destructive rounded-full animate-pulse" />
+                    )}
+                  </div>
                   <AnimatePresence>
                     {!collapsed && (
                       <motion.span
                         initial={{ opacity: 0, width: 0 }}
                         animate={{ opacity: 1, width: 'auto' }}
                         exit={{ opacity: 0, width: 0 }}
-                        className="overflow-hidden whitespace-nowrap"
+                        className="overflow-hidden whitespace-nowrap flex items-center gap-2"
                       >
                         {item.title}
+                        {showBadge && (
+                          <span className="w-2 h-2 bg-destructive rounded-full" />
+                        )}
                       </motion.span>
                     )}
                   </AnimatePresence>
@@ -247,6 +259,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { profile, role, signOut } = useAuth();
   const isMobile = useIsMobile();
+  const { showNotification: showActivityNotification } = useActivityNotification();
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -299,6 +312,7 @@ export function AppSidebar() {
                 role={role}
                 signOut={signOut}
                 onNavClick={() => setMobileOpen(false)}
+                showActivityNotification={showActivityNotification}
               />
             </SheetContent>
           </Sheet>
@@ -345,6 +359,7 @@ export function AppSidebar() {
         profile={profile}
         role={role}
         signOut={signOut}
+        showActivityNotification={showActivityNotification}
       />
     </motion.aside>
   );
