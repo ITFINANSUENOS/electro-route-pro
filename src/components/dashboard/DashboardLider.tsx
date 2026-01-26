@@ -101,8 +101,11 @@ export default function DashboardLider() {
   const currentMonth = 1;
   const currentYear = 2026;
 
+  // Determine if user is admin/coordinador (sees all data) or lider (sees regional data)
+  const isGlobalRole = role === 'administrador' || role === 'coordinador_comercial' || role === 'administrativo';
+
   // First fetch the regional code for the leader
-  const { data: leaderRegional } = useQuery({
+  const { data: leaderRegional, isLoading: isLoadingRegional } = useQuery({
     queryKey: ['leader-regional', profile?.regional_id],
     queryFn: async () => {
       if (!profile?.regional_id) return null;
@@ -123,9 +126,16 @@ export default function DashboardLider() {
     return REGIONAL_CODE_MAPPING[leaderRegional.codigo] || [leaderRegional.codigo];
   }, [leaderRegional?.codigo]);
 
+  // Determine if the sales query should be enabled
+  const salesQueryEnabled = useMemo(() => {
+    if (isGlobalRole) return true; // Admin/Coordinador always sees everything
+    if (role === 'lider_zona') return regionalCodesToFilter.length > 0;
+    return !!profile;
+  }, [isGlobalRole, role, regionalCodesToFilter, profile]);
+
   // Fetch real sales data - filter by regional for lider_zona (including mapped codes)
-  const { data: salesData } = useQuery({
-    queryKey: ['dashboard-sales', regionalCodesToFilter, role, startDateStr],
+  const { data: salesData, isLoading: isLoadingSales } = useQuery({
+    queryKey: ['dashboard-sales', isGlobalRole ? 'all' : regionalCodesToFilter, role, startDateStr],
     queryFn: async () => {
       let query = supabase
         .from('ventas')
@@ -134,6 +144,7 @@ export default function DashboardLider() {
         .lte('fecha', endDateStr);
       
       // If lider_zona, filter by their regional codes (can include multiple)
+      // Admin/Coordinador sees ALL data without regional filter
       if (role === 'lider_zona' && regionalCodesToFilter.length > 0) {
         query = query.in('cod_region', regionalCodesToFilter);
       }
@@ -142,7 +153,7 @@ export default function DashboardLider() {
       if (error) throw error;
       return data;
     },
-    enabled: role === 'lider_zona' ? regionalCodesToFilter.length > 0 : !!profile,
+    enabled: salesQueryEnabled,
   });
 
   // Fetch metas - for lider, could filter by their asesores
