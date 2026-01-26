@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
 import {
   PieChart,
   Pie,
@@ -220,24 +221,30 @@ export default function DashboardAsesor() {
     // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
     const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
 
-    // Group by tipo_venta
-    const byType = Object.entries(
-      filteredSales.reduce((acc, sale) => {
-        const type = sale.tipo_venta || 'OTRO';
-        acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
-        return acc;
-      }, {} as Record<string, number>)
-    ).map(([name, value]) => ({
-      name: tiposVentaLabels[name] || name,
-      key: name,
-      value: Math.abs(value as number),
-      color: tiposVentaColors[name as keyof typeof tiposVentaColors] || 'hsl(var(--muted))',
-    }));
+    // Group by tipo_venta - use NET values (sum) to correctly handle returns/refunds
+    const byTypeRaw = filteredSales.reduce((acc, sale) => {
+      const type = sale.tipo_venta || 'OTRO';
+      acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Calculate total using net values (allows negative to subtract)
+    const total = Object.values(byTypeRaw).reduce((sum, val) => sum + val, 0);
+
+    // For display, show actual net values (can be negative for returns-heavy categories)
+    const byType = Object.entries(byTypeRaw)
+      .filter(([_, value]) => value !== 0) // Remove zero categories
+      .map(([name, value]) => ({
+        name: tiposVentaLabels[name] || name,
+        key: name,
+        value: value as number, // Keep actual value (can be negative)
+        color: tiposVentaColors[name as keyof typeof tiposVentaColors] || 'hsl(var(--muted))',
+      }));
 
     const totalMeta = metaData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
 
     return {
-      total: byType.reduce((sum, t) => sum + t.value, 0),
+      total, // Net total correctly subtracting returns
       byType,
       totalMeta,
     };
@@ -390,7 +397,7 @@ export default function DashboardAsesor() {
               <ResponsiveContainer width="50%" height="100%">
                 <PieChart>
                   <Pie
-                    data={metrics.byType}
+                    data={metrics.byType.filter(t => t.value > 0)} // Only show positive in pie
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -398,7 +405,7 @@ export default function DashboardAsesor() {
                     paddingAngle={2}
                     dataKey="value"
                   >
-                    {metrics.byType.map((entry, index) => (
+                    {metrics.byType.filter(t => t.value > 0).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -420,7 +427,10 @@ export default function DashboardAsesor() {
                       style={{ backgroundColor: type.color }}
                     />
                     <span className="text-sm text-foreground flex-1">{type.name}</span>
-                    <span className="text-sm font-semibold text-foreground">
+                    <span className={cn(
+                      "text-sm font-semibold",
+                      type.value < 0 ? "text-destructive" : "text-foreground"
+                    )}>
                       {formatCurrency(type.value)}
                     </span>
                   </div>
