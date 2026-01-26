@@ -452,6 +452,44 @@ export default function Usuarios() {
     input.click();
   };
 
+  const handleDownloadCSV = () => {
+    const headers = ['Rol', 'Tipo', 'Email', 'Cédula', 'Nombre', 'Teléfono', 'Regional', 'Zona', 'Estado'];
+    const rows = users.map((user) => [
+      user.role ? roleLabels[user.role] : 'Sin rol',
+      user.tipo_asesor || '-',
+      user.correo || '-',
+      user.cedula,
+      user.nombre_completo,
+      user.telefono || '-',
+      user.regional_nombre || '-',
+      user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
+      user.activo ? 'Activo' : 'Inactivo',
+    ]);
+    
+    // Escape values with semicolons or quotes
+    const escapeCSV = (val: string) => {
+      if (val.includes(';') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(escapeCSV).join(';'))
+    ].join('\n');
+    
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const date = new Date().toISOString().split('T')[0];
+    link.download = `usuarios_${date}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Archivo CSV descargado');
+  };
+
   const handleEditUser = (user: UserWithRole) => {
     setEditingUser(user);
     setEditDialogOpen(true);
@@ -482,6 +520,10 @@ export default function Usuarios() {
               <KeyRound className="h-4 w-4 mr-2" />
             )}
             Sincronizar Contraseñas
+          </Button>
+          <Button variant="outline" onClick={handleDownloadCSV} disabled={loading || users.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Descargar CSV
           </Button>
           <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
             <Download className="h-4 w-4 mr-2" />
