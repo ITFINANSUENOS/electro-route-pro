@@ -1,7 +1,6 @@
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { forwardRef } from 'react';
 
 interface KpiCardProps {
   title: string;
@@ -16,7 +15,7 @@ interface KpiCardProps {
   className?: string;
 }
 
-export const KpiCard = forwardRef<HTMLDivElement, KpiCardProps>(({
+export function KpiCard({
   title,
   value,
   subtitle,
@@ -24,7 +23,7 @@ export const KpiCard = forwardRef<HTMLDivElement, KpiCardProps>(({
   trend,
   status,
   className,
-}, ref) => {
+}: KpiCardProps) {
   const statusColors = {
     success: 'border-l-4 border-l-success',
     warning: 'border-l-4 border-l-warning',
@@ -33,7 +32,6 @@ export const KpiCard = forwardRef<HTMLDivElement, KpiCardProps>(({
 
   return (
     <motion.div
-      ref={ref}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
@@ -72,6 +70,4 @@ export const KpiCard = forwardRef<HTMLDivElement, KpiCardProps>(({
       )}
     </motion.div>
   );
-});
-
-KpiCard.displayName = 'KpiCard';
+}
