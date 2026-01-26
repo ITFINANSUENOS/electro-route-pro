@@ -36,6 +36,15 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+// Format number for input display (e.g., 2.895.000)
+const formatCurrencyInput = (value: number): string => {
+  if (!value || value === 0) return '';
+  return new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
 interface PromedioConfig {
   regional_id: string;
   tipo_asesor: string;
@@ -351,7 +360,7 @@ export function MetasConfig() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Promedios por Tipo de Asesor */}
+                {/* Promedios por Tipo de Asesor con % de Aumento */}
                 <div>
                   <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                     <Users className="h-4 w-4" />
@@ -361,87 +370,57 @@ export function MetasConfig() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium text-muted-foreground w-32">Tipo Asesor</th>
+                          <th className="text-left py-2 px-3 font-medium text-muted-foreground w-28">Tipo Asesor</th>
                           {TIPOS_VENTA.map(tipo => (
-                            <th key={tipo} className="text-center py-2 px-3 font-medium text-muted-foreground">
+                            <th key={tipo} className="text-center py-2 px-2 font-medium text-muted-foreground">
                               {tiposVentaLabels[tipo]}
                             </th>
                           ))}
+                          <th className="text-center py-2 px-2 font-medium text-muted-foreground bg-muted/30">
+                            <div className="flex items-center justify-center gap-1">
+                              <Percent className="h-3 w-3" />
+                              Aumento
+                            </div>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {TIPOS_ASESOR.map(tipoAsesor => (
-                          <tr key={tipoAsesor} className="border-b">
-                            <td className="py-2 px-3 font-medium">{tiposAsesorLabels[tipoAsesor]}</td>
-                            {TIPOS_VENTA.map(tipoVenta => (
-                              <td key={tipoVenta} className="py-2 px-2">
+                        {TIPOS_ASESOR.map((tipoAsesor, index) => {
+                          const porcentajeField = `porcentaje_aumento_${index + 1}` as keyof PorcentajeConfig;
+                          return (
+                            <tr key={tipoAsesor} className="border-b">
+                              <td className="py-2 px-3 font-medium">{tiposAsesorLabels[tipoAsesor]}</td>
+                              {TIPOS_VENTA.map(tipoVenta => (
+                                <td key={tipoVenta} className="py-2 px-1">
+                                  <div className="relative">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
+                                    <Input
+                                      type="text"
+                                      value={formatCurrencyInput(getPromedioValue(regional.id, tipoAsesor, tipoVenta))}
+                                      onChange={(e) => handlePromedioChange(regional.id, tipoAsesor, tipoVenta, e.target.value)}
+                                      className="pl-5 text-right h-9 w-full min-w-[130px] font-mono text-sm"
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                </td>
+                              ))}
+                              <td className="py-2 px-1 bg-muted/30">
                                 <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">$</span>
                                   <Input
                                     type="text"
-                                    value={getPromedioValue(regional.id, tipoAsesor, tipoVenta).toLocaleString('es-CO')}
-                                    onChange={(e) => handlePromedioChange(regional.id, tipoAsesor, tipoVenta, e.target.value)}
-                                    className="pl-5 text-right h-9 w-full min-w-[120px]"
+                                    value={getPorcentajeValue(regional.id, porcentajeField)}
+                                    onChange={(e) => handlePorcentajeChange(regional.id, porcentajeField, e.target.value)}
+                                    className="pr-6 text-right h-9 w-24 font-mono text-sm"
                                     placeholder="0"
                                   />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
                                 </div>
                               </td>
-                            ))}
-                          </tr>
-                        ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Porcentajes de Aumento */}
-                <div>
-                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                    <Percent className="h-4 w-4" />
-                    Porcentajes de Ajuste para Cálculo
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">% Aumento 1</label>
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          value={getPorcentajeValue(regional.id, 'porcentaje_aumento_1')}
-                          onChange={(e) => handlePorcentajeChange(regional.id, 'porcentaje_aumento_1', e.target.value)}
-                          className="pr-6 text-right"
-                          placeholder="0"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">% Aumento 2</label>
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          value={getPorcentajeValue(regional.id, 'porcentaje_aumento_2')}
-                          onChange={(e) => handlePorcentajeChange(regional.id, 'porcentaje_aumento_2', e.target.value)}
-                          className="pr-6 text-right"
-                          placeholder="0"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">% Aumento 3</label>
-                      <div className="relative">
-                        <Input
-                          type="text"
-                          value={getPorcentajeValue(regional.id, 'porcentaje_aumento_3')}
-                          onChange={(e) => handlePorcentajeChange(regional.id, 'porcentaje_aumento_3', e.target.value)}
-                          className="pr-6 text-right"
-                          placeholder="0"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </CardContent>
