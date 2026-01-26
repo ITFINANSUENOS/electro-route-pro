@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock, Users, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -61,33 +61,60 @@ export default function Programacion() {
   });
 
   const canEdit = role === 'lider_zona' || role === 'coordinador_comercial' || role === 'administrador';
-  const isReadOnly = role === 'asesor_comercial' || role === 'jefe_ventas';
+  
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  // Fetch programacion data
+  // Fetch programacion data with hierarchical visibility
   const { data: programacion = [], refetch: refetchProgramacion } = useQuery({
-    queryKey: ['programacion', format(currentMonth, 'yyyy-MM')],
+    queryKey: ['programacion', format(currentMonth, 'yyyy-MM'), role, profile?.regional_id, profile?.codigo_jefe],
     queryFn: async () => {
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
       
+      // First get the schedule data
       let query = supabase
         .from('programacion')
         .select('*')
         .gte('fecha', startDate)
         .lte('fecha', endDate);
 
-      // For asesor, only show their own
+      const { data: scheduleData, error } = await query;
+      if (error) throw error;
+      
+      if (!scheduleData || scheduleData.length === 0) return [];
+
+      // For asesor_comercial: only their own schedule
       if (role === 'asesor_comercial' && user?.id) {
-        query = query.eq('user_id', user.id);
+        return scheduleData.filter(s => s.user_id === user.id);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+      // For jefe_ventas: their own + their team's schedules (asesores with same codigo_jefe)
+      if (role === 'jefe_ventas' && profile?.codigo_asesor) {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('codigo_jefe', profile.codigo_asesor);
+        
+        const teamUserIds = new Set([user?.id, ...(teamProfiles?.map(p => p.user_id) || [])]);
+        return scheduleData.filter(s => teamUserIds.has(s.user_id));
+      }
+
+      // For lider_zona: their regional's schedules
+      if (role === 'lider_zona' && profile?.regional_id) {
+        const { data: regionalProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('regional_id', profile.regional_id);
+        
+        const regionalUserIds = new Set(regionalProfiles?.map(p => p.user_id) || []);
+        return scheduleData.filter(s => regionalUserIds.has(s.user_id));
+      }
+
+      // For coordinador_comercial, administrativo, administrador: all schedules
+      return scheduleData;
     },
   });
 
@@ -304,17 +331,6 @@ export default function Programacion() {
         )}
       </div>
 
-      {/* Read-only notice */}
-      {isReadOnly && (
-        <Card className="border-warning/50 bg-warning/10">
-          <CardContent className="py-3 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-warning" />
-            <span className="text-sm text-warning">
-              Solo tienes permisos de lectura. Contacta a tu líder de zona para modificaciones.
-            </span>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Multi-select hint for editors */}
       {canEdit && (
