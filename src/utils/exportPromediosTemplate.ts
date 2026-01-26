@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { supabase } from '@/integrations/supabase/client';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
@@ -66,59 +66,15 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       promedioLookup[key] = p.valor_promedio;
     });
 
-    // Build Excel data
-    const excelData: (string | number)[][] = [];
-
-    // Header row
-    excelData.push([
-      'REGIONAL_ID', 
-      'CODIGO', 
-      'REGIONAL', 
-      'ZONA',
-      'TIPO_ASESOR',
-      ...TIPOS_VENTA.map(tv => tiposVentaLabels[tv])
-    ]);
-
-    // Data rows - one row per regional per tipo asesor
-    regionales.forEach((regional: Regional) => {
-      TIPOS_ASESOR.forEach(tipoAsesor => {
-        const row: (string | number)[] = [
-          regional.id,
-          regional.codigo,
-          regional.nombre,
-          regional.zona || '',
-          tiposAsesorLabels[tipoAsesor],
-        ];
-
-        // Add value for each tipo venta
-        TIPOS_VENTA.forEach(tipoVenta => {
-          const key = `${regional.id}-${tipoAsesor}-${tipoVenta}`;
-          const valor = promedioLookup[key] || 0;
-          row.push(valor);
-        });
-
-        excelData.push(row);
-      });
-    });
-
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
-
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 40 }, // REGIONAL_ID (hidden in practice)
-      { wch: 8 },  // CODIGO
-      { wch: 20 }, // REGIONAL
-      { wch: 10 }, // ZONA
-      { wch: 12 }, // TIPO_ASESOR
-      { wch: 15 }, // CONTADO
-      { wch: 15 }, // CREDICONTADO
-      { wch: 15 }, // CRÉDITO
-      { wch: 15 }, // CONVENIO
-    ];
+    // Create workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'E-COM Sistema';
+    workbook.created = new Date();
 
     // Add instructions sheet
+    const instrSheet = workbook.addWorksheet('Instrucciones');
+    instrSheet.columns = [{ width: 80 }];
+    
     const instrucciones = [
       ['INSTRUCCIONES PARA LLENAR LA PLANTILLA DE PROMEDIOS'],
       [''],
@@ -131,19 +87,80 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       [''],
       ['NOTA: Santander (103) incluye Puerto Tejada (106) - use los valores combinados'],
     ];
-    const wsInstr = XLSX.utils.aoa_to_sheet(instrucciones);
-    wsInstr['!cols'] = [{ wch: 80 }];
+    
+    instrucciones.forEach((row, index) => {
+      instrSheet.addRow(row);
+      if (index === 0) {
+        instrSheet.getRow(1).font = { bold: true, size: 14 };
+      }
+    });
 
-    XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones');
-    XLSX.utils.book_append_sheet(wb, ws, 'Promedios');
+    // Add data sheet
+    const dataSheet = workbook.addWorksheet('Promedios');
+    
+    // Define columns
+    dataSheet.columns = [
+      { header: 'REGIONAL_ID', key: 'regional_id', width: 40 },
+      { header: 'CODIGO', key: 'codigo', width: 8 },
+      { header: 'REGIONAL', key: 'regional', width: 20 },
+      { header: 'ZONA', key: 'zona', width: 10 },
+      { header: 'TIPO_ASESOR', key: 'tipo_asesor', width: 12 },
+      { header: tiposVentaLabels.CONTADO, key: 'contado', width: 15 },
+      { header: tiposVentaLabels.CREDICONTADO, key: 'credicontado', width: 15 },
+      { header: tiposVentaLabels.CREDITO, key: 'credito', width: 15 },
+      { header: tiposVentaLabels.CONVENIO, key: 'convenio', width: 15 },
+    ];
+
+    // Style header row
+    const headerRow = dataSheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Add data rows
+    regionales.forEach((regional: Regional) => {
+      TIPOS_ASESOR.forEach(tipoAsesor => {
+        const row = {
+          regional_id: regional.id,
+          codigo: regional.codigo,
+          regional: regional.nombre,
+          zona: regional.zona || '',
+          tipo_asesor: tiposAsesorLabels[tipoAsesor],
+          contado: promedioLookup[`${regional.id}-${tipoAsesor}-CONTADO`] || 0,
+          credicontado: promedioLookup[`${regional.id}-${tipoAsesor}-CREDICONTADO`] || 0,
+          credito: promedioLookup[`${regional.id}-${tipoAsesor}-CREDITO`] || 0,
+          convenio: promedioLookup[`${regional.id}-${tipoAsesor}-CONVENIO`] || 0,
+        };
+        dataSheet.addRow(row);
+      });
+    });
+
+    // Format number columns
+    dataSheet.getColumn('contado').numFmt = '#,##0';
+    dataSheet.getColumn('credicontado').numFmt = '#,##0';
+    dataSheet.getColumn('credito').numFmt = '#,##0';
+    dataSheet.getColumn('convenio').numFmt = '#,##0';
 
     // Generate filename with date
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const filename = `Plantilla_Promedios_${dateStr}.xlsx`;
 
-    // Download file
-    XLSX.writeFile(wb, filename);
+    // Generate buffer and download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     return { success: true, count: regionales.length };
   } catch (error) {

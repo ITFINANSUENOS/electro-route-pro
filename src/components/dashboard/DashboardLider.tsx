@@ -651,7 +651,7 @@ export default function DashboardLider() {
   }, [filteredRanking, selectedFilters]);
 
   // Handle Excel export
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     // Get regional names map
     const regionalMap = new Map<number, string>();
     regionales.forEach(r => {
@@ -682,7 +682,7 @@ export default function DashboardLider() {
       byType: advisor.byType,
     }));
 
-    exportRankingToExcel({
+    await exportRankingToExcel({
       data: dataForExport,
       includeRegional: isGlobalRole,
       fileName: isGlobalRole ? 'ranking_general' : 'ranking_regional',

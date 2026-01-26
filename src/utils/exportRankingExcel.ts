@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export interface RankingAdvisor {
   codigo: string;
@@ -16,9 +16,53 @@ interface ExportRankingOptions {
   fileName?: string;
 }
 
-export function exportRankingToExcel({ data, includeRegional, fileName = 'ranking_ventas' }: ExportRankingOptions) {
-  const rows = data.map((advisor, index) => {
-    // Use net values (not abs) to properly account for returns/devoluciones
+export async function exportRankingToExcel({ data, includeRegional, fileName = 'ranking_ventas' }: ExportRankingOptions) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'E-COM Sistema';
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet('Ranking');
+
+  // Define columns based on whether regional is included
+  if (includeRegional) {
+    worksheet.columns = [
+      { header: 'Regional', key: 'regional', width: 20 },
+      { header: 'Posición', key: 'posicion', width: 10 },
+      { header: 'Cédula', key: 'cedula', width: 15 },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'Tipo Asesor', key: 'tipoAsesor', width: 12 },
+      { header: 'Contado', key: 'contado', width: 15 },
+      { header: 'Credi Contado', key: 'credicontado', width: 15 },
+      { header: 'Crédito', key: 'credito', width: 15 },
+      { header: 'Convenio', key: 'convenio', width: 15 },
+      { header: 'Total Ventas', key: 'totalVentas', width: 15 },
+    ];
+  } else {
+    worksheet.columns = [
+      { header: 'Posición', key: 'posicion', width: 10 },
+      { header: 'Cédula', key: 'cedula', width: 15 },
+      { header: 'Nombre', key: 'nombre', width: 35 },
+      { header: 'Tipo Asesor', key: 'tipoAsesor', width: 12 },
+      { header: 'Contado', key: 'contado', width: 15 },
+      { header: 'Credi Contado', key: 'credicontado', width: 15 },
+      { header: 'Crédito', key: 'credito', width: 15 },
+      { header: 'Convenio', key: 'convenio', width: 15 },
+      { header: 'Total Ventas', key: 'totalVentas', width: 15 },
+    ];
+  }
+
+  // Style header row
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF4472C4' }
+  };
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+  // Add data rows
+  data.forEach((advisor, index) => {
     const contado = advisor.byType['CONTADO'] || 0;
     const credicontado = advisor.byType['CREDICONTADO'] || 0;
     const credito = advisor.byType['CREDITO'] || 0;
@@ -26,34 +70,34 @@ export function exportRankingToExcel({ data, includeRegional, fileName = 'rankin
     const totalVentas = contado + credicontado + credito + convenio;
 
     if (includeRegional) {
-      return {
-        'Regional': advisor.regional || '',
-        'Posición': index + 1,
-        'Cédula': advisor.cedula || '',
-        'Nombre': advisor.nombre,
-        'Tipo Asesor': advisor.tipoAsesor,
-        'Contado': contado,
-        'Credi Contado': credicontado,
-        'Crédito': credito,
-        'Convenio': convenio,
-        'Total Ventas': totalVentas,
-      };
+      worksheet.addRow({
+        regional: advisor.regional || '',
+        posicion: index + 1,
+        cedula: advisor.cedula || '',
+        nombre: advisor.nombre,
+        tipoAsesor: advisor.tipoAsesor,
+        contado,
+        credicontado,
+        credito,
+        convenio,
+        totalVentas,
+      });
+    } else {
+      worksheet.addRow({
+        posicion: index + 1,
+        cedula: advisor.cedula || '',
+        nombre: advisor.nombre,
+        tipoAsesor: advisor.tipoAsesor,
+        contado,
+        credicontado,
+        credito,
+        convenio,
+        totalVentas,
+      });
     }
-
-    return {
-      'Posición': index + 1,
-      'Cédula': advisor.cedula || '',
-      'Nombre': advisor.nombre,
-      'Tipo Asesor': advisor.tipoAsesor,
-      'Contado': contado,
-      'Credi Contado': credicontado,
-      'Crédito': credito,
-      'Convenio': convenio,
-      'Total Ventas': totalVentas,
-    };
   });
 
-  // Add total row - use net values to account for returns
+  // Add totals row
   const totals = data.reduce((acc, advisor) => {
     acc.contado += advisor.byType['CONTADO'] || 0;
     acc.credicontado += advisor.byType['CREDICONTADO'] || 0;
@@ -62,45 +106,60 @@ export function exportRankingToExcel({ data, includeRegional, fileName = 'rankin
     return acc;
   }, { contado: 0, credicontado: 0, credito: 0, convenio: 0 });
 
-  const totalRow = includeRegional
-    ? {
-        'Regional': '',
-        'Posición': '',
-        'Cédula': '',
-        'Nombre': 'TOTAL',
-        'Tipo Asesor': '',
-        'Contado': totals.contado,
-        'Credi Contado': totals.credicontado,
-        'Crédito': totals.credito,
-        'Convenio': totals.convenio,
-        'Total Ventas': totals.contado + totals.credicontado + totals.credito + totals.convenio,
-      }
-    : {
-        'Posición': '',
-        'Cédula': '',
-        'Nombre': 'TOTAL',
-        'Tipo Asesor': '',
-        'Contado': totals.contado,
-        'Credi Contado': totals.credicontado,
-        'Crédito': totals.credito,
-        'Convenio': totals.convenio,
-        'Total Ventas': totals.contado + totals.credicontado + totals.credito + totals.convenio,
-      };
+  const totalRow = worksheet.addRow(
+    includeRegional
+      ? {
+          regional: '',
+          posicion: '',
+          cedula: '',
+          nombre: 'TOTAL',
+          tipoAsesor: '',
+          contado: totals.contado,
+          credicontado: totals.credicontado,
+          credito: totals.credito,
+          convenio: totals.convenio,
+          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.convenio,
+        }
+      : {
+          posicion: '',
+          cedula: '',
+          nombre: 'TOTAL',
+          tipoAsesor: '',
+          contado: totals.contado,
+          credicontado: totals.credicontado,
+          credito: totals.credito,
+          convenio: totals.convenio,
+          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.convenio,
+        }
+  );
 
-  rows.push(totalRow as any);
+  totalRow.font = { bold: true };
+  totalRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE0E0E0' }
+  };
 
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Ranking');
+  // Format number columns
+  worksheet.getColumn('contado').numFmt = '#,##0';
+  worksheet.getColumn('credicontado').numFmt = '#,##0';
+  worksheet.getColumn('credito').numFmt = '#,##0';
+  worksheet.getColumn('convenio').numFmt = '#,##0';
+  worksheet.getColumn('totalVentas').numFmt = '#,##0';
 
-  // Auto-size columns
-  const maxWidth = 20;
-  const colWidths = Object.keys(rows[0] || {}).map(() => ({ wch: maxWidth }));
-  worksheet['!cols'] = colWidths;
-
-  // Download
+  // Generate buffer and download
   const date = new Date().toISOString().split('T')[0];
-  XLSX.writeFile(workbook, `${fileName}_${date}.xlsx`);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${fileName}_${date}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export function formatCurrencyForExport(value: number): string {
