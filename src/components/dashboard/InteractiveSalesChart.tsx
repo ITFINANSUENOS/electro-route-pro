@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, ChevronLeft, TrendingUp } from 'lucide-react';
+import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import {
   PieChart,
@@ -49,16 +49,6 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-const formatCurrencyCompact = (value: number) => {
-  if (Math.abs(value) >= 1000000) {
-    return `$${(value / 1000000).toFixed(1)}M`;
-  }
-  if (Math.abs(value) >= 1000) {
-    return `$${(value / 1000).toFixed(0)}K`;
-  }
-  return `$${value.toFixed(0)}`;
-};
-
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'hsl(var(--success))',
   CREDICONTADO: 'hsl(var(--warning))',
@@ -71,6 +61,14 @@ const tipoVentaBadgeColors: Record<string, string> = {
   CREDICONTADO: 'bg-warning/10 text-warning border-warning/30',
   CREDITO: 'bg-primary/10 text-primary border-primary/30',
   CONVENIO: 'bg-secondary/10 text-secondary border-secondary/30',
+};
+
+// Color configurations for each sale type with gradient variations
+const tipoVentaColorConfig: Record<string, { hue: number; saturation: number; baseLightness: number }> = {
+  CONTADO: { hue: 142, saturation: 70, baseLightness: 35 },      // green
+  CREDICONTADO: { hue: 38, saturation: 85, baseLightness: 40 },  // orange/yellow
+  CREDITO: { hue: 262, saturation: 80, baseLightness: 45 },      // purple
+  CONVENIO: { hue: 199, saturation: 75, baseLightness: 40 },     // blue
 };
 
 // Custom active shape for highlighted slice
@@ -95,7 +93,7 @@ const renderActiveShape = (props: PieSectorDataItem) => {
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
-        style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' }}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))' }}
       />
     </g>
   );
@@ -108,6 +106,22 @@ export function InteractiveSalesChart({
 }: InteractiveSalesChartProps) {
   const [selectedType, setSelectedType] = useState<TipoVentaKey | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+
+  // Generate gradient colors for breakdown items based on the selected type
+  const generateGradientColor = (index: number, total: number, tipo: TipoVentaKey): string => {
+    const config = tipoVentaColorConfig[tipo] || { hue: 200, saturation: 70, baseLightness: 40 };
+    
+    // Create a gradient from dark to light based on position
+    // First item is darkest, last item is lightest
+    const lightnessStep = total > 1 ? 45 / (total - 1) : 0;
+    const lightness = config.baseLightness + (index * lightnessStep);
+    
+    // Slightly reduce saturation as we go lighter
+    const saturationReduction = index * 3;
+    const saturation = Math.max(config.saturation - saturationReduction, 40);
+    
+    return `hsl(${config.hue}, ${saturation}%, ${Math.min(lightness, 80)}%)`;
+  };
 
   // Calculate breakdown by forma_pago for selected type
   const paymentBreakdown = useMemo(() => {
@@ -145,30 +159,16 @@ export function InteractiveSalesChart({
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; cantidad: number; total: number }>);
 
-    // Convert to array, calculate percentages, and sort by total
+    // Convert to array, calculate percentages, and sort by total (highest first)
     const items = Object.values(grouped).sort((a, b) => b.total - a.total);
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
     
     return items.map((item, index) => ({
       ...item,
       percentage: totalAmount > 0 ? (item.total / totalAmount) * 100 : 0,
-      color: generateColor(index, items.length),
+      color: generateGradientColor(index, items.length, selectedType),
     }));
   }, [selectedType, salesData, formasPago]);
-
-  // Generate colors for breakdown items
-  function generateColor(index: number, total: number): string {
-    const baseHue = selectedType ? {
-      CONTADO: 142,      // green
-      CREDICONTADO: 38,  // yellow/orange
-      CREDITO: 262,      // purple/primary
-      CONVENIO: 199,     // blue/secondary
-    }[selectedType] || 200 : 200;
-    
-    const saturation = 70 - (index * 5);
-    const lightness = 50 + (index * 8);
-    return `hsl(${baseHue}, ${Math.max(saturation, 40)}%, ${Math.min(lightness, 80)}%)`;
-  }
 
   // Handle click on pie slice
   const handlePieClick = (data: { key?: string }, index: number) => {
@@ -221,7 +221,7 @@ export function InteractiveSalesChart({
               variant="outline" 
               className={`${tipoVentaBadgeColors[selectedType]} text-xs`}
             >
-              {formatCurrencyCompact(selectedTypeTotal)}
+              {formatCurrency(selectedTypeTotal)}
             </Badge>
           )}
         </div>
@@ -294,15 +294,14 @@ export function InteractiveSalesChart({
                     />
                     <span className="text-xs sm:text-sm text-foreground flex-1">{type.name}</span>
                     <span className="text-xs sm:text-sm font-semibold text-foreground">
-                      <span className="hidden sm:inline">{formatCurrency(type.value)}</span>
-                      <span className="sm:hidden">{formatCurrencyCompact(type.value)}</span>
+                      {formatCurrency(type.value)}
                     </span>
                   </motion.div>
                 ))}
                 <div className="pt-2 border-t border-border">
                   <div className="flex items-center justify-between text-sm font-bold">
                     <span>Total</span>
-                    <span>{formatCurrencyCompact(overallTotal)}</span>
+                    <span>{formatCurrency(overallTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -380,7 +379,7 @@ export function InteractiveSalesChart({
                           {item.percentage.toFixed(1)}%
                         </p>
                         <p className="text-[10px] sm:text-xs text-muted-foreground">
-                          {formatCurrencyCompact(item.total)}
+                          {formatCurrency(item.total)}
                         </p>
                       </div>
                     </motion.div>
