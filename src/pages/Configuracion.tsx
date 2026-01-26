@@ -1,9 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, CreditCard, History } from "lucide-react";
+import { Building2, CreditCard, History, Shield } from "lucide-react";
 import { RegionalesConfig } from "@/components/configuracion/RegionalesConfig";
 import { FormasPagoConfig } from "@/components/configuracion/FormasPagoConfig";
 import { HistorialCambios } from "@/components/configuracion/HistorialCambios";
+import { PermisosConfig } from "@/components/configuracion/PermisosConfig";
 
 export default function Configuracion() {
   const { role } = useAuth();
@@ -26,7 +27,7 @@ export default function Configuracion() {
       </div>
 
       <Tabs defaultValue="regionales" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[800px]">
           <TabsTrigger value="regionales" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Regionales
@@ -34,6 +35,10 @@ export default function Configuracion() {
           <TabsTrigger value="formas-pago" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             Formas de Pago
+          </TabsTrigger>
+          <TabsTrigger value="permisos" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Permisos
           </TabsTrigger>
           <TabsTrigger value="historial" className="flex items-center gap-2">
             <History className="h-4 w-4" />
@@ -47,6 +52,10 @@ export default function Configuracion() {
 
         <TabsContent value="formas-pago">
           <FormasPagoConfig />
+        </TabsContent>
+
+        <TabsContent value="permisos">
+          <PermisosConfig />
         </TabsContent>
 
         <TabsContent value="historial">
