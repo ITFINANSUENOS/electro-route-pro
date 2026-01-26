@@ -11,7 +11,6 @@ import Programacion from "./pages/Programacion";
 import Actividades from "./pages/Actividades";
 import CargarVentas from "./pages/CargarVentas";
 import Mapa from "./pages/Mapa";
-import Reportes from "./pages/Reportes";
 import Informacion from "./pages/Informacion";
 import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
@@ -34,7 +33,6 @@ const App = () => (
               <Route path="/actividades" element={<Actividades />} />
               <Route path="/cargar-ventas" element={<CargarVentas />} />
               <Route path="/mapa" element={<Mapa />} />
-              <Route path="/reportes" element={<Reportes />} />
               <Route path="/informacion" element={<Informacion />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Dashboard />} />

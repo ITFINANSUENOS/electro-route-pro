@@ -8,12 +8,15 @@ import {
   AlertCircle,
   AlertTriangle,
   Filter,
+  MessageSquare,
+  Camera,
+  MapPin,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -212,6 +215,68 @@ export default function DashboardLider() {
       return data;
     },
   });
+
+  // Fetch reportes diarios for consultas/solicitudes and incumplimientos
+  const { data: reportesDiarios = [] } = useQuery({
+    queryKey: ['reportes-diarios-dashboard', startDateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reportes_diarios')
+        .select('*')
+        .gte('fecha', startDateStr)
+        .lte('fecha', endDateStr);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Consultas y solicitudes totales
+  const totalConsultas = reportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
+  const totalSolicitudes = reportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+
+  // Calculate incompliance data
+  const incumplimientos = useMemo(() => {
+    if (!profiles) return [];
+    
+    const asesoresMap = new Map<string, {
+      nombre: string;
+      sinFoto: number;
+      sinGPS: number;
+      sinConsultas: number;
+      diasReportados: number;
+    }>();
+
+    // Initialize with all profiles
+    profiles.forEach((p) => {
+      if (p.codigo_asesor) {
+        asesoresMap.set(p.codigo_asesor, {
+          nombre: p.nombre_completo,
+          sinFoto: 0,
+          sinGPS: 0,
+          sinConsultas: 0,
+          diasReportados: 0,
+        });
+      }
+    });
+
+    // Count incompliances from reportes_diarios
+    reportesDiarios.forEach((r) => {
+      const profileMatch = profiles.find((p) => p.user_id === r.user_id);
+      if (profileMatch?.codigo_asesor) {
+        const data = asesoresMap.get(profileMatch.codigo_asesor);
+        if (data) {
+          data.diasReportados++;
+          if (!r.foto_url) data.sinFoto++;
+          if (!r.gps_latitud || !r.gps_longitud) data.sinGPS++;
+          if ((r.consultas || 0) === 0 && (r.solicitudes || 0) === 0) data.sinConsultas++;
+        }
+      }
+    });
+
+    return Array.from(asesoresMap.values()).filter(
+      (a) => a.sinFoto > 0 || a.sinGPS > 0 || a.sinConsultas > 0
+    );
+  }, [profiles, reportesDiarios]);
 
   // Calculate metrics including sales by advisor type
   // Wait for both salesData AND profiles to be loaded for accurate calculations
@@ -461,7 +526,7 @@ export default function DashboardLider() {
         </div>
       </motion.div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards - Row 1: Ventas */}
       <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Ventas del Mes"
@@ -489,6 +554,29 @@ export default function DashboardLider() {
           subtitle="No proyectan cumplir"
           icon={AlertTriangle}
           status={advisorsAtRisk.length > 3 ? 'danger' : advisorsAtRisk.length > 0 ? 'warning' : 'success'}
+        />
+      </motion.div>
+
+      {/* KPI Cards - Row 2: Actividad y incumplimiento */}
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-3">
+        <KpiCard
+          title="Consultas"
+          value={totalConsultas.toString()}
+          subtitle="Total del mes"
+          icon={MessageSquare}
+        />
+        <KpiCard
+          title="Solicitudes"
+          value={totalSolicitudes.toString()}
+          subtitle="Total del mes"
+          icon={Users}
+        />
+        <KpiCard
+          title="Incumplimientos"
+          value={incumplimientos.length.toString()}
+          subtitle="Asesores con falta de evidencia"
+          icon={AlertCircle}
+          status={incumplimientos.length > 5 ? 'danger' : incumplimientos.length > 0 ? 'warning' : 'success'}
         />
       </motion.div>
 
@@ -765,6 +853,97 @@ export default function DashboardLider() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Incompliance Table */}
+      {(role === 'lider_zona' || role === 'jefe_ventas' || role === 'coordinador_comercial' || role === 'administrador') && (
+        <motion.div variants={item}>
+          <Card className="card-elevated">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                <CardTitle>Indicadores de Incumplimiento</CardTitle>
+              </div>
+              <CardDescription>
+                Asesores con falta de evidencia, GPS o reportes
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {incumplimientos.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                          Asesor
+                        </th>
+                        <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                          <div className="flex items-center justify-center gap-1">
+                            <Camera className="h-4 w-4" />
+                            Sin Foto
+                          </div>
+                        </th>
+                        <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                          <div className="flex items-center justify-center gap-1">
+                            <MapPin className="h-4 w-4" />
+                            Sin GPS
+                          </div>
+                        </th>
+                        <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                          <div className="flex items-center justify-center gap-1">
+                            <MessageSquare className="h-4 w-4" />
+                            Sin Actividad
+                          </div>
+                        </th>
+                        <th className="text-center py-3 px-4 font-medium text-muted-foreground">
+                          Días Reportados
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {incumplimientos.map((asesor, index) => (
+                        <tr
+                          key={index}
+                          className="border-b hover:bg-muted/50 transition-colors"
+                        >
+                          <td className="py-4 px-4 font-medium">{asesor.nombre}</td>
+                          <td className="py-4 px-4 text-center">
+                            {asesor.sinFoto > 0 ? (
+                              <Badge variant="destructive">{asesor.sinFoto}</Badge>
+                            ) : (
+                              <Badge variant="secondary">0</Badge>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            {asesor.sinGPS > 0 ? (
+                              <Badge variant="destructive">{asesor.sinGPS}</Badge>
+                            ) : (
+                              <Badge variant="secondary">0</Badge>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            {asesor.sinConsultas > 0 ? (
+                              <Badge variant="destructive">{asesor.sinConsultas}</Badge>
+                            ) : (
+                              <Badge variant="secondary">0</Badge>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-center text-muted-foreground">
+                            {asesor.diasReportados}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No hay incumplimientos registrados</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }
