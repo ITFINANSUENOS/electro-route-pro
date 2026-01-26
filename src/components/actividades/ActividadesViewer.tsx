@@ -258,6 +258,36 @@ export function ActividadesViewer() {
       result = result.filter(activity => activity.reportes.length > 0);
     }
 
+    // Sort chronologically: from current/nearest to furthest in the future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    result.sort((a, b) => {
+      const dateA = new Date(a.fecha + 'T00:00:00');
+      const dateB = new Date(b.fecha + 'T00:00:00');
+      
+      // Calculate distance from today (absolute difference)
+      const diffA = Math.abs(dateA.getTime() - today.getTime());
+      const diffB = Math.abs(dateB.getTime() - today.getTime());
+      
+      // Prioritize today's activities
+      const isATodayOrFuture = dateA >= today;
+      const isBTodayOrFuture = dateB >= today;
+      
+      // Current/future dates come before past dates
+      if (isATodayOrFuture && !isBTodayOrFuture) return -1;
+      if (!isATodayOrFuture && isBTodayOrFuture) return 1;
+      
+      // Within same category (both future or both past), sort by date
+      if (isATodayOrFuture && isBTodayOrFuture) {
+        // Future: ascending (nearest first)
+        return dateA.getTime() - dateB.getTime();
+      } else {
+        // Past: descending (most recent first)
+        return dateB.getTime() - dateA.getTime();
+      }
+    });
+
     return result;
   }, [filteredProgramaciones, profilesMap, reportes, showOnlyWithEvidence]);
 
