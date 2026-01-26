@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X, Upload, KeyRound } from "lucide-react";
 import { roleLabels, UserRole } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,6 +77,7 @@ export default function Usuarios() {
   const [regionales, setRegionales] = useState<Regional[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -289,6 +290,99 @@ export default function Usuarios() {
     toast.success('Archivo Excel descargado');
   };
 
+  const handleSyncPasswords = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      setSyncing(true);
+      try {
+        const text = await file.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          toast.error('El archivo CSV está vacío o no tiene el formato esperado');
+          return;
+        }
+        
+        // Parse header
+        const header = lines[0].split(';').map(h => h.trim().toUpperCase());
+        const cedulaIdx = header.findIndex(h => h.includes('CEDULA') || h.includes('USUARIO'));
+        const correoIdx = header.findIndex(h => h.includes('CORREO'));
+        const passwordIdx = header.findIndex(h => h.includes('CONTRASE') || h.includes('PASSWORD'));
+        const nombreIdx = header.findIndex(h => h.includes('NOMBRE'));
+        const rolIdx = header.findIndex(h => h.includes('ROL'));
+        const zonaIdx = header.findIndex(h => h.includes('REGIONAL') || h.includes('ZONA'));
+        
+        if (cedulaIdx === -1 || passwordIdx === -1 || nombreIdx === -1) {
+          toast.error('El CSV debe tener columnas: Cédula, Contraseña, Nombre');
+          return;
+        }
+        
+        const users = [];
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(';').map(v => v.trim());
+          if (values.length < 3) continue;
+          
+          users.push({
+            cedula: values[cedulaIdx] || '',
+            correo: correoIdx >= 0 ? values[correoIdx] || '' : '',
+            password: values[passwordIdx] || '',
+            nombre: values[nombreIdx] || '',
+            rol: rolIdx >= 0 ? values[rolIdx] || 'ASESOR' : 'ASESOR',
+            zona: zonaIdx >= 0 ? values[zonaIdx] || '' : '',
+          });
+        }
+        
+        if (users.length === 0) {
+          toast.error('No se encontraron usuarios válidos en el CSV');
+          return;
+        }
+        
+        toast.info(`Sincronizando ${users.length} usuarios...`);
+        
+        const { data: session } = await supabase.auth.getSession();
+        if (!session.session) {
+          toast.error('Sesión expirada');
+          return;
+        }
+        
+        const response = await supabase.functions.invoke('sync-passwords', {
+          body: { users },
+        });
+        
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
+        
+        if (response.data?.error) {
+          throw new Error(response.data.error);
+        }
+        
+        const stats = response.data?.stats;
+        toast.success(`Sincronización completada: ${stats?.created || 0} creados, ${stats?.updated || 0} actualizados`);
+        
+        if (stats?.errors?.length > 0) {
+          console.warn('Errores durante sincronización:', stats.errors);
+        }
+        
+        fetchUsers();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Error sincronizando contraseñas';
+        toast.error(message);
+        console.error('Error syncing passwords:', error);
+      } finally {
+        setSyncing(false);
+      }
+    };
+    
+    input.click();
+  };
+
   const handleEditUser = (user: UserWithRole) => {
     setEditingUser(user);
     setEditDialogOpen(true);
@@ -312,6 +406,14 @@ export default function Usuarios() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleSyncPasswords} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <KeyRound className="h-4 w-4 mr-2" />
+            )}
+            Sincronizar Contraseñas
+          </Button>
           <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Descargar Excel
