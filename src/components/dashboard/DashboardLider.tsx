@@ -24,6 +24,7 @@ import { useQuery } from '@tanstack/react-query';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
+import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import {
   BarChart,
   Bar,
@@ -563,7 +564,18 @@ export default function DashboardLider() {
     });
   }, [metasData, advancedFilteredSales]);
 
-  // Advisors at risk of not meeting goals
+  // Calculate unique sales counts using the advanced grouping logic
+  const salesCountData = useSalesCount(
+    transformVentasForCounting(advancedFilteredSales as Array<{
+      cliente_identificacion?: string | null;
+      fecha?: string | null;
+      tipo_venta?: string | null;
+      forma1_pago?: string | null;
+      mcn_clase?: string | null;
+      vtas_ant_i: number;
+    }>)
+  );
+
   const advisorsAtRisk = useMemo(() => {
     const dayOfMonth = 19; // Current day
     const daysInMonth = 31;
@@ -771,6 +783,7 @@ export default function DashboardLider() {
           salesByType={metrics.byType}
           salesData={advancedFilteredSales}
           formasPago={formasPago}
+          salesCountByType={salesCountData.byType}
         />
 
         {/* Budget vs Executed */}

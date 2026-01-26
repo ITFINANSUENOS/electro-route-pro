@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
+import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import {
   BarChart,
   Bar,
@@ -264,6 +265,18 @@ export default function DashboardJefe() {
     };
   }, [salesData, metasData, teamProfiles]);
 
+  // Calculate unique sales counts using the advanced grouping logic
+  const salesCountData = useSalesCount(
+    transformVentasForCounting((salesData || []) as Array<{
+      cliente_identificacion?: string | null;
+      fecha?: string | null;
+      tipo_venta?: string | null;
+      forma1_pago?: string | null;
+      mcn_clase?: string | null;
+      vtas_ant_i: number;
+    }>)
+  );
+
   // Team performance for bar chart
   const teamPerformance = useMemo(() => {
     return metrics.byAdvisor.slice(0, 8).map(advisor => ({
@@ -400,6 +413,7 @@ export default function DashboardJefe() {
           salesByType={metrics.byType}
           salesData={salesData || []}
           formasPago={formasPago}
+          salesCountByType={salesCountData.byType}
         />
 
         {/* Team Performance */}
