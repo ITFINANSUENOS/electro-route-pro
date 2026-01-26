@@ -3,7 +3,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-bootstrap-secret',
+};
+
+// Generic error messages - avoid exposing internal details
+const GENERIC_ERRORS = {
+  DB_ERROR: 'Error de base de datos',
+  CREATE_ERROR: 'Error creando cuenta de administrador',
+  AUTH_ERROR: 'Error de autenticación',
+  VALIDATION: 'Datos de entrada inválidos',
+  ALREADY_EXISTS: 'Ya existe un administrador. Usa el login normal.',
+  BOOTSTRAP_DISABLED: 'Bootstrap no disponible',
 };
 
 serve(async (req) => {
@@ -12,6 +22,19 @@ serve(async (req) => {
   }
 
   try {
+    // Security: Require bootstrap secret if configured
+    const BOOTSTRAP_SECRET = Deno.env.get('BOOTSTRAP_SECRET');
+    if (BOOTSTRAP_SECRET) {
+      const providedSecret = req.headers.get('X-Bootstrap-Secret');
+      if (providedSecret !== BOOTSTRAP_SECRET) {
+        console.error('Bootstrap attempt with invalid secret');
+        return new Response(
+          JSON.stringify({ error: GENERIC_ERRORS.BOOTSTRAP_DISABLED }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -31,15 +54,16 @@ serve(async (req) => {
       .limit(1);
 
     if (checkError) {
+      console.error('Bootstrap check error:', checkError.message);
       return new Response(
-        JSON.stringify({ error: `Error verificando admins: ${checkError.message}` }),
+        JSON.stringify({ error: GENERIC_ERRORS.DB_ERROR }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (existingAdmins && existingAdmins.length > 0) {
       return new Response(
-        JSON.stringify({ error: 'Ya existe un administrador. Usa el login normal.' }),
+        JSON.stringify({ error: GENERIC_ERRORS.ALREADY_EXISTS }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -49,7 +73,7 @@ serve(async (req) => {
 
     if (!email || !password) {
       return new Response(
-        JSON.stringify({ error: 'Email y password son requeridos' }),
+        JSON.stringify({ error: GENERIC_ERRORS.VALIDATION }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -66,8 +90,9 @@ serve(async (req) => {
     });
 
     if (createError) {
+      console.error('Bootstrap create user error:', createError.message);
       return new Response(
-        JSON.stringify({ error: `Error creando usuario: ${createError.message}` }),
+        JSON.stringify({ error: GENERIC_ERRORS.CREATE_ERROR }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -83,9 +108,10 @@ serve(async (req) => {
       });
 
     if (profileError) {
+      console.error('Bootstrap create profile error:', profileError.message);
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       return new Response(
-        JSON.stringify({ error: `Error creando perfil: ${profileError.message}` }),
+        JSON.stringify({ error: GENERIC_ERRORS.CREATE_ERROR }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -99,12 +125,18 @@ serve(async (req) => {
       });
 
     if (roleError) {
+      console.error('Bootstrap assign role error:', roleError.message);
       await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
       return new Response(
-        JSON.stringify({ error: `Error asignando rol: ${roleError.message}` }),
+        JSON.stringify({ error: GENERIC_ERRORS.CREATE_ERROR }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Bootstrap admin created successfully:', {
+      email: newUser.user.email,
+      timestamp: new Date().toISOString()
+    });
 
     return new Response(
       JSON.stringify({
@@ -120,9 +152,9 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('Bootstrap internal error:', error instanceof Error ? error.message : 'Unknown error');
     return new Response(
-      JSON.stringify({ error: `Error interno: ${errorMessage}` }),
+      JSON.stringify({ error: GENERIC_ERRORS.CREATE_ERROR }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
