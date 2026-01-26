@@ -214,8 +214,9 @@ export default function DashboardLider() {
   });
 
   // Calculate metrics including sales by advisor type
+  // Wait for both salesData AND profiles to be loaded for accurate calculations
   const metrics = useMemo(() => {
-    if (!salesData) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0, totalActiveAdvisors: 0, advisorsWithSales: 0 };
+    if (!salesData || !profiles) return { total: 0, byType: [], byAdvisor: [], byAdvisorType: [], totalMeta: 0, advisorCount: 0, totalActiveAdvisors: 0, advisorsWithSales: 0 };
 
     // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
     const filteredSales = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
@@ -241,27 +242,35 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
 
+    // Pre-build a map of normalized code -> tipo_asesor for fast lookup
+    const tipoAsesorMap = new Map<string, string>();
+    (profiles || []).forEach(p => {
+      if (p.codigo_asesor) {
+        const normalized = normalizeCode(p.codigo_asesor);
+        tipoAsesorMap.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+      }
+    });
+
     // Group sales by unique advisor (using codigo + nombre as key for GERENCIA entries)
     const byAdvisorMap = filteredSales.reduce((acc, sale) => {
       const advisorCode = sale.codigo_asesor;
       const normalizedCode = normalizeCode(advisorCode);
       const nombre = sale.asesor_nombre?.toUpperCase() || '';
       
-      // Use a unique key: for code '01'/GERENCIA entries, use nombre to distinguish regionals
-      const isGerencia = advisorCode === '01' || normalizedCode === '00001' || nombre.includes('GENERAL') || nombre.includes('GERENCIA');
-      const uniqueKey = isGerencia ? `${advisorCode}_${sale.asesor_nombre || 'GERENCIA'}` : advisorCode;
+      // Check for GERENCIA/GENERAL entries - these count as INTERNO
+      const isGerencia = advisorCode === '01' || normalizedCode === '00001' || 
+        nombre.includes('GENERAL') || nombre.includes('GERENCIA');
+      
+      // Use a unique key: for GERENCIA entries, use nombre to distinguish regionals
+      const uniqueKey = isGerencia ? `GERENCIA_${sale.asesor_nombre || 'UNKNOWN'}` : advisorCode;
       
       if (!acc[uniqueKey]) {
-        // Match profile by normalized code (5-digit padded)
-        const profile = profiles?.find(p => {
-          const profileCode = normalizeCode(p.codigo_asesor || '');
-          return profileCode === normalizedCode;
-        });
-        
-        // GERENCIA/GENERAL entries count as INTERNO, others use profile or default EXTERNO
-        let tipoAsesor = profile?.tipo_asesor?.toUpperCase() || 'EXTERNO';
+        // Get tipo_asesor: GERENCIA = INTERNO, else lookup in map, else EXTERNO
+        let tipoAsesor: string;
         if (isGerencia) {
           tipoAsesor = 'INTERNO';
+        } else {
+          tipoAsesor = tipoAsesorMap.get(normalizedCode) || 'EXTERNO';
         }
         
         acc[uniqueKey] = { 
