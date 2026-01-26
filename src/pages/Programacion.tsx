@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths, addDays, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, MapPin, User, Clock, Users, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { TimeSelect } from "@/components/programacion/TimeSelect";
+import { ProgramacionFilters } from "@/components/programacion/ProgramacionFilters";
+import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -57,8 +60,22 @@ export default function Programacion() {
     municipio: '',
     hora_inicio: '08:00',
     hora_fin: '17:00',
-    user_id: '',
+    user_ids: [] as string[],
   });
+
+  // Filter state for hierarchical filtering
+  const [filterRegional, setFilterRegional] = useState('todos');
+  const [filterJefe, setFilterJefe] = useState('todos');
+
+  // Calculate minimum schedulable date (today + 4 days)
+  const minSchedulableDate = useMemo(() => {
+    return startOfDay(addDays(new Date(), 4));
+  }, []);
+
+  // Check if a date is schedulable
+  const isDateSchedulable = (date: Date) => {
+    return !isBefore(startOfDay(date), minSchedulableDate);
+  };
 
   const canEdit = role === 'lider_zona' || role === 'coordinador_comercial' || role === 'administrador';
   
@@ -147,7 +164,15 @@ export default function Programacion() {
   const selectedActivities = selectedDate ? getActivitiesForDate(selectedDate) : [];
 
   const handleDateClick = (day: Date) => {
+    // Always allow viewing the day's details
+    setSelectedDate(day);
+    
     if (canEdit) {
+      // Only allow selecting schedulable dates (today + 4 days or more)
+      if (!isDateSchedulable(day)) {
+        return; // Don't add to selection if not schedulable
+      }
+      
       // Toggle selection for multi-select
       const dateStr = format(day, 'yyyy-MM-dd');
       const isSelected = selectedDates.some((d) => format(d, 'yyyy-MM-dd') === dateStr);
@@ -158,31 +183,41 @@ export default function Programacion() {
         setSelectedDates([...selectedDates, day]);
       }
     }
-    setSelectedDate(day);
   };
 
   const handleCreateProgramacion = async () => {
-    if (!newActivity.user_id || !newActivity.municipio || selectedDates.length === 0) {
+    if (newActivity.user_ids.length === 0 || !newActivity.municipio || selectedDates.length === 0) {
       toast.error('Por favor completa todos los campos requeridos');
       return;
     }
 
+    // Validate all selected dates are schedulable
+    const invalidDates = selectedDates.filter(d => !isDateSchedulable(d));
+    if (invalidDates.length > 0) {
+      toast.error('Algunas fechas seleccionadas no son válidas (deben ser al menos 4 días en el futuro)');
+      return;
+    }
+
     try {
-      const insertData = selectedDates.map((date) => ({
-        fecha: format(date, 'yyyy-MM-dd'),
-        user_id: newActivity.user_id,
-        tipo_actividad: newActivity.tipo_actividad,
-        municipio: newActivity.municipio,
-        hora_inicio: newActivity.hora_inicio,
-        hora_fin: newActivity.hora_fin,
-        creado_por: user?.id,
-      }));
+      // Create entries for each user and each date
+      const insertData = selectedDates.flatMap((date) =>
+        newActivity.user_ids.map((userId) => ({
+          fecha: format(date, 'yyyy-MM-dd'),
+          user_id: userId,
+          tipo_actividad: newActivity.tipo_actividad,
+          municipio: newActivity.municipio,
+          hora_inicio: newActivity.hora_inicio,
+          hora_fin: newActivity.hora_fin,
+          creado_por: user?.id,
+        }))
+      );
 
       const { error } = await supabase.from('programacion').insert(insertData);
 
       if (error) throw error;
 
-      toast.success(`Programación creada para ${selectedDates.length} día(s)`);
+      const totalEntries = selectedDates.length * newActivity.user_ids.length;
+      toast.success(`Programación creada: ${newActivity.user_ids.length} asesor(es) × ${selectedDates.length} día(s) = ${totalEntries} registro(s)`);
       setIsDialogOpen(false);
       setSelectedDates([]);
       setNewActivity({
@@ -190,8 +225,10 @@ export default function Programacion() {
         municipio: '',
         hora_inicio: '08:00',
         hora_fin: '17:00',
-        user_id: '',
+        user_ids: [],
       });
+      setFilterRegional('todos');
+      setFilterJefe('todos');
       refetchProgramacion();
     } catch (error) {
       console.error('Error creating programacion:', error);
@@ -224,7 +261,7 @@ export default function Programacion() {
                 Nueva Programación {selectedDates.length > 0 && `(${selectedDates.length} días)`}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Nueva Programación</DialogTitle>
                 <DialogDescription>
@@ -236,8 +273,8 @@ export default function Programacion() {
                 {/* Fechas seleccionadas */}
                 <div className="space-y-2">
                   <Label>Fechas seleccionadas</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDates.map((date) => (
+                  <div className="flex flex-wrap gap-2 max-h-[80px] overflow-y-auto">
+                    {selectedDates.sort((a, b) => a.getTime() - b.getTime()).map((date) => (
                       <Badge key={date.toISOString()} variant="secondary">
                         {format(date, 'd MMM', { locale: es })}
                       </Badge>
@@ -245,24 +282,29 @@ export default function Programacion() {
                   </div>
                 </div>
 
-                {/* Asesor */}
+                {/* Hierarchical Filters */}
+                <ProgramacionFilters
+                  selectedRegional={filterRegional}
+                  setSelectedRegional={setFilterRegional}
+                  selectedJefe={filterJefe}
+                  setSelectedJefe={setFilterJefe}
+                />
+
+                {/* Asesores - Multi-select */}
                 <div className="space-y-2">
-                  <Label>Asesor *</Label>
-                  <Select
-                    value={newActivity.user_id}
-                    onValueChange={(value) => setNewActivity({ ...newActivity, user_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar asesor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((p) => (
-                        <SelectItem key={p.user_id} value={p.user_id}>
-                          {p.nombre_completo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Asesores *</Label>
+                  <AsesorMultiSelect
+                    profiles={profiles}
+                    selectedUserIds={newActivity.user_ids}
+                    onChange={(userIds) => setNewActivity({ ...newActivity, user_ids: userIds })}
+                    selectedRegional={filterRegional}
+                    selectedJefe={filterJefe}
+                    userRegionalId={role === 'lider_zona' ? profile?.regional_id : null}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    <Users className="inline h-3 w-3 mr-1" />
+                    Puedes seleccionar varios asesores para trabajo en equipo
+                  </p>
                 </div>
 
                 {/* Tipo actividad */}
@@ -297,22 +339,20 @@ export default function Programacion() {
                   </p>
                 </div>
 
-                {/* Horario */}
+                {/* Horario - Improved UI */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Hora Inicio</Label>
-                    <Input
-                      type="time"
+                    <TimeSelect
                       value={newActivity.hora_inicio}
-                      onChange={(e) => setNewActivity({ ...newActivity, hora_inicio: e.target.value })}
+                      onChange={(value) => setNewActivity({ ...newActivity, hora_inicio: value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Hora Fin</Label>
-                    <Input
-                      type="time"
+                    <TimeSelect
                       value={newActivity.hora_fin}
-                      onChange={(e) => setNewActivity({ ...newActivity, hora_fin: e.target.value })}
+                      onChange={(value) => setNewActivity({ ...newActivity, hora_fin: value })}
                     />
                   </div>
                 </div>
@@ -322,8 +362,8 @@ export default function Programacion() {
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateProgramacion}>
-                  Crear Programación
+                <Button onClick={handleCreateProgramacion} disabled={newActivity.user_ids.length === 0}>
+                  Crear Programación ({newActivity.user_ids.length} asesor(es))
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -335,11 +375,19 @@ export default function Programacion() {
       {/* Multi-select hint for editors */}
       {canEdit && (
         <Card className="border-primary/50 bg-primary/5">
-          <CardContent className="py-3 flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <span className="text-sm text-primary">
-              Haz clic en múltiples días para seleccionarlos, luego presiona "Nueva Programación"
-            </span>
+          <CardContent className="py-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="text-sm text-primary font-medium">
+                Selecciona días en el calendario y presiona "Nueva Programación"
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <AlertCircle className="h-3 w-3" />
+              <span>
+                Solo puedes programar desde el {format(minSchedulableDate, "d 'de' MMMM", { locale: es })} (4 días a partir de hoy)
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -389,13 +437,16 @@ export default function Programacion() {
                 const activities = getActivitiesForDate(day);
                 const isSelected = selectedDate && format(day, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
                 const isMultiSelected = selectedDates.some((d) => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
+                const canScheduleThisDay = isDateSchedulable(day);
 
                 return (
                   <button
                     key={day.toISOString()}
                     onClick={() => handleDateClick(day)}
                     className={cn(
-                      'h-24 p-1 rounded-lg border text-left transition-all hover:border-primary',
+                      'h-24 p-1 rounded-lg border text-left transition-all',
+                      canScheduleThisDay && canEdit && 'hover:border-primary cursor-pointer',
+                      !canScheduleThisDay && canEdit && 'bg-muted/30 cursor-not-allowed',
                       isToday(day) && 'ring-2 ring-primary',
                       isSelected && 'border-primary bg-accent',
                       isMultiSelected && canEdit && 'bg-primary/20 border-primary',
