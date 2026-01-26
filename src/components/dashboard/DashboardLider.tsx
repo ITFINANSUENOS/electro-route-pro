@@ -293,16 +293,19 @@ export default function DashboardLider() {
       }, {} as Record<string, number>);
 
     // Get sales totals by advisor type from actual sales data
+    // GERENCIA entries are counted as INTERNO
     const salesTotalsByType = byAdvisor.reduce((acc, advisor) => {
-      const tipo = advisor.tipoAsesor || 'EXTERNO';
+      // Map GERENCIA to INTERNO for totals
+      const tipo = advisor.tipoAsesor === 'GERENCIA' ? 'INTERNO' : (advisor.tipoAsesor || 'EXTERNO');
       acc[tipo] = (acc[tipo] || 0) + advisor.total;
       return acc;
     }, {} as Record<string, number>);
 
     // Combine: counts from profiles, totals from sales
-    const allTypes = new Set([...Object.keys(profileCountsByType), ...Object.keys(salesTotalsByType)]);
-    const byAdvisorType = Array.from(allTypes)
-      .filter(tipo => tipo !== 'GERENCIA') // GERENCIA counts as INTERNO
+    // Only show INTERNO, EXTERNO, CORRETAJE (GERENCIA is merged into INTERNO)
+    const displayTypes = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
+    const byAdvisorType = displayTypes
+      .filter(tipo => (profileCountsByType[tipo] || 0) > 0 || (salesTotalsByType[tipo] || 0) > 0)
       .map(tipo => ({
         tipo,
         label: tipoAsesorLabels[tipo] || tipo,
