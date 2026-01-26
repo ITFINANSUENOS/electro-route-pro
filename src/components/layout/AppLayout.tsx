@@ -2,9 +2,11 @@ import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
 import { Loader2 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function AppLayout() {
   const { user, loading } = useAuth();
+  const isMobile = useIsMobile();
 
   if (loading) {
     return (
@@ -22,10 +24,10 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex min-h-screen w-full bg-background">
       <AppSidebar />
-      <main className="flex-1 overflow-auto">
-        <div className="container mx-auto py-6 px-4 md:px-6 lg:px-8">
+      <main className={`flex-1 overflow-auto ${isMobile ? 'w-full' : ''}`}>
+        <div className="container mx-auto py-4 px-3 sm:py-6 sm:px-4 md:px-6 lg:px-8 max-w-full">
           <Outlet />
         </div>
       </main>
