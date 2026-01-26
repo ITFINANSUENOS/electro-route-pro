@@ -21,7 +21,7 @@ export async function exportMetasTemplate(
       .select(`
         nombre_completo,
         codigo_asesor,
-        ccosto_asesor,
+        cedula,
         regional_id,
         regionales!profiles_regional_id_fkey (
           nombre,
@@ -75,7 +75,7 @@ export async function exportMetasTemplate(
       const regionalName = advisor.regionales?.nombre || 'SIN REGIONAL';
       excelData.push([
         regionalName,
-        advisor.ccosto_asesor || '',
+        advisor.cedula || '',
         advisor.codigo_asesor || '',
         advisor.nombre_completo || '',
         0, // CONTADO - empty for user to fill
