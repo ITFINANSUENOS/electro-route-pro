@@ -84,12 +84,12 @@ export const rolePermissions: Record<UserRole, string[]> = {
   administrador: ['full_access'],
 };
 
-// Orden de menú por rol
+// Orden de menú por rol (consolidado sin reportes separado)
 export const menuOrderByRole: Record<UserRole, string[]> = {
-  lider_zona: ['dashboard', 'programacion', 'informacion', 'reportes', 'mapa'],
-  coordinador_comercial: ['dashboard', 'programacion', 'informacion', 'reportes', 'mapa'],
-  jefe_ventas: ['dashboard', 'programacion', 'reportes'],
+  lider_zona: ['dashboard', 'programacion', 'informacion', 'mapa'],
+  coordinador_comercial: ['dashboard', 'programacion', 'informacion', 'mapa'],
+  jefe_ventas: ['dashboard', 'programacion'],
   asesor_comercial: ['dashboard', 'programacion', 'actividades'],
-  administrativo: ['dashboard', 'cargar-ventas', 'reportes'],
-  administrador: ['dashboard', 'programacion', 'informacion', 'reportes', 'mapa', 'usuarios', 'configuracion'],
+  administrativo: ['dashboard', 'cargar-ventas'],
+  administrador: ['dashboard', 'programacion', 'informacion', 'mapa', 'usuarios', 'configuracion'],
 };

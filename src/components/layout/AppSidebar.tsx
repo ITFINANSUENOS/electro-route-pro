@@ -64,13 +64,6 @@ const allNavItems: NavItem[] = [
     roles: ['administrativo']
   },
   { 
-    id: 'reportes',
-    title: 'Reportes', 
-    href: '/reportes', 
-    icon: BarChart3,
-    roles: ['jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
-  },
-  { 
     id: 'mapa',
     title: 'Mapa', 
     href: '/mapa', 
