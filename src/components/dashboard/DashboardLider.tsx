@@ -12,17 +12,20 @@ import {
   Camera,
   MapPin,
   Building2,
+  Download,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import {
   PieChart,
   Pie,
@@ -566,6 +569,55 @@ export default function DashboardLider() {
       .sort((a, b) => b.filteredTotal - a.filteredTotal);
   }, [metrics.byAdvisor, selectedFilters]);
 
+  // Calculate total for ranking
+  const rankingTotal = useMemo(() => {
+    return filteredRanking.reduce((sum, advisor) => {
+      const displayTotal = selectedFilters.length > 0 
+        ? (advisor as any).filteredTotal 
+        : advisor.total;
+      return sum + displayTotal;
+    }, 0);
+  }, [filteredRanking, selectedFilters]);
+
+  // Handle Excel export
+  const handleExportExcel = () => {
+    // Get regional names map
+    const regionalMap = new Map<number, string>();
+    regionales.forEach(r => {
+      regionalMap.set(r.codigo, r.nombre);
+    });
+
+    // Build cedula map from profiles
+    const cedulaMap = new Map<string, string>();
+    const regionalIdMap = new Map<string, string>();
+    profiles?.forEach(p => {
+      if (p.codigo_asesor) {
+        cedulaMap.set(p.codigo_asesor, p.cedula);
+        // Get regional name from regionales
+        const regional = regionales.find(r => r.id === p.regional_id);
+        if (regional) {
+          regionalIdMap.set(p.codigo_asesor, regional.nombre);
+        }
+      }
+    });
+
+    const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => ({
+      codigo: advisor.codigo,
+      nombre: advisor.nombre,
+      tipoAsesor: advisor.tipoAsesor || 'EXTERNO',
+      cedula: cedulaMap.get(advisor.codigo) || '',
+      regional: regionalIdMap.get(advisor.codigo) || '',
+      total: selectedFilters.length > 0 ? (advisor as any).filteredTotal : advisor.total,
+      byType: advisor.byType,
+    }));
+
+    exportRankingToExcel({
+      data: dataForExport,
+      includeRegional: isGlobalRole,
+      fileName: isGlobalRole ? 'ranking_general' : 'ranking_regional',
+    });
+  };
+
   const toggleFilter = (tipo: TipoVentaKey) => {
     setSelectedFilters(prev => 
       prev.includes(tipo) 
@@ -876,6 +928,15 @@ export default function DashboardLider() {
                 </CardTitle>
                 <CardDescription>Ordenados por ventas según filtro</CardDescription>
               </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportExcel}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Descargar Excel
+              </Button>
             </div>
             {/* Filters */}
             <div className="flex flex-wrap gap-3 mt-4">
@@ -952,6 +1013,14 @@ export default function DashboardLider() {
                     );
                   })}
                 </tbody>
+                <tfoot className="sticky bottom-0 bg-card border-t-2">
+                  <tr className="font-bold">
+                    <td className="py-3 px-2" colSpan={2}>TOTAL VENTAS</td>
+                    <td className="py-3 px-2 text-right text-primary">{formatCurrency(rankingTotal)}</td>
+                    <td className="py-3 px-2 text-right">-</td>
+                    <td className="py-3 px-2 text-right">-</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </CardContent>
