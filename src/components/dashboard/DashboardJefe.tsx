@@ -1,15 +1,17 @@
 import { motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   TrendingUp,
   Users,
   ShoppingCart,
   Target,
   AlertCircle,
+  Filter,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -63,8 +65,11 @@ const tiposVentaLabels: Record<string, string> = {
   CONVENIO: 'Convenio',
 };
 
+type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
+
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -260,6 +265,33 @@ export default function DashboardJefe() {
     ? Math.round((metrics.total / metrics.totalMeta) * 100) 
     : 0;
 
+  // Toggle filter for ranking
+  const toggleFilter = (tipo: TipoVentaKey) => {
+    setSelectedFilters(prev =>
+      prev.includes(tipo)
+        ? prev.filter(t => t !== tipo)
+        : [...prev, tipo]
+    );
+  };
+
+  // Filtered ranking based on selected types
+  const filteredRanking = useMemo(() => {
+    if (selectedFilters.length === 0) return metrics.byAdvisor;
+    
+    return metrics.byAdvisor.map(advisor => {
+      // Calculate total based on selected filters (using byType from sales)
+      const salesForAdvisor = salesData?.filter(s => s.codigo_asesor === advisor.codigo) || [];
+      const filteredTotal = salesForAdvisor
+        .filter(s => selectedFilters.includes(s.tipo_venta as TipoVentaKey))
+        .reduce((sum, s) => sum + Math.abs(s.vtas_ant_i || 0), 0);
+      
+      return {
+        ...advisor,
+        filteredTotal,
+      };
+    }).sort((a, b) => b.filteredTotal - a.filteredTotal);
+  }, [metrics.byAdvisor, salesData, selectedFilters]);
+
   // Calculate incompliance
   const incompliance = useMemo(() => {
     // Get unique advisors from sales
@@ -408,6 +440,100 @@ export default function DashboardJefe() {
                   <Bar dataKey="ventas" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Ranking Table with Filters */}
+      <motion.div variants={item}>
+        <Card className="card-elevated">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-secondary" />
+                  Ranking de Asesores
+                </CardTitle>
+                <CardDescription>Ordenados por ventas según filtro</CardDescription>
+              </div>
+            </div>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 mt-4">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <Filter className="h-4 w-4" />
+                Filtrar:
+              </span>
+              {(Object.keys(tiposVentaLabels) as TipoVentaKey[]).map((tipo) => (
+                <label
+                  key={tipo}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selectedFilters.includes(tipo)}
+                    onCheckedChange={() => toggleFilter(tipo)}
+                  />
+                  <span className="text-sm">{tiposVentaLabels[tipo]}</span>
+                </label>
+              ))}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto max-h-[400px]">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Pos.</th>
+                    <th className="text-left py-3 px-2 font-medium text-muted-foreground">Asesor</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Ventas</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">Meta</th>
+                    <th className="text-right py-3 px-2 font-medium text-muted-foreground">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRanking.map((advisor, index) => {
+                    const displayTotal = selectedFilters.length > 0 
+                      ? (advisor as any).filteredTotal 
+                      : advisor.total;
+                    const compliancePercent = advisor.meta > 0 
+                      ? Math.round((displayTotal / advisor.meta) * 100) 
+                      : 0;
+
+                    return (
+                      <tr key={advisor.codigo} className="border-b hover:bg-muted/50 transition-colors">
+                        <td className="py-3 px-2">
+                          <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold ${
+                            index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                            index === 1 ? 'bg-gray-100 text-gray-700' :
+                            index === 2 ? 'bg-orange-100 text-orange-700' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 font-medium truncate max-w-[150px]">
+                          {advisor.nombre}
+                        </td>
+                        <td className="py-3 px-2 text-right">{formatCurrency(displayTotal)}</td>
+                        <td className="py-3 px-2 text-right text-muted-foreground">
+                          {advisor.meta > 0 ? formatCurrency(advisor.meta) : '-'}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {advisor.meta > 0 ? (
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              compliancePercent >= 100 ? 'bg-success/10 text-success' :
+                              compliancePercent >= 80 ? 'bg-warning/10 text-warning' :
+                              'bg-danger/10 text-danger'
+                            }`}>
+                              {compliancePercent}%
+                            </span>
+                          ) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
