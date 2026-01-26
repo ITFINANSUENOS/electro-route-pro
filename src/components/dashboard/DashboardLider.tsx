@@ -195,30 +195,42 @@ export default function DashboardLider() {
     }));
 
     // Group by advisor with their tipo_asesor from profiles
+    // Normalize codes: LPAD with zeros to match profiles format (5 digits)
+    const normalizeCode = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+
     const byAdvisorMap = filteredSales.reduce((acc, sale) => {
-      const advisor = sale.codigo_asesor;
-      if (!acc[advisor]) {
-        // Match profile to get tipo_asesor
-        const profile = profiles?.find(p => p.codigo_asesor === advisor);
+      const advisorCode = sale.codigo_asesor;
+      const normalizedCode = normalizeCode(advisorCode);
+      
+      if (!acc[advisorCode]) {
+        // Match profile by normalized code (5-digit padded)
+        const profile = profiles?.find(p => {
+          const profileCode = normalizeCode(p.codigo_asesor || '');
+          return profileCode === normalizedCode;
+        });
+        
         let tipoAsesor = profile?.tipo_asesor?.toUpperCase() || 'EXTERNO';
         
         // Special case: GERENCIA entries have code '01' or name contains 'GERENCIA'
         const nombre = sale.asesor_nombre?.toUpperCase() || '';
-        if (advisor === '01' || advisor === '00001' || nombre.includes('GERENCIA')) {
+        if (advisorCode === '01' || advisorCode === '00001' || normalizedCode === '00001' || nombre.includes('GERENCIA')) {
           tipoAsesor = 'INTERNO'; // Count GERENCIA as INTERNO
         }
         
-        acc[advisor] = { 
-          codigo: advisor, 
-          nombre: sale.asesor_nombre || advisor,
+        acc[advisorCode] = { 
+          codigo: advisorCode, 
+          nombre: sale.asesor_nombre || advisorCode,
           tipoAsesor: tipoAsesor,
           total: 0, 
           byType: {} as Record<string, number>
         };
       }
-      acc[advisor].total += sale.vtas_ant_i || 0;
+      acc[advisorCode].total += sale.vtas_ant_i || 0;
       const tipo = sale.tipo_venta || 'OTRO';
-      acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
+      acc[advisorCode].byType[tipo] = (acc[advisorCode].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
 

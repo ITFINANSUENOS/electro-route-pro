@@ -106,25 +106,42 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-function deriveTipoVenta(forma1Pago: string): string | null {
-  if (!forma1Pago) return null;
-  const forma1 = forma1Pago.toUpperCase();
+function deriveTipoVenta(forma1Pago: string, formaPago: string): string | null {
+  const forma1 = (forma1Pago || '').toUpperCase().trim();
+  const formaGeneral = (formaPago || '').toUpperCase().trim();
   
+  // First: Check for OTROS (to be excluded from reports)
   if (forma1.includes('REBATE') || forma1.includes('ARRENDAMIENTO') || forma1.includes('ACTIVOS FIJOS')) {
     return 'OTROS';
   }
-  if (forma1.includes('ADDI') || forma1.includes('BRILLA') || forma1.includes('SISTECREDITO') || forma1.includes('SISTEMCREDITO')) {
+  
+  // CONVENIO: ADDI, BRILLA, SISTECREDITO
+  if (forma1.includes('ADDI') || forma1.includes('BRILLA') || 
+      forma1.includes('SISTECREDITO') || forma1.includes('SISTEMCREDITO')) {
     return 'CONVENIO';
   }
+  
+  // CREDITO: FINANSUENOS, ARPESOD, RETANQUEO
   if (forma1.includes('FINANSUE') || forma1.includes('ARPESOD') || forma1.includes('RETANQUEO')) {
     return 'CREDITO';
   }
+  
+  // CREDICONTADO: CUOTAS, INCREMENTO, OBSEQUIOS
   if (forma1.includes('CUOTAS') || forma1.includes('INCREMENTO') || forma1.includes('OBSEQUIOS')) {
     return 'CREDICONTADO';
   }
+  
+  // CONTADO: All CONTADO variants and CREDITO ENTIDADES
   if (forma1.includes('CONTADO') || forma1.includes('CREDITO ENTIDADES')) {
     return 'CONTADO';
   }
+  
+  // Fallback to FORMAPAGO field for general classification
+  if (formaGeneral === 'CONTADO') return 'CONTADO';
+  if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
+  if (formaGeneral === 'CREDITO') return 'CREDITO';
+  if (formaGeneral === 'CONVENIO') return 'CONVENIO';
+  
   return null;
 }
 
@@ -217,18 +234,11 @@ serve(async (req) => {
       if (!venta.fecha) venta.fecha = '2026-01-15';
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
-      // Derive tipo_venta from FORMA1PAGO
-      if (venta.forma1_pago) {
-        venta.tipo_venta = deriveTipoVenta(venta.forma1_pago as string);
-      }
-      
-      // Fallback to forma_pago
-      if (!venta.tipo_venta && venta.forma_pago) {
-        const formaPago = (venta.forma_pago as string).toUpperCase();
-        if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'].includes(formaPago)) {
-          venta.tipo_venta = formaPago;
-        }
-      }
+      // Derive tipo_venta from FORMA1PAGO and FORMAPAGO
+      venta.tipo_venta = deriveTipoVenta(
+        (venta.forma1_pago as string) || '', 
+        (venta.forma_pago as string) || ''
+      );
 
       if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
         continue;
