@@ -18,10 +18,11 @@ interface ExportRankingOptions {
 
 export function exportRankingToExcel({ data, includeRegional, fileName = 'ranking_ventas' }: ExportRankingOptions) {
   const rows = data.map((advisor, index) => {
-    const contado = Math.abs(advisor.byType['CONTADO'] || 0);
-    const credicontado = Math.abs(advisor.byType['CREDICONTADO'] || 0);
-    const credito = Math.abs(advisor.byType['CREDITO'] || 0);
-    const convenio = Math.abs(advisor.byType['CONVENIO'] || 0);
+    // Use net values (not abs) to properly account for returns/devoluciones
+    const contado = advisor.byType['CONTADO'] || 0;
+    const credicontado = advisor.byType['CREDICONTADO'] || 0;
+    const credito = advisor.byType['CREDITO'] || 0;
+    const convenio = advisor.byType['CONVENIO'] || 0;
     const totalVentas = contado + credicontado + credito + convenio;
 
     if (includeRegional) {
@@ -52,12 +53,12 @@ export function exportRankingToExcel({ data, includeRegional, fileName = 'rankin
     };
   });
 
-  // Add total row
+  // Add total row - use net values to account for returns
   const totals = data.reduce((acc, advisor) => {
-    acc.contado += Math.abs(advisor.byType['CONTADO'] || 0);
-    acc.credicontado += Math.abs(advisor.byType['CREDICONTADO'] || 0);
-    acc.credito += Math.abs(advisor.byType['CREDITO'] || 0);
-    acc.convenio += Math.abs(advisor.byType['CONVENIO'] || 0);
+    acc.contado += advisor.byType['CONTADO'] || 0;
+    acc.credicontado += advisor.byType['CREDICONTADO'] || 0;
+    acc.credito += advisor.byType['CREDITO'] || 0;
+    acc.convenio += advisor.byType['CONVENIO'] || 0;
     return acc;
   }, { contado: 0, credicontado: 0, credito: 0, convenio: 0 });
 
