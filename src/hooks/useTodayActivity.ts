@@ -30,19 +30,31 @@ export interface TodayReport {
   estado_evidencia: string | null;
 }
 
+// Get today's date in local timezone for Colombia
+function getTodayLocal(): string {
+  // Use local date formatting to avoid timezone issues
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function useTodayActivity() {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = getTodayLocal();
 
   // Only asesores comerciales need to register consultas/solicitudes
   const isAsesorComercial = role === 'asesor_comercial';
 
   // Fetch today's assignment
-  const { data: todayAssignment, isLoading: loadingAssignment } = useQuery({
+  const { data: todayAssignment, isLoading: loadingAssignment, error: assignmentError } = useQuery({
     queryKey: ['today-assignment', user?.id, today],
     queryFn: async () => {
       if (!user?.id) return null;
+      
+      console.log('Fetching assignment for user:', user.id, 'date:', today);
       
       const { data, error } = await supabase
         .from('programacion')
@@ -51,7 +63,12 @@ export function useTodayActivity() {
         .eq('fecha', today)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching assignment:', error);
+        throw error;
+      }
+      
+      console.log('Assignment result:', data);
       return data as TodayAssignment | null;
     },
     enabled: !!user?.id,

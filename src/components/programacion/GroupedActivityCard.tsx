@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
-import { MapPin, Clock, Users } from "lucide-react";
+import { MapPin, Clock, Users, CheckCircle, XCircle, Camera, Navigation } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { EvidenceStatus } from "@/hooks/useActivityEvidenceStatus";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -32,10 +34,21 @@ interface GroupedActivityCardProps {
   group: GroupedActivity;
   showFullDetails?: boolean;
   onClick?: () => void;
+  evidenceStatus?: {
+    total_assigned: number;
+    with_evidence: number;
+    evidence_by_user: EvidenceStatus[];
+  };
 }
 
-export function GroupedActivityCard({ group, showFullDetails = false, onClick }: GroupedActivityCardProps) {
+export function GroupedActivityCard({ group, showFullDetails = false, onClick, evidenceStatus }: GroupedActivityCardProps) {
   const isTeamActivity = group.user_ids.length > 1;
+  const isCorriera = group.tipo_actividad === 'correria';
+
+  // Evidence count display
+  const evidenceCount = evidenceStatus ? `${evidenceStatus.with_evidence}/${evidenceStatus.total_assigned}` : null;
+  const allComplete = evidenceStatus ? evidenceStatus.with_evidence === evidenceStatus.total_assigned : false;
+  const noneComplete = evidenceStatus ? evidenceStatus.with_evidence === 0 : true;
 
   return (
     <div 
@@ -59,12 +72,61 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick }:
             </span>
           )}
         </div>
-        {isTeamActivity && (
-          <Badge variant="outline" className="flex items-center gap-1">
-            <Users className="h-3 w-3" />
-            {group.user_ids.length}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Evidence status badge */}
+          {evidenceStatus && (
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge 
+                  variant={allComplete ? "default" : noneComplete ? "destructive" : "outline"}
+                  className={cn(
+                    "flex items-center gap-1 text-xs",
+                    allComplete && "bg-success text-success-foreground hover:bg-success/90",
+                    !allComplete && !noneComplete && "border-warning text-warning"
+                  )}
+                >
+                  {allComplete ? (
+                    <CheckCircle className="h-3 w-3" />
+                  ) : (
+                    <XCircle className="h-3 w-3" />
+                  )}
+                  {evidenceCount}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-[280px]">
+                <div className="space-y-2">
+                  <p className="font-medium text-xs">
+                    Evidencia {isCorriera ? '(Foto + GPS)' : '(GPS)'}
+                  </p>
+                  <div className="space-y-1">
+                    {evidenceStatus.evidence_by_user.map((user, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate max-w-[150px]">{user.user_name}</span>
+                        <div className="flex items-center gap-1">
+                          {isCorriera && (
+                            <Camera className={cn("h-3 w-3", user.has_photo ? "text-success" : "text-muted-foreground")} />
+                          )}
+                          <Navigation className={cn("h-3 w-3", user.has_gps ? "text-success" : "text-muted-foreground")} />
+                          {user.has_evidence ? (
+                            <CheckCircle className="h-3 w-3 text-success" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-destructive" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {isTeamActivity && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {group.user_ids.length}
+            </Badge>
+          )}
+        </div>
       </div>
       <div className="space-y-2">
         {/* Show team or individual */}
@@ -75,16 +137,37 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick }:
               <span className="font-medium">Grupo ({group.user_ids.length} asesores)</span>
               {showFullDetails && (
                 <div className="mt-1 flex flex-wrap gap-1">
-                  {group.user_names.map((name, idx) => (
-                    <Badge key={idx} variant="secondary" className="text-xs">
-                      {name}
-                    </Badge>
-                  ))}
+                  {group.user_names.map((name, idx) => {
+                    const userEvidence = evidenceStatus?.evidence_by_user[idx];
+                    const hasEvidence = userEvidence?.has_evidence;
+                    return (
+                      <Badge 
+                        key={idx} 
+                        variant={hasEvidence ? "default" : "secondary"} 
+                        className={cn(
+                          "text-xs",
+                          hasEvidence && "bg-success/10 text-success border-success/30"
+                        )}
+                      >
+                        {hasEvidence && <CheckCircle className="h-3 w-3 mr-1" />}
+                        {name}
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
             </div>
           ) : (
-            <span className="font-medium truncate">{group.user_names[0] || 'Sin asignar'}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium truncate">{group.user_names[0] || 'Sin asignar'}</span>
+              {evidenceStatus && evidenceStatus.evidence_by_user[0] && (
+                evidenceStatus.evidence_by_user[0].has_evidence ? (
+                  <CheckCircle className="h-4 w-4 text-success" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                )
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

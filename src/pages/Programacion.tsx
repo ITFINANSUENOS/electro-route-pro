@@ -34,6 +34,7 @@ import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
 import { GroupedActivityCard, groupActivities, GroupedActivity } from "@/components/programacion/GroupedActivityCard";
 import { ActivityDetailDialog } from "@/components/programacion/ActivityDetailDialog";
 import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
+import { useActivityEvidenceStatus } from '@/hooks/useActivityEvidenceStatus';
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -208,6 +209,12 @@ export default function Programacion() {
   const selectedGroupedActivities = selectedDate 
     ? groupActivities(selectedActivities, getProfileName) 
     : [];
+
+  // Get evidence status for selected date activities
+  const { statusByActivity, isLoading: loadingEvidence } = useActivityEvidenceStatus(
+    selectedGroupedActivities,
+    !!selectedDate
+  );
 
   const handleDateClick = (day: Date) => {
     // Always allow viewing the day's details
@@ -658,6 +665,7 @@ export default function Programacion() {
                       key={group.key} 
                       group={group} 
                       showFullDetails={true}
+                      evidenceStatus={statusByActivity[group.key]}
                       onClick={() => {
                         setSelectedActivity(group);
                         setIsDetailDialogOpen(true);
