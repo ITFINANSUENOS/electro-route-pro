@@ -32,6 +32,7 @@ import { TimeSelect } from "@/components/programacion/TimeSelect";
 import { ProgramacionFilters } from "@/components/programacion/ProgramacionFilters";
 import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
 import { GroupedActivityCard, groupActivities, GroupedActivity } from "@/components/programacion/GroupedActivityCard";
+import { ActivityDetailDialog } from "@/components/programacion/ActivityDetailDialog";
 
 type ActivityType = 'punto' | 'correria' | 'libre';
 
@@ -53,6 +54,8 @@ export default function Programacion() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<GroupedActivity | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   
   // Form state for new programming
   const [newActivity, setNewActivity] = useState({
@@ -61,6 +64,7 @@ export default function Programacion() {
     hora_inicio: '08:00',
     hora_fin: '17:00',
     user_ids: [] as string[],
+    nombre: '',
   });
 
   // Filter state for hierarchical filtering
@@ -86,7 +90,7 @@ export default function Programacion() {
 
   // Fetch programacion data with hierarchical visibility
   const { data: programacion = [], refetch: refetchProgramacion } = useQuery({
-    queryKey: ['programacion', format(currentMonth, 'yyyy-MM'), role, profile?.regional_id, profile?.codigo_jefe],
+    queryKey: ['programacion', format(currentMonth, 'yyyy-MM'), role, profile?.regional_id, (profile as any)?.codigo_jefe],
     queryFn: async () => {
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
@@ -109,11 +113,13 @@ export default function Programacion() {
       }
 
       // For jefe_ventas: their own + their team's schedules (asesores with same codigo_jefe)
-      if (role === 'jefe_ventas' && profile?.codigo_asesor) {
+      // The jefe has codigo_jefe in their profile, not codigo_asesor
+      const jefeCode = (profile as any)?.codigo_jefe;
+      if (role === 'jefe_ventas' && jefeCode) {
         const { data: teamProfiles } = await supabase
           .from('profiles')
           .select('user_id')
-          .eq('codigo_jefe', profile.codigo_asesor);
+          .eq('codigo_jefe', jefeCode);
         
         const teamUserIds = new Set([user?.id, ...(teamProfiles?.map(p => p.user_id) || [])]);
         return scheduleData.filter(s => teamUserIds.has(s.user_id));
@@ -135,7 +141,7 @@ export default function Programacion() {
     },
   });
 
-  // Fetch profiles for assigning asesores
+  // Fetch profiles for displaying names (needed for all roles, not just editors)
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-programacion'],
     queryFn: async () => {
@@ -146,7 +152,7 @@ export default function Programacion() {
       if (error) throw error;
       return data || [];
     },
-    enabled: canEdit,
+    // Always fetch profiles to show names correctly
   });
 
   // Fetch jefes de ventas for the dialog filter
@@ -270,6 +276,7 @@ export default function Programacion() {
           hora_inicio: newActivity.hora_inicio,
           hora_fin: newActivity.hora_fin,
           creado_por: user?.id,
+          nombre: newActivity.nombre || null,
         }))
       );
 
@@ -287,6 +294,7 @@ export default function Programacion() {
         hora_inicio: '08:00',
         hora_fin: '17:00',
         user_ids: [],
+        nombre: '',
       });
       setFilterRegional('todos');
       setFilterJefe('todos');
@@ -405,6 +413,19 @@ export default function Programacion() {
                   <p className="text-xs text-muted-foreground">
                     <Users className="inline h-3 w-3 mr-1" />
                     Las actividades con múltiples asesores se mostrarán agrupadas
+                  </p>
+                </div>
+
+                {/* Nombre de la actividad */}
+                <div className="space-y-2">
+                  <Label>Nombre de la Actividad</Label>
+                  <Input
+                    placeholder="Ej: Jornada de cobranza, Capacitación, etc."
+                    value={newActivity.nombre}
+                    onChange={(e) => setNewActivity({ ...newActivity, nombre: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Opcional - Identifica esta actividad con un nombre descriptivo
                   </p>
                 </div>
 
@@ -630,6 +651,10 @@ export default function Programacion() {
                       key={group.key} 
                       group={group} 
                       showFullDetails={true}
+                      onClick={() => {
+                        setSelectedActivity(group);
+                        setIsDetailDialogOpen(true);
+                      }}
                     />
                   ))}
                 </div>
@@ -651,6 +676,13 @@ export default function Programacion() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Activity Detail Dialog */}
+      <ActivityDetailDialog
+        activity={selectedActivity}
+        isOpen={isDetailDialogOpen}
+        onClose={() => setIsDetailDialogOpen(false)}
+      />
     </motion.div>
   );
 }
