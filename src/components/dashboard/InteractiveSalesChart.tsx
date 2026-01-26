@@ -16,8 +16,11 @@ import {
 import { PieSectorDataItem } from 'recharts/types/polar/Pie';
 
 interface SaleData {
+  cliente_identificacion?: string | null;
+  fecha?: string | null;
   forma1_pago?: string | null;
   tipo_venta?: string | null;
+  mcn_clase?: string | null;
   vtas_ant_i: number;
 }
 
@@ -28,15 +31,23 @@ interface FormaPago {
   activo: boolean;
 }
 
+// Sales count by type from useSalesCount hook
+interface SalesCountByType {
+  count: number;
+  value: number;
+}
+
 interface InteractiveSalesChartProps {
   salesByType: Array<{
     name: string;
     value: number;
     key: string;
     color: string;
+    count?: number;  // Optional count of unique sales
   }>;
   salesData: SaleData[];
   formasPago: FormaPago[];
+  salesCountByType?: Record<string, SalesCountByType>;  // From useSalesCount
   onTypeClick?: (tipo: TipoVentaKey) => void;
 }
 
@@ -103,9 +114,18 @@ export function InteractiveSalesChart({
   salesByType,
   salesData,
   formasPago,
+  salesCountByType,
 }: InteractiveSalesChartProps) {
   const [selectedType, setSelectedType] = useState<TipoVentaKey | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+
+  // Enrich salesByType with counts from salesCountByType if available
+  const enrichedSalesByType = useMemo(() => {
+    return salesByType.map(type => ({
+      ...type,
+      count: salesCountByType?.[type.key]?.count || 0,
+    }));
+  }, [salesByType, salesCountByType]);
 
   // Generate gradient colors for breakdown items based on the selected type
   const generateGradientColor = (index: number, total: number, tipo: TipoVentaKey): string => {
@@ -247,7 +267,7 @@ export function InteractiveSalesChart({
               <ResponsiveContainer width="100%" height="60%" className="sm:!w-[55%] sm:!h-full">
                 <PieChart>
                   <Pie
-                    data={salesByType}
+                    data={enrichedSalesByType}
                     cx="50%"
                     cy="50%"
                     innerRadius={45}
@@ -261,7 +281,7 @@ export function InteractiveSalesChart({
                     onClick={handlePieClick}
                     style={{ cursor: 'pointer' }}
                   >
-                    {salesByType.map((entry, index) => (
+                    {enrichedSalesByType.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={entry.color}
@@ -275,12 +295,25 @@ export function InteractiveSalesChart({
                       border: '1px solid hsl(var(--border))',
                       borderRadius: 'var(--radius)',
                     }}
-                    formatter={(value: number) => [formatCurrency(value), 'Ventas']}
+                    formatter={(value: number, _name: string, props: { payload?: { count?: number } }) => {
+                      const count = props.payload?.count || 0;
+                      return [
+                        <span key="tooltip">
+                          {formatCurrency(value)}
+                          {count > 0 && (
+                            <span className="text-muted-foreground ml-2">
+                              ({count} {count === 1 ? 'venta' : 'ventas'})
+                            </span>
+                          )}
+                        </span>,
+                        'Total'
+                      ];
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-2 sm:space-y-3 flex-1 w-full sm:w-auto px-2 sm:px-0">
-                {salesByType.map((type, index) => (
+                {enrichedSalesByType.map((type, index) => (
                   <motion.div 
                     key={type.name} 
                     className="flex items-center gap-2 sm:gap-3 cursor-pointer rounded-lg p-1.5 sm:p-2 hover:bg-muted/50 transition-colors"
@@ -292,7 +325,14 @@ export function InteractiveSalesChart({
                       className="h-3 w-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: type.color }}
                     />
-                    <span className="text-xs sm:text-sm text-foreground flex-1">{type.name}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs sm:text-sm text-foreground">{type.name}</span>
+                      {type.count > 0 && (
+                        <span className="text-[10px] text-muted-foreground ml-2">
+                          ({type.count})
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs sm:text-sm font-semibold text-foreground">
                       {formatCurrency(type.value)}
                     </span>
@@ -301,7 +341,14 @@ export function InteractiveSalesChart({
                 <div className="pt-2 border-t border-border">
                   <div className="flex items-center justify-between text-sm font-bold">
                     <span>Total</span>
-                    <span>{formatCurrency(overallTotal)}</span>
+                    <div className="text-right">
+                      <span>{formatCurrency(overallTotal)}</span>
+                      {Object.keys(salesCountByType || {}).length > 0 && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({Object.values(salesCountByType || {}).reduce((sum, t) => sum + t.count, 0)} ventas)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
