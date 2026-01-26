@@ -153,13 +153,12 @@ export default function Reportes() {
   });
 
   // Fetch profiles
-  const { data: profiles = [] } = useQuery({
+  const { data: profiles = [], isLoading: profilesLoading } = useQuery({
     queryKey: ['profiles-reportes'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('activo', true);
+        .select('*');
       if (error) throw error;
       return data || [];
     },
@@ -314,8 +313,8 @@ export default function Reportes() {
   // Calculate metrics - use vtas_ant_i for consistency with dashboard
   // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
   const metrics = useMemo(() => {
-    // Wait for profiles to be loaded for accurate tipo_asesor mapping
-    if (profiles.length === 0) return { totalVentas: 0, totalMetas: 0, cumplimiento: 0, asesoresActivos: 0, ventasPorTipo: {}, ventasPorTipoAsesor: {} };
+    // Wait for profiles AND ventas to be loaded for accurate metrics
+    if (profilesLoading || filteredVentas.length === 0) return { totalVentas: 0, totalMetas: 0, cumplimiento: 0, asesoresActivos: 0, ventasPorTipo: {}, ventasPorTipoAsesor: {} };
     
     const salesForMetrics = filteredVentas.filter(v => v.tipo_venta !== 'OTROS');
     const totalVentas = salesForMetrics.reduce((sum, v) => sum + Math.abs(v.vtas_ant_i || 0), 0);
@@ -358,7 +357,7 @@ export default function Reportes() {
       ventasPorTipo,
       ventasPorTipoAsesor,
     };
-  }, [filteredVentas, metas, asesorTipoMap, profiles]);
+  }, [filteredVentas, metas, asesorTipoMap, profilesLoading]);
 
   // Calculate incompliance data
   const incumplimientos = useMemo(() => {
