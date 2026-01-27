@@ -130,10 +130,14 @@ export function RankingTable({
     return ranking.filter(a => !isGerenciaEntry(a)).length;
   }, [ranking]);
 
-  // Filter ranking by tipo asesor
+  // Filter ranking by tipo asesor - EXCLUDING GERENCIA/GENERAL entries from display
+  // but their sales are still included in the data source (ranking prop)
   const filteredByTipoAsesor = useMemo(() => {
-    if (tipoAsesorFilter === 'TODOS') return ranking;
-    return ranking.filter(advisor => advisor.tipoAsesor?.toUpperCase() === tipoAsesorFilter);
+    // First exclude GERENCIA/GENERAL entries from the visible list
+    const withoutGerencia = ranking.filter(a => !isGerenciaEntry(a));
+    
+    if (tipoAsesorFilter === 'TODOS') return withoutGerencia;
+    return withoutGerencia.filter(advisor => advisor.tipoAsesor?.toUpperCase() === tipoAsesorFilter);
   }, [ranking, tipoAsesorFilter]);
 
   // Handle column header click for sorting
@@ -204,9 +208,9 @@ export function RankingTable({
       : <ArrowUp className="h-3 w-3 ml-1 text-primary" />;
   };
 
-  // Count real advisors in filtered view (excluding GERENCIA)
+  // Count real advisors in filtered view (GERENCIA already excluded from filteredByTipoAsesor)
   const filteredRealAdvisorCount = useMemo(() => {
-    return filteredByTipoAsesor.filter(a => !isGerenciaEntry(a)).length;
+    return filteredByTipoAsesor.length;
   }, [filteredByTipoAsesor]);
 
   return (
