@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GENERIC_ERRORS, maskError } from "../_shared/security-utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,90 +21,8 @@ interface TestUser {
   regional_codigo?: number;
 }
 
-// Usuarios de prueba basados en USUARIOS_PRUEBAS.xlsx y BD ASESORES
-const testUsers: TestUser[] = [
-  // Administrador
-  {
-    email: 'admin@electrocreditos.com',
-    password: 'Admin2026$Master',
-    cedula: 'ADMIN-001',
-    nombre_completo: 'Administrador E-COM',
-    telefono: undefined,
-    zona: undefined,
-    role: 'administrador'
-  },
-  // Coordinador Comercial - ZONA NORTE
-  {
-    email: 'coorcomercialzonanorte@electrocreditosdelcauca.com',
-    password: 'Coord2026$Ecom',
-    cedula: '94470884',
-    nombre_completo: 'TACAN PASCUAZA LUIS GONZALO',
-    telefono: '3183625094',
-    zona: 'norte',
-    role: 'coordinador_comercial'
-  },
-  // Líder de Zona - SANTANDER
-  {
-    email: 'liderdezonasantander@electrocreditosdelcauca.com',
-    password: 'Lider2026$Ecom',
-    cedula: '1061428295',
-    nombre_completo: 'MUNOZ LOBOA GUSTAVO ANDRES',
-    telefono: '3168279196',
-    zona: 'norte',
-    role: 'lider_zona',
-    regional_codigo: 103
-  },
-  // Jefe de Ventas - SANTANDER
-  {
-    email: 'garciazapata196@gmail.com',
-    password: 'Jefe2026$Ecom',
-    cedula: '16933411',
-    nombre_completo: 'GARCIA ZAPATA JOSE LUIS',
-    telefono: '3206595450',
-    zona: 'norte',
-    role: 'jefe_ventas',
-    codigo_jefe: '69334',
-    regional_codigo: 103
-  },
-  // Asesor Comercial 1 - EXTERNO - SANTANDER
-  {
-    email: 'asesor1@electrocreditos.com',
-    password: 'Asesor2026$Ecom',
-    cedula: '1061502889',
-    nombre_completo: 'TOMBE DAGUA ROSA MARIA',
-    telefono: '3137463494',
-    zona: 'norte',
-    role: 'asesor_comercial',
-    codigo_asesor: '50288',
-    codigo_jefe: '69334',
-    tipo_asesor: 'EXTERNO',
-    regional_codigo: 103
-  },
-  // Asesor Comercial 2 - EXTERNO - SANTANDER
-  {
-    email: 'asesor2@electrocreditos.com',
-    password: 'Asesor2026$Ecom',
-    cedula: '34608423',
-    nombre_completo: 'ESTRADA PALOMINO VERONICA',
-    telefono: '3225126433',
-    zona: 'norte',
-    role: 'asesor_comercial',
-    codigo_asesor: '60842',
-    codigo_jefe: '69334',
-    tipo_asesor: 'EXTERNO',
-    regional_codigo: 103
-  },
-  // Administrativo
-  {
-    email: 'administrativo@electrocreditos.com',
-    password: 'Admin2026$Ecom',
-    cedula: '1061000006',
-    nombre_completo: 'USUARIO ADMINISTRATIVO PRUEBA',
-    telefono: '3126789012',
-    zona: undefined,
-    role: 'administrativo'
-  }
-];
+// Test users are now passed via request body for security
+// This prevents hardcoded credentials in source code
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -111,6 +30,63 @@ serve(async (req) => {
   }
 
   try {
+    // Verify admin authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: GENERIC_ERRORS.UNAUTHORIZED }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Verify the requesting user is an admin
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error('Claims verification failed:', maskError(claimsError));
+      return new Response(
+        JSON.stringify({ error: GENERIC_ERRORS.UNAUTHORIZED }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub;
+    
+    // Check if user has admin role
+    const { data: roleData, error: roleError } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'administrador')
+      .maybeSingle();
+
+    if (roleError || !roleData) {
+      console.error('Admin role check failed:', maskError(roleError));
+      return new Response(
+        JSON.stringify({ error: GENERIC_ERRORS.FORBIDDEN }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse test users from request body (no longer hardcoded)
+    const body = await req.json().catch(() => ({}));
+    const testUsers: TestUser[] = body.users || [];
+
+    if (!testUsers.length) {
+      return new Response(
+        JSON.stringify({ error: 'No test users provided in request body. Expected: { users: [...] }' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use service role for admin operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
