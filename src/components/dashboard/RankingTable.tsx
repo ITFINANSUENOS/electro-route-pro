@@ -5,6 +5,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -37,6 +44,7 @@ export interface RankingAdvisor {
 }
 
 export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
+export type TipoAsesorFilter = 'TODOS' | 'INTERNO' | 'EXTERNO' | 'CORRETAJE';
 
 export const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
@@ -50,6 +58,12 @@ const tiposVentaShortLabels: Record<string, string> = {
   CREDICONTADO: 'C. Contado',
   CREDITO: 'Crédito',
   CONVENIO: 'Convenio',
+};
+
+const tipoAsesorConfig: Record<string, { label: string; letter: string; bgColor: string; textColor: string }> = {
+  INTERNO: { label: 'Interno', letter: 'i', bgColor: 'bg-primary', textColor: 'text-primary-foreground' },
+  EXTERNO: { label: 'Externo', letter: 'e', bgColor: 'bg-success', textColor: 'text-success-foreground' },
+  CORRETAJE: { label: 'Corretaje', letter: 'c', bgColor: 'bg-warning', textColor: 'text-warning-foreground' },
 };
 
 const formatCurrency = (value: number) => {
@@ -98,6 +112,13 @@ export function RankingTable({
   const isMobile = useIsMobile();
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [tipoAsesorFilter, setTipoAsesorFilter] = useState<TipoAsesorFilter>('TODOS');
+
+  // Filter ranking by tipo asesor
+  const filteredByTipoAsesor = useMemo(() => {
+    if (tipoAsesorFilter === 'TODOS') return ranking;
+    return ranking.filter(advisor => advisor.tipoAsesor?.toUpperCase() === tipoAsesorFilter);
+  }, [ranking, tipoAsesorFilter]);
 
   // Handle column header click for sorting
   const handleColumnSort = (column: SortColumn) => {
@@ -113,9 +134,9 @@ export function RankingTable({
 
   // Sort ranking based on selected column
   const sortedRanking = useMemo(() => {
-    if (!sortColumn) return ranking;
+    if (!sortColumn) return filteredByTipoAsesor;
 
-    return [...ranking].sort((a, b) => {
+    return [...filteredByTipoAsesor].sort((a, b) => {
       let aValue: number;
       let bValue: number;
 
@@ -133,26 +154,26 @@ export function RankingTable({
 
       return sortDirection === 'desc' ? bValue - aValue : aValue - bValue;
     });
-  }, [ranking, sortColumn, sortDirection, selectedFilters]);
+  }, [filteredByTipoAsesor, sortColumn, sortDirection, selectedFilters]);
 
-  // Calculate totals for selected types
+  // Calculate totals for selected types (based on filtered data)
   const typeTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     selectedFilters.forEach(tipo => {
-      totals[tipo] = ranking.reduce((sum, advisor) => sum + (advisor.byType[tipo] || 0), 0);
+      totals[tipo] = filteredByTipoAsesor.reduce((sum, advisor) => sum + (advisor.byType[tipo] || 0), 0);
     });
     return totals;
-  }, [ranking, selectedFilters]);
+  }, [filteredByTipoAsesor, selectedFilters]);
 
-  // Calculate total for ranking
+  // Calculate total for ranking (based on filtered data)
   const rankingTotal = useMemo(() => {
-    return ranking.reduce((sum, advisor) => {
+    return filteredByTipoAsesor.reduce((sum, advisor) => {
       const displayTotal = selectedFilters.length > 0 
         ? (advisor.filteredTotal ?? advisor.total) 
         : advisor.total;
       return sum + displayTotal;
     }, 0);
-  }, [ranking, selectedFilters]);
+  }, [filteredByTipoAsesor, selectedFilters]);
 
   const displayRanking = sortedRanking.slice(0, maxRows);
 
@@ -191,7 +212,7 @@ export function RankingTable({
           )}
         </div>
         {/* Filters */}
-        <div className="flex flex-wrap gap-2 sm:gap-3 mt-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
           <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
             <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
             Filtrar:
@@ -209,6 +230,37 @@ export function RankingTable({
               <span className="text-xs sm:text-sm">{tiposVentaLabels[tipo]}</span>
             </label>
           ))}
+          
+          {/* Tipo Asesor Filter */}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs sm:text-sm text-muted-foreground">T.A:</span>
+            <Select value={tipoAsesorFilter} onValueChange={(v) => setTipoAsesorFilter(v as TipoAsesorFilter)}>
+              <SelectTrigger className="w-[110px] h-8 text-xs sm:text-sm">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="TODOS">Todos</SelectItem>
+                <SelectItem value="INTERNO">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">i</span>
+                    Interno
+                  </span>
+                </SelectItem>
+                <SelectItem value="EXTERNO">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-success text-success-foreground text-[10px] font-bold">e</span>
+                    Externo
+                  </span>
+                </SelectItem>
+                <SelectItem value="CORRETAJE">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">c</span>
+                    Corretaje
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-4">
@@ -218,6 +270,18 @@ export function RankingTable({
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
                   <TableHead className="w-12 text-center">Pos.</TableHead>
+                  <TableHead className="w-10 text-center">
+                    <TooltipProvider delayDuration={100}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">T.A</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
+                          <span className="text-xs">Tipo de Asesor</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                   <TableHead className="min-w-[200px] sm:min-w-[250px]">Asesor</TableHead>
                   {/* Dynamic columns for selected sale types - sortable */}
                   {selectedFilters.map(tipo => (
@@ -262,10 +326,10 @@ export function RankingTable({
                     ? Math.round((displayTotal / advisor.meta) * 100) 
                     : 0;
 
-                  // Calculate original position in unsorted ranking
-                  const originalIndex = sortColumn === null ? index : ranking.findIndex(r => r.codigo === advisor.codigo);
+                  // Calculate position in current filtered/sorted ranking
+                  const originalIndex = sortColumn === null ? index : filteredByTipoAsesor.findIndex(r => r.codigo === advisor.codigo);
 
-                  return (
+                    return (
                     <TableRow key={advisor.codigo} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="text-center">
                         <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold ${
@@ -276,6 +340,34 @@ export function RankingTable({
                         }`}>
                           {originalIndex + 1}
                         </span>
+                      </TableCell>
+                      {/* T.A - Tipo Asesor Column */}
+                      <TableCell className="text-center">
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {(() => {
+                                const tipoUpper = advisor.tipoAsesor?.toUpperCase() || '';
+                                const config = tipoAsesorConfig[tipoUpper];
+                                if (config) {
+                                  return (
+                                    <span className={`inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ${config.bgColor} ${config.textColor}`}>
+                                      {config.letter}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
+                                    ?
+                                  </span>
+                                );
+                              })()}
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="bg-popover border shadow-lg p-2">
+                              <span className="text-xs">{tipoAsesorConfig[advisor.tipoAsesor?.toUpperCase() || '']?.label || 'Sin definir'}</span>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="font-medium">
                         <span className="block whitespace-nowrap">
@@ -367,7 +459,7 @@ export function RankingTable({
               </TableBody>
               <TableFooter className="sticky bottom-0 bg-card border-t-2 z-10">
                 <TableRow className="font-bold text-sm">
-                  <TableCell colSpan={2}>TOTAL</TableCell>
+                  <TableCell colSpan={3}>TOTAL</TableCell>
                   {/* Dynamic totals for selected sale types */}
                   {selectedFilters.map(tipo => (
                     <TableCell key={tipo} className="text-right text-muted-foreground whitespace-nowrap">
