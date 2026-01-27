@@ -769,15 +769,31 @@ export default function DashboardLider() {
   }, [metrics.byAdvisor]);
 
   // Filter ranking by selected types - use net values for accurate totals
+  // CRITICAL FIX: When sale type filters are applied, recalculate byType to only include selected types
+  // This ensures GENERAL entries and all advisors show correctly filtered values
   const filteredRanking = useMemo(() => {
     if (selectedFilters.length === 0) return metrics.byAdvisor;
     
     return metrics.byAdvisor
       .map(advisor => {
+        // Calculate filtered total from selected types only
         const filteredTotal = selectedFilters.reduce((sum, tipo) => {
-          return sum + (advisor.byType[tipo] || 0); // Use net value, not abs
+          return sum + (advisor.byType[tipo] || 0);
         }, 0);
-        return { ...advisor, filteredTotal };
+        
+        // Create a new byType object with only the selected filters
+        // This ensures the table columns show correct filtered values
+        const filteredByType: Record<string, number> = {};
+        selectedFilters.forEach(tipo => {
+          filteredByType[tipo] = advisor.byType[tipo] || 0;
+        });
+        
+        return { 
+          ...advisor, 
+          filteredTotal,
+          // Override byType with filtered version so columns display correctly
+          byType: filteredByType 
+        };
       })
       .sort((a, b) => b.filteredTotal - a.filteredTotal);
   }, [metrics.byAdvisor, selectedFilters]);
