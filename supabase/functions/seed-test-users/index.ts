@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { GENERIC_ERRORS, maskError } from "../_shared/security-utils.ts";
+import { GENERIC_ERRORS, sanitizeErrorMessage } from "../_shared/security-utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +34,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: GENERIC_ERRORS.UNAUTHORIZED }),
+        JSON.stringify({ error: GENERIC_ERRORS.AUTH }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -50,9 +50,9 @@ serve(async (req) => {
     const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
     
     if (claimsError || !claimsData?.claims?.sub) {
-      console.error('Claims verification failed:', maskError(claimsError));
+      console.error('Claims verification failed:', sanitizeErrorMessage(claimsError));
       return new Response(
-        JSON.stringify({ error: GENERIC_ERRORS.UNAUTHORIZED }),
+        JSON.stringify({ error: GENERIC_ERRORS.AUTH }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -68,9 +68,9 @@ serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !roleData) {
-      console.error('Admin role check failed:', maskError(roleError));
+      console.error('Admin role check failed:', sanitizeErrorMessage(roleError));
       return new Response(
-        JSON.stringify({ error: GENERIC_ERRORS.FORBIDDEN }),
+        JSON.stringify({ error: GENERIC_ERRORS.PERMISSION }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
