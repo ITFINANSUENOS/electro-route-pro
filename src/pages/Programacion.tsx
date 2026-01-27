@@ -103,7 +103,65 @@ export default function Programacion() {
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
       
-      // First get the schedule data
+      // For asesor_comercial: need to get their activities first, then expand to include colleagues
+      if (role === 'asesor_comercial' && user?.id) {
+        // Step 1: Get only user's own activities (RLS allows this)
+        const { data: myActivities, error: myError } = await supabase
+          .from('programacion')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('fecha', startDate)
+          .lte('fecha', endDate);
+
+        if (myError) throw myError;
+        if (!myActivities || myActivities.length === 0) return [];
+        
+        // Step 2: For each of user's activities, build unique activity signatures
+        // We'll query for all activities matching these signatures using OR conditions
+        const signatures = myActivities.map(a => ({
+          fecha: a.fecha,
+          tipo_actividad: a.tipo_actividad,
+          municipio: a.municipio,
+          hora_inicio: a.hora_inicio,
+          hora_fin: a.hora_fin,
+          nombre: a.nombre
+        }));
+
+        // Step 3: Query all activities that match these signatures
+        // Since RLS restricts to own activities, we need to use the activities we know about
+        // and fetch colleagues by matching the exact activity parameters
+        const allActivities: typeof myActivities = [...myActivities];
+        
+        // Query for colleagues in the same activities using activity parameters
+        for (const sig of signatures) {
+          let colleagueQuery = supabase
+            .from('programacion')
+            .select('*')
+            .eq('fecha', sig.fecha)
+            .eq('tipo_actividad', sig.tipo_actividad)
+            .eq('municipio', sig.municipio)
+            .neq('user_id', user.id); // Exclude self
+            
+          if (sig.hora_inicio) colleagueQuery = colleagueQuery.eq('hora_inicio', sig.hora_inicio);
+          if (sig.hora_fin) colleagueQuery = colleagueQuery.eq('hora_fin', sig.hora_fin);
+          if (sig.nombre) colleagueQuery = colleagueQuery.eq('nombre', sig.nombre);
+          
+          const { data: colleagues } = await colleagueQuery;
+          
+          if (colleagues && colleagues.length > 0) {
+            // Add colleagues that aren't already in the list
+            for (const colleague of colleagues) {
+              if (!allActivities.find(a => a.id === colleague.id)) {
+                allActivities.push(colleague);
+              }
+            }
+          }
+        }
+        
+        return allActivities;
+      }
+
+      // For other roles, get all accessible schedule data first
       let query = supabase
         .from('programacion')
         .select('*')
@@ -115,28 +173,7 @@ export default function Programacion() {
       
       if (!scheduleData || scheduleData.length === 0) return [];
 
-      // For asesor_comercial: get their activities AND all colleagues in the same activities
-      if (role === 'asesor_comercial' && user?.id) {
-        // First filter to get only user's own activities
-        const myActivities = scheduleData.filter(s => s.user_id === user.id);
-        
-        if (myActivities.length === 0) return [];
-        
-        // Now for each of the user's activities, find ALL colleagues with matching activity keys
-        // Activity key = fecha + tipo_actividad + municipio + hora_inicio + hora_fin + nombre
-        const activityKeys = new Set(myActivities.map(a => 
-          `${a.fecha}-${a.tipo_actividad}-${a.municipio}-${a.hora_inicio || ''}-${a.hora_fin || ''}-${a.nombre || ''}`
-        ));
-        
-        // Filter all schedule data to include activities matching these keys
-        return scheduleData.filter(s => {
-          const key = `${s.fecha}-${s.tipo_actividad}-${s.municipio}-${s.hora_inicio || ''}-${s.hora_fin || ''}-${s.nombre || ''}`;
-          return activityKeys.has(key);
-        });
-      }
-
       // For jefe_ventas: their own + their team's schedules (asesores with same codigo_jefe)
-      // The jefe has codigo_jefe in their profile, not codigo_asesor
       const jefeCode = (profile as any)?.codigo_jefe;
       if (role === 'jefe_ventas' && jefeCode) {
         const { data: teamProfiles } = await supabase
