@@ -536,7 +536,7 @@ export default function DashboardJefe() {
           selectedFilters={selectedFilters}
           onToggleFilter={toggleFilter}
           onExportExcel={handleExportExcel}
-          maxRows={20}
+          
           includeRegional={false}
           salesCountByAdvisor={salesCountByAdvisorData.byAdvisor}
         />
