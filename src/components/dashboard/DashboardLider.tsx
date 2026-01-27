@@ -264,11 +264,42 @@ export default function DashboardLider() {
     },
   });
 
-  // Consultas y solicitudes totales
-  const totalConsultas = reportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
-  const totalSolicitudes = reportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+  // Filter reportes_diarios by regional - CRITICAL: Apply same regional filter as sales
+  const filteredReportesDiarios = useMemo(() => {
+    if (!reportesDiarios || !profiles) return [];
+    
+    // Get user_ids that belong to the current regional scope
+    const regionalUserIds = new Set<string>();
+    
+    profiles.forEach(p => {
+      // For lider_zona, filter by their regional_id
+      if (role === 'lider_zona' && profile?.regional_id) {
+        if (p.regional_id === profile.regional_id && p.user_id) {
+          regionalUserIds.add(p.user_id);
+        }
+      } 
+      // For admin/coordinador with selectedRegional filter
+      else if (isGlobalRole && selectedRegional !== 'todos') {
+        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+        if (selectedReg && p.regional_id === selectedReg.id && p.user_id) {
+          regionalUserIds.add(p.user_id);
+        }
+      }
+      // For admin/coordinador without filter (see all)
+      else if (isGlobalRole && selectedRegional === 'todos' && p.user_id) {
+        regionalUserIds.add(p.user_id);
+      }
+    });
+    
+    // Filter reports by users in the regional scope
+    return reportesDiarios.filter(r => regionalUserIds.has(r.user_id));
+  }, [reportesDiarios, profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
 
-  // Calculate consultas/solicitudes by advisor for popup detail
+  // Consultas y solicitudes totales - using filtered data
+  const totalConsultas = filteredReportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
+  const totalSolicitudes = filteredReportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+
+  // Calculate consultas/solicitudes by advisor for popup detail - using filtered data
   const consultasByAdvisor = useMemo(() => {
     if (!profiles) return [];
     
@@ -280,7 +311,7 @@ export default function DashboardLider() {
       solicitudes: number;
     }>();
 
-    reportesDiarios.forEach((r) => {
+    filteredReportesDiarios.forEach((r) => {
       const profileMatch = profiles.find((p) => p.user_id === r.user_id);
       if (profileMatch) {
         const existing = advisorMap.get(r.user_id);
@@ -300,11 +331,27 @@ export default function DashboardLider() {
     });
 
     return Array.from(advisorMap.values());
-  }, [profiles, reportesDiarios]);
+  }, [profiles, filteredReportesDiarios]);
 
-  // Calculate incompliance data
+  // Calculate incompliance data - using filtered data by regional
   const incumplimientos = useMemo(() => {
     if (!profiles) return [];
+    
+    // Filter profiles by regional scope first
+    const regionalProfiles = profiles.filter(p => {
+      if (!p.codigo_asesor) return false;
+      
+      // For lider_zona, filter by their regional_id
+      if (role === 'lider_zona' && profile?.regional_id) {
+        return p.regional_id === profile.regional_id;
+      }
+      // For admin/coordinador with selectedRegional filter
+      if (isGlobalRole && selectedRegional !== 'todos') {
+        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+        return selectedReg && p.regional_id === selectedReg.id;
+      }
+      return true;
+    });
     
     const asesoresMap = new Map<string, {
       nombre: string;
@@ -314,8 +361,8 @@ export default function DashboardLider() {
       diasReportados: number;
     }>();
 
-    // Initialize with all profiles
-    profiles.forEach((p) => {
+    // Initialize with regional profiles only
+    regionalProfiles.forEach((p) => {
       if (p.codigo_asesor) {
         asesoresMap.set(p.codigo_asesor, {
           nombre: p.nombre_completo,
@@ -327,8 +374,8 @@ export default function DashboardLider() {
       }
     });
 
-    // Count incompliances from reportes_diarios
-    reportesDiarios.forEach((r) => {
+    // Count incompliances from filtered reportes_diarios
+    filteredReportesDiarios.forEach((r) => {
       const profileMatch = profiles.find((p) => p.user_id === r.user_id);
       if (profileMatch?.codigo_asesor) {
         const data = asesoresMap.get(profileMatch.codigo_asesor);
@@ -344,7 +391,7 @@ export default function DashboardLider() {
     return Array.from(asesoresMap.values()).filter(
       (a) => a.sinFoto > 0 || a.sinGPS > 0 || a.sinConsultas > 0
     );
-  }, [profiles, reportesDiarios]);
+  }, [profiles, filteredReportesDiarios, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
 
   // Apply advanced filters to sales data
   const advancedFilteredSales = useMemo(() => {
