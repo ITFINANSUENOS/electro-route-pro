@@ -529,19 +529,22 @@ export default function DashboardLider() {
           tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(advisorCode) || 'EXTERNO';
         }
         
+        // CRITICAL: Use uniqueKey as codigo for GERENCIA entries to prevent duplicate React keys
+        // For regular advisors, use the normalized code for consistency
         acc[uniqueKey] = { 
-          codigo: advisorCode, 
+          codigo: isGerencia ? uniqueKey : normalizedCode, 
           nombre: sale.asesor_nombre || advisorCode,
           tipoAsesor: tipoAsesor,
           total: 0, 
-          byType: {} as Record<string, number>
+          byType: {} as Record<string, number>,
+          isGerencia: isGerencia
         };
       }
       acc[uniqueKey].total += sale.vtas_ant_i || 0;
       const tipo = sale.tipo_venta || 'OTRO';
       acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
-    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number> }>);
+    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
 
     // Sort by net sales value (not absolute) - use net values for accurate ranking
     // Also build metaByType for each advisor
@@ -769,30 +772,33 @@ export default function DashboardLider() {
   }, [metrics.byAdvisor]);
 
   // Filter ranking by selected types - use net values for accurate totals
-  // CRITICAL FIX: When sale type filters are applied, recalculate byType to only include selected types
-  // This ensures GENERAL entries and all advisors show correctly filtered values
+  // CRITICAL: When filters are applied, we need to:
+  // 1. Calculate filteredTotal based only on selected types
+  // 2. Keep original byType INTACT - do NOT replace it
+  // 3. The table component will show only the columns for selected filters
   const filteredRanking = useMemo(() => {
-    if (selectedFilters.length === 0) return metrics.byAdvisor;
+    // When no filters, return original data as-is with no modifications
+    if (selectedFilters.length === 0) {
+      return metrics.byAdvisor.map(advisor => ({
+        ...advisor,
+        filteredTotal: advisor.total
+      }));
+    }
     
+    // When filters are active, calculate filteredTotal from only selected types
+    // IMPORTANT: Keep original byType object - do not replace it
     return metrics.byAdvisor
       .map(advisor => {
-        // Calculate filtered total from selected types only
+        // Sum only the selected sale types for the filtered total
         const filteredTotal = selectedFilters.reduce((sum, tipo) => {
           return sum + (advisor.byType[tipo] || 0);
         }, 0);
         
-        // Create a new byType object with only the selected filters
-        // This ensures the table columns show correct filtered values
-        const filteredByType: Record<string, number> = {};
-        selectedFilters.forEach(tipo => {
-          filteredByType[tipo] = advisor.byType[tipo] || 0;
-        });
-        
+        // Return new object with filteredTotal but KEEP original byType
+        // The RankingTable will only display columns for selectedFilters
         return { 
           ...advisor, 
-          filteredTotal,
-          // Override byType with filtered version so columns display correctly
-          byType: filteredByType 
+          filteredTotal
         };
       })
       .sort((a, b) => b.filteredTotal - a.filteredTotal);
