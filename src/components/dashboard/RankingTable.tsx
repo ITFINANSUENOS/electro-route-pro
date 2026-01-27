@@ -263,9 +263,9 @@ export function RankingTable({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="px-2 sm:px-4">
-        <ScrollArea className="max-h-[400px] sm:max-h-[450px] w-full overflow-x-auto">
-          <div className="min-w-max">
+      <CardContent className="px-2 sm:px-4 overflow-hidden">
+        <ScrollArea className="max-h-[400px] sm:max-h-[450px] w-full">
+          <div className="min-w-[900px]">
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
