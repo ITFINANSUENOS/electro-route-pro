@@ -11,6 +11,7 @@ import {
   Camera,
   MapPin,
   Building2,
+  FileText,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -28,6 +29,7 @@ import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
+import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { Hash } from 'lucide-react';
 import {
   BarChart,
@@ -96,6 +98,8 @@ export default function DashboardLider() {
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
   const [selectedRegional, setSelectedRegional] = useState<string>('todos');
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
+  const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
+  const [solicitudesPopupOpen, setSolicitudesPopupOpen] = useState(false);
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -263,6 +267,40 @@ export default function DashboardLider() {
   // Consultas y solicitudes totales
   const totalConsultas = reportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
   const totalSolicitudes = reportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+
+  // Calculate consultas/solicitudes by advisor for popup detail
+  const consultasByAdvisor = useMemo(() => {
+    if (!profiles) return [];
+    
+    const advisorMap = new Map<string, {
+      userId: string;
+      nombre: string;
+      codigo: string;
+      consultas: number;
+      solicitudes: number;
+    }>();
+
+    reportesDiarios.forEach((r) => {
+      const profileMatch = profiles.find((p) => p.user_id === r.user_id);
+      if (profileMatch) {
+        const existing = advisorMap.get(r.user_id);
+        if (existing) {
+          existing.consultas += r.consultas || 0;
+          existing.solicitudes += r.solicitudes || 0;
+        } else {
+          advisorMap.set(r.user_id, {
+            userId: r.user_id,
+            nombre: profileMatch.nombre_completo,
+            codigo: profileMatch.codigo_asesor || '',
+            consultas: r.consultas || 0,
+            solicitudes: r.solicitudes || 0,
+          });
+        }
+      }
+    });
+
+    return Array.from(advisorMap.values());
+  }, [profiles, reportesDiarios]);
 
   // Calculate incompliance data
   const incumplimientos = useMemo(() => {
@@ -889,14 +927,16 @@ export default function DashboardLider() {
         <KpiCard
           title="Consultas"
           value={totalConsultas.toString()}
-          subtitle="Total del mes"
+          subtitle={`${consultasByAdvisor.filter(a => a.consultas > 0).length} asesores`}
           icon={MessageSquare}
+          onClick={() => setConsultasPopupOpen(true)}
         />
         <KpiCard
           title="Solicitudes"
           value={totalSolicitudes.toString()}
-          subtitle="Total del mes"
-          icon={Users}
+          subtitle={`${consultasByAdvisor.filter(a => a.solicitudes > 0).length} asesores`}
+          icon={FileText}
+          onClick={() => setSolicitudesPopupOpen(true)}
         />
         <KpiCard
           title="Incumplimientos"
@@ -914,6 +954,26 @@ export default function DashboardLider() {
         onOpenChange={setCompliancePopupOpen}
         advisorSummaries={advisorSummaries}
         month={new Date(2026, 0, 1)}
+      />
+
+      {/* Consultas Detail Popup */}
+      <ConsultasDetailPopup
+        open={consultasPopupOpen}
+        onOpenChange={setConsultasPopupOpen}
+        advisorData={consultasByAdvisor}
+        title="Consultas por Asesor"
+        type="consultas"
+        total={totalConsultas}
+      />
+
+      {/* Solicitudes Detail Popup */}
+      <ConsultasDetailPopup
+        open={solicitudesPopupOpen}
+        onOpenChange={setSolicitudesPopupOpen}
+        advisorData={consultasByAdvisor}
+        title="Solicitudes por Asesor"
+        type="solicitudes"
+        total={totalSolicitudes}
       />
 
       {/* Charts Row */}
