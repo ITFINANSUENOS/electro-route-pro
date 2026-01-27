@@ -460,16 +460,9 @@ export default function DashboardLider() {
 
     // Sort by net sales value (not absolute) - use net values for accurate ranking
     // Also build metaByType for each advisor
-    // Filter out GERENCIA/GENERAL entries as they are not actual advisors
+    // IMPORTANT: Keep GERENCIA/GENERAL entries in the ranking so totals match "Ventas del Mes"
+    // but they will be excluded from the advisor COUNT
     const byAdvisor = Object.values(byAdvisorMap)
-      .filter(a => {
-        // Exclude GERENCIA/GENERAL entries from ranking - they're not individual advisors
-        const normalizedCode = normalizeCode(a.codigo);
-        const isGerencia = a.codigo === '01' || normalizedCode === '00001' || 
-          a.nombre?.toUpperCase().includes('GENERAL') || 
-          a.nombre?.toUpperCase().includes('GERENCIA');
-        return !isGerencia;
-      })
       .map(a => {
         // Find all metas for this advisor and group by tipo_meta
         const advisorMetas = metasData?.filter(m => 

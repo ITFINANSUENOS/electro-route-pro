@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Filter, Download, Users, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Filter, Download, Users, ArrowUpDown, ArrowUp, ArrowDown, Maximize2, Minimize2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ export interface RankingAdvisor {
   salesCount?: number;
   salesCountByType?: Record<string, number>;
   metaByType?: Record<string, number>;  // Meta per sale type for compliance calculation
+  isGerencia?: boolean; // Flag to identify GERENCIA entries (not counted as advisors)
 }
 
 export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
@@ -113,6 +114,21 @@ export function RankingTable({
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [tipoAsesorFilter, setTipoAsesorFilter] = useState<TipoAsesorFilter>('TODOS');
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Helper to check if an advisor is GERENCIA (not counted as advisor)
+  const isGerenciaEntry = (advisor: RankingAdvisor) => {
+    const normalizedCode = advisor.codigo?.replace(/^0+/, '').trim().padStart(5, '0');
+    return advisor.codigo === '01' || normalizedCode === '00001' || 
+      advisor.nombre?.toUpperCase().includes('GENERAL') || 
+      advisor.nombre?.toUpperCase().includes('GERENCIA') ||
+      advisor.isGerencia === true;
+  };
+
+  // Count only real advisors (excluding GERENCIA entries)
+  const realAdvisorCount = useMemo(() => {
+    return ranking.filter(a => !isGerenciaEntry(a)).length;
+  }, [ranking]);
 
   // Filter ranking by tipo asesor
   const filteredByTipoAsesor = useMemo(() => {
@@ -188,86 +204,116 @@ export function RankingTable({
       : <ArrowUp className="h-3 w-3 ml-1 text-primary" />;
   };
 
+  // Count real advisors in filtered view (excluding GERENCIA)
+  const filteredRealAdvisorCount = useMemo(() => {
+    return filteredByTipoAsesor.filter(a => !isGerenciaEntry(a)).length;
+  }, [filteredByTipoAsesor]);
+
   return (
-    <Card className="card-elevated">
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
-              {title}
-            </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
+    <Card className={`card-elevated transition-all duration-300 ${isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
+      {/* Backdrop when maximized */}
+      {isMaximized && (
+        <div 
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+          onClick={() => setIsMaximized(false)}
+        />
+      )}
+      <div className={`relative ${isMaximized ? 'z-50 bg-card rounded-lg h-full flex flex-col' : ''}`}>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
+                {title}
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">{description}</CardDescription>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {onExportExcel && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onExportExcel}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden xs:inline">Descargar Excel</span>
+                  <span className="xs:hidden">Excel</span>
+                </Button>
+              )}
+              {/* Maximize/Minimize button */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsMaximized(!isMaximized)}
+                className="flex items-center gap-2"
+                title={isMaximized ? 'Minimizar' : 'Maximizar'}
+              >
+                {isMaximized ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
-          {onExportExcel && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={onExportExcel}
-              className="flex items-center gap-2 self-start sm:self-auto"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden xs:inline">Descargar Excel</span>
-              <span className="xs:hidden">Excel</span>
-            </Button>
-          )}
-        </div>
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
-          <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
-            <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
-            Filtrar:
-          </span>
-          {(Object.keys(tiposVentaLabels) as TipoVentaKey[]).map((tipo) => (
-            <label
-              key={tipo}
-              className="flex items-center gap-1.5 sm:gap-2 cursor-pointer"
-            >
-              <Checkbox
-                checked={selectedFilters.includes(tipo)}
-                onCheckedChange={() => onToggleFilter(tipo)}
-                className="h-3.5 w-3.5 sm:h-4 sm:w-4"
-              />
-              <span className="text-xs sm:text-sm">{tiposVentaLabels[tipo]}</span>
-            </label>
-          ))}
-          
-          {/* Tipo Asesor Filter */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs sm:text-sm text-muted-foreground">T.A:</span>
-            <Select value={tipoAsesorFilter} onValueChange={(v) => setTipoAsesorFilter(v as TipoAsesorFilter)}>
-              <SelectTrigger className="w-[110px] h-8 text-xs sm:text-sm">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover z-50">
-                <SelectItem value="TODOS">Todos</SelectItem>
-                <SelectItem value="INTERNO">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">i</span>
-                    Interno
-                  </span>
-                </SelectItem>
-                <SelectItem value="EXTERNO">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-success text-success-foreground text-[10px] font-bold">e</span>
-                    Externo
-                  </span>
-                </SelectItem>
-                <SelectItem value="CORRETAJE">
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">c</span>
-                    Corretaje
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
+            <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1">
+              <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
+              Filtrar:
+            </span>
+            {(Object.keys(tiposVentaLabels) as TipoVentaKey[]).map((tipo) => (
+              <label
+                key={tipo}
+                className="flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+              >
+                <Checkbox
+                  checked={selectedFilters.includes(tipo)}
+                  onCheckedChange={() => onToggleFilter(tipo)}
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                />
+                <span className="text-xs sm:text-sm">{tiposVentaLabels[tipo]}</span>
+              </label>
+            ))}
+            
+            {/* Tipo Asesor Filter */}
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs sm:text-sm text-muted-foreground">T.A:</span>
+              <Select value={tipoAsesorFilter} onValueChange={(v) => setTipoAsesorFilter(v as TipoAsesorFilter)}>
+                <SelectTrigger className="w-[110px] h-8 text-xs sm:text-sm">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="TODOS">Todos</SelectItem>
+                  <SelectItem value="INTERNO">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">i</span>
+                      Interno
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="EXTERNO">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-success text-success-foreground text-[10px] font-bold">e</span>
+                      Externo
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="CORRETAJE">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">c</span>
+                      Corretaje
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="px-2 sm:px-4 overflow-hidden">
-        <ScrollArea className="h-[400px] sm:h-[500px] w-full">
-          <div className="min-w-[900px] overflow-x-auto">
-            <Table>
+        </CardHeader>
+        <CardContent className={`px-2 sm:px-4 ${isMaximized ? 'flex-1 overflow-hidden' : ''}`}>
+          <div className={`relative ${isMaximized ? 'h-[calc(100vh-220px)]' : 'h-[400px] sm:h-[500px]'}`}>
+            <ScrollArea className="h-full w-full">
+              <div className="min-w-[900px] pb-4 pr-4">
+                <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
                   <TableHead className="w-12 text-center">Pos.</TableHead>
@@ -462,7 +508,7 @@ export function RankingTable({
                 <TableRow className="font-bold text-sm">
                   <TableCell className="text-center">-</TableCell>
                   <TableCell className="text-center">-</TableCell>
-                  <TableCell>TOTAL ({filteredByTipoAsesor.length})</TableCell>
+                  <TableCell>TOTAL ({filteredRealAdvisorCount} asesores)</TableCell>
                   {/* Dynamic totals for selected sale types */}
                   {selectedFilters.map(tipo => (
                     <TableCell key={tipo} className="text-right text-muted-foreground whitespace-nowrap">
@@ -479,11 +525,13 @@ export function RankingTable({
                 </TableRow>
               </TableFooter>
             </Table>
+              </div>
+              <ScrollBar orientation="vertical" />
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
           </div>
-          <ScrollBar orientation="vertical" />
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </CardContent>
+        </CardContent>
+      </div>
     </Card>
   );
 }
