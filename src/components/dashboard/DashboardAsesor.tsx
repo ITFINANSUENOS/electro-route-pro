@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ShoppingCart,
   Target,
   MessageSquare,
   FileText,
   Trophy,
+  Calendar,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,8 @@ import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useActivityCompliance } from '@/hooks/useActivityCompliance';
+import { CompliancePopup } from './CompliancePopup';
 import {
   PieChart,
   Pie,
@@ -60,6 +63,10 @@ const tiposVentaLabels: Record<string, string> = {
 
 export default function DashboardAsesor() {
   const { profile, role, user } = useAuth();
+  const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
+  
+  // Activity compliance tracking
+  const { advisorSummaries, overallStats: complianceStats } = useActivityCompliance();
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -300,7 +307,7 @@ export default function DashboardAsesor() {
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           title="Mis Ventas del Mes"
           value={formatCurrency(metrics.total)}
@@ -327,7 +334,23 @@ export default function DashboardAsesor() {
           subtitle="Este mes"
           icon={FileText}
         />
+        <KpiCard
+          title="Mis Actividades"
+          value={`${complianceStats.with_evidence}/${complianceStats.total_scheduled}`}
+          subtitle={complianceStats.missing_evidence > 0 ? `${complianceStats.missing_evidence} pendiente(s)` : 'Todas completas'}
+          icon={Calendar}
+          status={complianceStats.missing_evidence === 0 ? 'success' : complianceStats.missing_evidence > 2 ? 'danger' : 'warning'}
+          onClick={complianceStats.missing_evidence > 0 ? () => setCompliancePopupOpen(true) : undefined}
+        />
       </motion.div>
+
+      {/* Compliance Popup */}
+      <CompliancePopup
+        open={compliancePopupOpen}
+        onOpenChange={setCompliancePopupOpen}
+        advisorSummaries={advisorSummaries}
+        title="Mis Actividades Pendientes"
+      />
 
       {/* Ranking & Charts */}
       <motion.div variants={item} className="grid gap-6 lg:grid-cols-2">

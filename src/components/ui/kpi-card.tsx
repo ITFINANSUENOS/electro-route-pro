@@ -27,6 +27,7 @@ interface KpiCardProps {
   className?: string;
   tooltipItems?: TooltipItem[];
   tooltipTitle?: string;
+  onClick?: () => void;
 }
 
 export function KpiCard({
@@ -39,6 +40,7 @@ export function KpiCard({
   className,
   tooltipItems,
   tooltipTitle,
+  onClick,
 }: KpiCardProps) {
   const statusColors = {
     success: 'border-l-4 border-l-success',
@@ -51,10 +53,11 @@ export function KpiCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
+      onClick={onClick}
       className={cn(
         'kpi-card',
         status && statusColors[status],
-        tooltipItems && 'cursor-pointer',
+        (tooltipItems || onClick) && 'cursor-pointer',
         className
       )}
     >

@@ -26,6 +26,8 @@ import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
+import { useActivityCompliance } from '@/hooks/useActivityCompliance';
+import { CompliancePopup } from './CompliancePopup';
 import { Hash } from 'lucide-react';
 import {
   BarChart,
@@ -93,6 +95,10 @@ export default function DashboardLider() {
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
   const [selectedRegional, setSelectedRegional] = useState<string>('todos');
+  const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
+  
+  // Activity compliance tracking
+  const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -892,12 +898,20 @@ export default function DashboardLider() {
         />
         <KpiCard
           title="Incumplimientos"
-          value={incumplimientos.length.toString()}
-          subtitle="Asesores con falta de evidencia"
+          value={complianceStats.missing_evidence.toString()}
+          subtitle={`${complianceStats.compliance_rate}% cumplimiento evidencias`}
           icon={AlertCircle}
-          status={incumplimientos.length > 5 ? 'danger' : incumplimientos.length > 0 ? 'warning' : 'success'}
+          status={complianceStats.missing_evidence > 5 ? 'danger' : complianceStats.missing_evidence > 0 ? 'warning' : 'success'}
+          onClick={() => setCompliancePopupOpen(true)}
         />
       </motion.div>
+
+      {/* Compliance Popup */}
+      <CompliancePopup
+        open={compliancePopupOpen}
+        onOpenChange={setCompliancePopupOpen}
+        advisorSummaries={advisorSummaries}
+      />
 
       {/* Charts Row */}
       <motion.div variants={item} className="grid gap-4 sm:gap-6 lg:grid-cols-2">
