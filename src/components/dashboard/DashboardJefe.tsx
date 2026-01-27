@@ -7,6 +7,8 @@ import {
   Target,
   AlertCircle,
   Hash,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { KpiCard } from '@/components/ui/kpi-card';
@@ -22,6 +24,7 @@ import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
+import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import {
   BarChart,
   Bar,
@@ -65,6 +68,8 @@ export default function DashboardJefe() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
+  const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
+  const [consultasPopupMode, setConsultasPopupMode] = useState<'consultas' | 'solicitudes'>('consultas');
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -209,6 +214,57 @@ export default function DashboardJefe() {
       return data;
     },
   });
+
+  // Filter reportes_diarios by team - only include reports from team members
+  const filteredReportesDiarios = useMemo(() => {
+    if (!reportesData || !teamProfiles) return [];
+    
+    // Get user_ids that belong to the current team (same codigo_jefe)
+    const teamUserIds = new Set<string>(
+      teamProfiles.map(p => (p as any).user_id).filter(Boolean)
+    );
+    
+    // Filter reports by users in the team scope
+    return reportesData.filter(r => teamUserIds.has(r.user_id));
+  }, [reportesData, teamProfiles]);
+
+  // Consultas y solicitudes totales - using filtered data
+  const totalConsultas = filteredReportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
+  const totalSolicitudes = filteredReportesDiarios.reduce((sum, r) => sum + (r.solicitudes || 0), 0);
+
+  // Calculate consultas/solicitudes by advisor for popup detail
+  const consultasByAdvisor = useMemo(() => {
+    if (!teamProfiles) return [];
+    
+    const advisorMap = new Map<string, {
+      userId: string;
+      nombre: string;
+      codigo: string;
+      consultas: number;
+      solicitudes: number;
+    }>();
+
+    filteredReportesDiarios.forEach((r) => {
+      const profileMatch = teamProfiles.find((p) => (p as any).user_id === r.user_id);
+      if (profileMatch) {
+        const existing = advisorMap.get(r.user_id);
+        if (existing) {
+          existing.consultas += r.consultas || 0;
+          existing.solicitudes += r.solicitudes || 0;
+        } else {
+          advisorMap.set(r.user_id, {
+            userId: r.user_id,
+            nombre: profileMatch.nombre_completo,
+            codigo: profileMatch.codigo_asesor || '',
+            consultas: r.consultas || 0,
+            solicitudes: r.solicitudes || 0,
+          });
+        }
+      }
+    });
+
+    return Array.from(advisorMap.values());
+  }, [teamProfiles, filteredReportesDiarios]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -477,9 +533,25 @@ export default function DashboardJefe() {
         />
         <KpiCard
           title="Consultas"
-          value={reportesData?.reduce((sum, r) => sum + (r.consultas || 0), 0).toString() || '0'}
+          value={totalConsultas.toString()}
           subtitle="Este mes"
-          icon={TrendingUp}
+          icon={MessageSquare}
+          onClick={() => {
+            setConsultasPopupMode('consultas');
+            setConsultasPopupOpen(true);
+          }}
+          className="cursor-pointer hover:bg-muted/30 transition-colors"
+        />
+        <KpiCard
+          title="Solicitudes"
+          value={totalSolicitudes.toString()}
+          subtitle="Este mes"
+          icon={FileText}
+          onClick={() => {
+            setConsultasPopupMode('solicitudes');
+            setConsultasPopupOpen(true);
+          }}
+          className="cursor-pointer hover:bg-muted/30 transition-colors"
         />
       </motion.div>
 
@@ -592,6 +664,16 @@ export default function DashboardJefe() {
         onOpenChange={setCompliancePopupOpen}
         advisorSummaries={advisorSummaries}
         month={new Date(2026, 0, 1)}
+      />
+
+      {/* Consultas/Solicitudes Detail Popup */}
+      <ConsultasDetailPopup
+        open={consultasPopupOpen}
+        onOpenChange={setConsultasPopupOpen}
+        advisorData={consultasByAdvisor}
+        type={consultasPopupMode}
+        title={consultasPopupMode === 'consultas' ? 'Detalle de Consultas' : 'Detalle de Solicitudes'}
+        total={consultasPopupMode === 'consultas' ? totalConsultas : totalSolicitudes}
       />
     </motion.div>
   );
