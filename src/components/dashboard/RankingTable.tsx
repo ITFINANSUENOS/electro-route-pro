@@ -103,7 +103,7 @@ export function RankingTable({
   selectedFilters,
   onToggleFilter,
   onExportExcel,
-  maxRows = 15,
+  maxRows,
   includeRegional = false,
   title = 'Ranking de Asesores',
   description = 'Ordenados por ventas según filtro',
@@ -175,7 +175,8 @@ export function RankingTable({
     }, 0);
   }, [filteredByTipoAsesor, selectedFilters]);
 
-  const displayRanking = sortedRanking.slice(0, maxRows);
+  // Show all advisors if maxRows not specified
+  const displayRanking = maxRows ? sortedRanking.slice(0, maxRows) : sortedRanking;
 
   // Render sort icon
   const renderSortIcon = (column: SortColumn) => {
@@ -264,8 +265,8 @@ export function RankingTable({
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-4 overflow-hidden">
-        <ScrollArea className="max-h-[400px] sm:max-h-[450px] w-full">
-          <div className="min-w-[900px]">
+        <ScrollArea className="h-[400px] sm:h-[500px] w-full">
+          <div className="min-w-[900px] overflow-x-auto">
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
@@ -479,6 +480,7 @@ export function RankingTable({
               </TableFooter>
             </Table>
           </div>
+          <ScrollBar orientation="vertical" />
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </CardContent>
