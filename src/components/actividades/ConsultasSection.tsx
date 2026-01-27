@@ -97,10 +97,22 @@ export function ConsultasSection({
               <Input
                 id="consultas"
                 type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 min="0"
+                step="1"
                 placeholder="0"
                 value={consultas}
-                onChange={(e) => setConsultas(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setConsultas(value);
+                }}
+                onKeyDown={(e) => {
+                  // Prevent non-numeric keys except backspace, delete, arrows
+                  if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -108,10 +120,22 @@ export function ConsultasSection({
               <Input
                 id="solicitudes"
                 type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 min="0"
+                step="1"
                 placeholder="0"
                 value={solicitudes}
-                onChange={(e) => setSolicitudes(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setSolicitudes(value);
+                }}
+                onKeyDown={(e) => {
+                  // Prevent non-numeric keys except backspace, delete, arrows
+                  if (!/[0-9]/.test(e.key) && !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
               />
             </div>
           </div>

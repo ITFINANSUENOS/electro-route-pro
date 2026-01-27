@@ -270,7 +270,7 @@ function ActivityRegistrationContent({
           </Card>
         )}
 
-        {/* Consultas Section - Only for asesores comerciales */}
+        {/* Consultas Section - Only for asesores comerciales (NOT jefe_ventas, lider, etc.) */}
         {isAsesorComercial && (
           <Card className="card-elevated">
             <CardHeader>

@@ -98,7 +98,7 @@ export default function Programacion() {
 
   // Fetch programacion data with hierarchical visibility
   const { data: programacion = [], refetch: refetchProgramacion } = useQuery({
-    queryKey: ['programacion', format(currentMonth, 'yyyy-MM'), role, profile?.regional_id, (profile as any)?.codigo_jefe],
+    queryKey: ['programacion', format(currentMonth, 'yyyy-MM'), role, profile?.regional_id, (profile as any)?.codigo_jefe, user?.id],
     queryFn: async () => {
       const startDate = format(monthStart, 'yyyy-MM-dd');
       const endDate = format(monthEnd, 'yyyy-MM-dd');
@@ -115,9 +115,24 @@ export default function Programacion() {
       
       if (!scheduleData || scheduleData.length === 0) return [];
 
-      // For asesor_comercial: only their own schedule
+      // For asesor_comercial: get their activities AND all colleagues in the same activities
       if (role === 'asesor_comercial' && user?.id) {
-        return scheduleData.filter(s => s.user_id === user.id);
+        // First filter to get only user's own activities
+        const myActivities = scheduleData.filter(s => s.user_id === user.id);
+        
+        if (myActivities.length === 0) return [];
+        
+        // Now for each of the user's activities, find ALL colleagues with matching activity keys
+        // Activity key = fecha + tipo_actividad + municipio + hora_inicio + hora_fin + nombre
+        const activityKeys = new Set(myActivities.map(a => 
+          `${a.fecha}-${a.tipo_actividad}-${a.municipio}-${a.hora_inicio || ''}-${a.hora_fin || ''}-${a.nombre || ''}`
+        ));
+        
+        // Filter all schedule data to include activities matching these keys
+        return scheduleData.filter(s => {
+          const key = `${s.fecha}-${s.tipo_actividad}-${s.municipio}-${s.hora_inicio || ''}-${s.hora_fin || ''}-${s.nombre || ''}`;
+          return activityKeys.has(key);
+        });
       }
 
       // For jefe_ventas: their own + their team's schedules (asesores with same codigo_jefe)
