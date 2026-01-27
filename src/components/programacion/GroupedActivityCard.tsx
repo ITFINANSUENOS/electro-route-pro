@@ -42,6 +42,28 @@ interface GroupedActivityCardProps {
   };
 }
 
+// Check if current time is within 2 hours of activity end time
+function shouldShowPendingBadge(fecha: string, horaFin: string | null): boolean {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  // Only check for today's activities
+  if (fecha !== today) return false;
+  
+  if (!horaFin) return true; // No end time set, always show
+  
+  // Parse end time (format: "HH:MM:SS" or "HH:MM")
+  const [endHour, endMinute] = horaFin.split(':').map(Number);
+  const activityEndTime = new Date(now);
+  activityEndTime.setHours(endHour, endMinute, 0, 0);
+  
+  // Calculate 2 hours before end time
+  const twoHoursBeforeEnd = new Date(activityEndTime.getTime() - 2 * 60 * 60 * 1000);
+  
+  // Show pending badge only if we're within the 2-hour window before end
+  return now >= twoHoursBeforeEnd && now <= activityEndTime;
+}
+
 export function GroupedActivityCard({ group, showFullDetails = false, onClick, evidenceStatus }: GroupedActivityCardProps) {
   const { user } = useAuth();
   const isTeamActivity = group.user_ids.length > 1;
@@ -52,6 +74,9 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
   const currentUserIdx = user?.id ? group.user_ids.indexOf(user.id) : -1;
   const currentUserEvidence = currentUserIdx >= 0 ? evidenceStatus?.evidence_by_user[currentUserIdx] : null;
   const currentUserHasEvidence = currentUserEvidence?.has_evidence || false;
+
+  // Only show "Pendiente" badge within 2 hours of activity closing
+  const showPendingStatus = shouldShowPendingBadge(group.fecha, group.hora_fin);
 
   // Evidence count display
   const evidenceCount = evidenceStatus ? `${evidenceStatus.with_evidence}/${evidenceStatus.total_assigned}` : null;
@@ -68,8 +93,8 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
       )}
       onClick={onClick}
     >
-      {/* Personal status indicator for assigned users */}
-      {isUserAssigned && (
+      {/* Personal status indicator for assigned users - only show pending if within time window */}
+      {isUserAssigned && (currentUserHasEvidence || showPendingStatus) && (
         <div className={cn(
           "absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1",
           currentUserHasEvidence 
@@ -89,7 +114,6 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
           )}
         </div>
       )}
-
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className={cn(
