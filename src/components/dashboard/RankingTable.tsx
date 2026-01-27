@@ -264,8 +264,8 @@ export function RankingTable({
         </div>
       </CardHeader>
       <CardContent className="px-2 sm:px-4">
-        <ScrollArea className="max-h-[400px] sm:max-h-[450px] w-full">
-          <div className="min-w-[600px] sm:min-w-[800px]">
+        <ScrollArea className="max-h-[400px] sm:max-h-[450px] w-full overflow-x-auto">
+          <div className="min-w-max">
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
@@ -459,7 +459,9 @@ export function RankingTable({
               </TableBody>
               <TableFooter className="sticky bottom-0 bg-card border-t-2 z-10">
                 <TableRow className="font-bold text-sm">
-                  <TableCell colSpan={3}>TOTAL</TableCell>
+                  <TableCell className="text-center">-</TableCell>
+                  <TableCell className="text-center">-</TableCell>
+                  <TableCell>TOTAL ({filteredByTipoAsesor.length})</TableCell>
                   {/* Dynamic totals for selected sale types */}
                   {selectedFilters.map(tipo => (
                     <TableCell key={tipo} className="text-right text-muted-foreground whitespace-nowrap">
@@ -469,7 +471,9 @@ export function RankingTable({
                   <TableCell className="text-right text-primary whitespace-nowrap">
                     {isMobile ? formatCurrencyThousands(rankingTotal) : formatCurrency(rankingTotal)}
                   </TableCell>
-                  <TableCell className="text-right">-</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {formatCurrencyThousands(filteredByTipoAsesor.reduce((sum, a) => sum + a.meta, 0))}
+                  </TableCell>
                   <TableCell className="text-right">-</TableCell>
                 </TableRow>
               </TableFooter>
