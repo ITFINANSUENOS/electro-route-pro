@@ -873,6 +873,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_colleague_in_activity: {
+        Args: {
+          p_fecha: string
+          p_hora_fin: string
+          p_hora_inicio: string
+          p_municipio: string
+          p_nombre: string
+          p_tipo_actividad: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       activity_type: "punto" | "correria" | "libre"
