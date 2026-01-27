@@ -27,7 +27,7 @@ import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
-import { CompliancePopup } from './CompliancePopup';
+import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { Hash } from 'lucide-react';
 import {
   BarChart,
@@ -906,11 +906,12 @@ export default function DashboardLider() {
         />
       </motion.div>
 
-      {/* Compliance Popup */}
-      <CompliancePopup
+      {/* Compliance Detail Popup */}
+      <ComplianceDetailPopup
         open={compliancePopupOpen}
         onOpenChange={setCompliancePopupOpen}
         advisorSummaries={advisorSummaries}
+        month={new Date(2026, 0, 1)}
       />
 
       {/* Charts Row */}

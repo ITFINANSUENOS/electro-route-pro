@@ -20,6 +20,8 @@ import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
+import { useActivityCompliance } from '@/hooks/useActivityCompliance';
+import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import {
   BarChart,
   Bar,
@@ -62,6 +64,10 @@ const tiposVentaColors = {
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
+  const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
+  
+  // Activity compliance tracking
+  const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -375,21 +381,30 @@ export default function DashboardJefe() {
     });
   };
 
-  // Calculate incompliance
+  // Calculate incompliance from useActivityCompliance
   const incompliance = useMemo(() => {
-    // Get unique advisors from sales
-    const advisors = new Set(salesData?.map(s => s.codigo_asesor) || []);
-    
-    // Check which advisors haven't reported
-    const advisorsWithReports = new Set(reportesData?.map(r => r.user_id) || []);
-    
-    // For demo, we'll show mock incompliance data
-    return {
-      sinFoto: 2,
-      sinGPS: 3,
-      sinConsultas: 1,
+    const counts = {
+      sinFoto: 0,
+      sinGPS: 0,
+      sinConsultas: 0,
     };
-  }, [salesData, reportesData]);
+    
+    advisorSummaries.forEach(summary => {
+      summary.issues.forEach(issue => {
+        if (issue.issue_type === 'missing_photo' || issue.issue_type === 'missing_evidence') {
+          counts.sinFoto++;
+        }
+        if (issue.issue_type === 'missing_gps') {
+          counts.sinGPS++;
+        }
+        if (issue.issue_type === 'missing_consultas') {
+          counts.sinConsultas++;
+        }
+      });
+    });
+    
+    return counts;
+  }, [advisorSummaries]);
 
   return (
     <motion.div
@@ -529,17 +544,17 @@ export default function DashboardJefe() {
 
       {/* Incompliance Section */}
       <motion.div variants={item}>
-        <Card className="card-elevated">
+        <Card className="card-elevated cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setCompliancePopupOpen(true)}>
           <CardHeader className="pb-2 sm:pb-4">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
               Indicadores de Incumplimiento
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Asesores con registros pendientes</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Haz clic para ver detalle por asesor</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
-              <div className="p-3 sm:p-4 rounded-lg bg-danger/10 border border-danger/20">
+              <div className="p-3 sm:p-4 rounded-lg bg-destructive/10 border border-destructive/20">
                 <div className="flex items-center justify-between">
                   <span className="text-xs sm:text-sm font-medium">Sin evidencia</span>
                   <StatusBadge status="danger" label={`${incompliance.sinFoto}`} size="sm" />
@@ -570,6 +585,14 @@ export default function DashboardJefe() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Compliance Detail Popup */}
+      <ComplianceDetailPopup
+        open={compliancePopupOpen}
+        onOpenChange={setCompliancePopupOpen}
+        advisorSummaries={advisorSummaries}
+        month={new Date(2026, 0, 1)}
+      />
     </motion.div>
   );
 }
