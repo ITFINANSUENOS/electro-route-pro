@@ -393,31 +393,29 @@ export default function DashboardJefe() {
     );
   };
 
-  // Filtered ranking based on selected types - use net values (not abs) for accurate totals
-  // CRITICAL FIX: When sale type filters are applied, recalculate byType to only include selected types
-  // This ensures all advisors show correctly filtered values in all columns
+  // Filtered ranking based on selected types - use net values for accurate totals
+  // CRITICAL: When filters are applied, calculate filteredTotal from selected types
+  // but keep original byType intact - table will only show columns for selected filters
   const filteredRanking = useMemo(() => {
-    if (selectedFilters.length === 0) return metrics.byAdvisor;
+    // When no filters, return original data with filteredTotal = total
+    if (selectedFilters.length === 0) {
+      return metrics.byAdvisor.map(advisor => ({
+        ...advisor,
+        filteredTotal: advisor.total
+      }));
+    }
     
+    // When filters are active, calculate filteredTotal from only selected types
     return metrics.byAdvisor
       .map(advisor => {
-        // Calculate filtered total from selected types only
         const filteredTotal = selectedFilters.reduce((sum, tipo) => {
           return sum + (advisor.byType[tipo] || 0);
         }, 0);
         
-        // Create a new byType object with only the selected filters
-        // This ensures the table columns show correct filtered values
-        const filteredByType: Record<string, number> = {};
-        selectedFilters.forEach(tipo => {
-          filteredByType[tipo] = advisor.byType[tipo] || 0;
-        });
-        
+        // Keep original byType - table component handles column display
         return { 
           ...advisor, 
-          filteredTotal,
-          // Override byType with filtered version so columns display correctly
-          byType: filteredByType 
+          filteredTotal
         };
       })
       .sort((a, b) => b.filteredTotal - a.filteredTotal);
