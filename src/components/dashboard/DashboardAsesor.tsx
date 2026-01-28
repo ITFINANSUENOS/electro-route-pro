@@ -7,6 +7,7 @@ import {
   FileText,
   Trophy,
   Calendar,
+  Hash,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,9 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { CompliancePopup } from './CompliancePopup';
+import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
+import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
+import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
 import {
   PieChart,
   Pie,
@@ -137,6 +141,10 @@ export default function DashboardAsesor() {
     enabled: !!user?.id,
   });
 
+  // Fetch meta quantity config for calculating quantity goals
+  const { data: metaQuantityConfig } = useMetaQuantityConfig();
+  const tipoAsesor = (profile as any)?.tipo_asesor;
+
   // Get advisor's regional_id and codigo_jefe for ranking queries
   const regionalId = (profile as any)?.regional_id;
   const codigoJefe = (profile as any)?.codigo_jefe;
@@ -221,6 +229,15 @@ export default function DashboardAsesor() {
 
   const hasGroup = !!codigoJefe && (groupAdvisorCount || 0) > 0;
 
+  // Transform sales data for counting unique sales
+  const salesForCounting = useMemo(() => {
+    if (!salesData) return [];
+    return transformVentasForCounting(salesData.filter(s => s.tipo_venta !== 'OTROS'));
+  }, [salesData]);
+
+  // Calculate unique sales count
+  const salesCount = useSalesCount(salesForCounting);
+
   // Calculate metrics
   const metrics = useMemo(() => {
     if (!salesData) return { total: 0, byType: [], totalMeta: 0 };
@@ -270,6 +287,38 @@ export default function DashboardAsesor() {
     ? Math.round((metrics.total / metrics.totalMeta) * 100) 
     : 0;
 
+  // Calculate quantity meta goal and compliance
+  const quantityMetrics = useMemo(() => {
+    if (!metaData || !metaQuantityConfig || !tipoAsesor || !regionalId) {
+      return { totalQuantityMeta: 0, quantityCompliance: 0 };
+    }
+
+    let totalQuantityMeta = 0;
+
+    // Calculate quantity goal for each tipo_meta
+    metaData.forEach(meta => {
+      if (!meta.tipo_meta || meta.valor_meta <= 0) return;
+      
+      const result = calculateMetaQuantity(
+        meta.valor_meta,
+        tipoAsesor,
+        meta.tipo_meta.toUpperCase(),
+        regionalId,
+        metaQuantityConfig
+      );
+
+      if (result) {
+        totalQuantityMeta += result.cantidadFinal;
+      }
+    });
+
+    const quantityCompliance = totalQuantityMeta > 0
+      ? Math.round((salesCount.totalSalesCount / totalQuantityMeta) * 100)
+      : 0;
+
+    return { totalQuantityMeta, quantityCompliance };
+  }, [metaData, metaQuantityConfig, tipoAsesor, regionalId, salesCount.totalSalesCount]);
+
   // Compliance by type
   const complianceByType = useMemo(() => {
     if (!metaData || !metrics.byType.length) return [];
@@ -277,13 +326,13 @@ export default function DashboardAsesor() {
     return metrics.byType.map(tipo => {
       const meta = metaData.find(m => m.tipo_meta?.toUpperCase() === tipo.key);
       const metaValue = meta?.valor_meta || 0;
-      const compliance = metaValue > 0 ? Math.round((tipo.value / metaValue) * 100) : 0;
+      const complianceVal = metaValue > 0 ? Math.round((tipo.value / metaValue) * 100) : 0;
 
       return {
         name: tipo.name,
         ventas: tipo.value,
         meta: metaValue,
-        compliance,
+        compliance: complianceVal,
         color: tipo.color,
       };
     }).filter(t => t.meta > 0);
@@ -307,13 +356,22 @@ export default function DashboardAsesor() {
       </motion.div>
 
       {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           title="Mis Ventas del Mes"
           value={formatCurrency(metrics.total)}
-          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)}`}
+          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)} • ${compliance}%`}
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
+        />
+        <KpiCard
+          title="Q Ventas Mes"
+          value={salesCount.totalSalesCount.toString()}
+          subtitle={quantityMetrics.totalQuantityMeta > 0 
+            ? `Meta: ${quantityMetrics.totalQuantityMeta} uds • ${quantityMetrics.quantityCompliance}%`
+            : 'Sin meta de cantidad'}
+          icon={Hash}
+          status={quantityMetrics.quantityCompliance >= 80 ? 'success' : quantityMetrics.quantityCompliance >= 50 ? 'warning' : 'danger'}
         />
         <KpiCard
           title="Mi Cumplimiento"
