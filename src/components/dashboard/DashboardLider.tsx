@@ -12,6 +12,7 @@ import {
   MapPin,
   Building2,
   FileText,
+  Hash,
 } from 'lucide-react';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -30,14 +31,14 @@ import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
-import { Hash } from 'lucide-react';
+import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import {
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Legend,
 } from 'recharts';
@@ -100,6 +101,7 @@ export default function DashboardLider() {
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [solicitudesPopupOpen, setSolicitudesPopupOpen] = useState(false);
+  const [atRiskPopupOpen, setAtRiskPopupOpen] = useState(false);
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -615,7 +617,40 @@ export default function DashboardLider() {
       }))
       .sort((a, b) => b.total - a.total);
 
-    const totalMeta = metasData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+    // Calculate totalMeta - FILTER by regional/scope to avoid showing global total
+    // For lider_zona: only sum metas for advisors in their regional
+    // For admin/coordinador with filter: sum metas for selected regional
+    const normalizeForMeta = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+    
+    const advisorCodesInScope = new Set<string>();
+    (profiles || []).forEach(p => {
+      if (!p.activo || !p.codigo_asesor) return;
+      if (p.codigo_asesor === '00001') return;
+      
+      // Check if profile is in scope
+      let inScope = true;
+      if (role === 'lider_zona' && profile?.regional_id) {
+        inScope = p.regional_id === profile.regional_id;
+      } else if (isGlobalRole && selectedRegional !== 'todos') {
+        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+        inScope = selectedReg ? p.regional_id === selectedReg.id : false;
+      }
+      
+      if (inScope) {
+        advisorCodesInScope.add(normalizeForMeta(p.codigo_asesor));
+        advisorCodesInScope.add(p.codigo_asesor); // Also add original
+      }
+    });
+    
+    const totalMeta = (metasData || [])
+      .filter(m => {
+        const normalizedCode = normalizeForMeta(m.codigo_asesor);
+        return advisorCodesInScope.has(normalizedCode) || advisorCodesInScope.has(m.codigo_asesor);
+      })
+      .reduce((sum, m) => sum + m.valor_meta, 0);
 
     // Count unique advisors with sales (excluding GERENCIA/GENERAL entries)
     const advisorsWithSales = new Set(
@@ -754,21 +789,25 @@ export default function DashboardLider() {
   );
 
   const advisorsAtRisk = useMemo(() => {
-    const dayOfMonth = 19; // Current day
+    const dayOfMonth = new Date().getDate(); // Use actual current day
     const daysInMonth = 31;
-    const projectionFactor = daysInMonth / dayOfMonth;
+    const projectionFactor = daysInMonth / Math.max(dayOfMonth, 1);
 
     return metrics.byAdvisor
-      .filter(a => a.meta > 0)
+      .filter(a => {
+        // Exclude GERENCIA entries
+        const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+          a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+        return !isGerencia && a.meta > 0;
+      })
       .map(a => ({
         ...a,
         projected: a.total * projectionFactor,
-        compliance: (a.total / a.meta) * 100,
+        compliance: (a.total / a.meta) * 100, // Keep as decimal for precision
         projectedCompliance: ((a.total * projectionFactor) / a.meta) * 100,
       }))
       .filter(a => a.projectedCompliance < 100)
-      .sort((a, b) => a.projectedCompliance - b.projectedCompliance)
-      .slice(0, 5);
+      .sort((a, b) => a.compliance - b.compliance); // Sort by current compliance, not projected
   }, [metrics.byAdvisor]);
 
   // Filter ranking by selected types - use net values for accurate totals
@@ -969,8 +1008,17 @@ export default function DashboardLider() {
           subtitle="No proyectan cumplir"
           icon={AlertTriangle}
           status={advisorsAtRisk.length > 3 ? 'danger' : advisorsAtRisk.length > 0 ? 'warning' : 'success'}
+          onClick={() => setAtRiskPopupOpen(true)}
         />
       </motion.div>
+
+      {/* Advisors at Risk Popup */}
+      <AdvisorsAtRiskPopup
+        open={atRiskPopupOpen}
+        onOpenChange={setAtRiskPopupOpen}
+        advisorsAtRisk={advisorsAtRisk}
+        title="Asesores en Riesgo"
+      />
 
       {/* KPI Cards - Row 2: Cumplimiento y actividad */}
       <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
@@ -1071,7 +1119,7 @@ export default function DashboardLider() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} />
                   <YAxis dataKey="name" type="category" width={70} className="text-[10px] sm:text-xs" />
-                  <Tooltip
+                  <RechartsTooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
@@ -1183,16 +1231,17 @@ export default function DashboardLider() {
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3 max-h-[300px] overflow-y-auto">
-                {advisorsAtRisk.map((advisor) => (
+                {advisorsAtRisk.slice(0, 5).map((advisor) => (
                   <div
                     key={advisor.codigo}
-                    className="p-2 sm:p-3 rounded-lg border bg-danger/5 border-danger/20"
+                    className="p-2 sm:p-3 rounded-lg border bg-danger/5 border-danger/20 cursor-pointer hover:bg-danger/10 transition-colors"
+                    onClick={() => setAtRiskPopupOpen(true)}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-medium text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{advisor.nombre}</span>
                       <StatusBadge 
-                        status={advisor.projectedCompliance < 50 ? 'danger' : 'warning'} 
-                        label={`${Math.round(advisor.projectedCompliance)}%`} 
+                        status={advisor.compliance < 50 ? 'danger' : 'warning'} 
+                        label={`${advisor.compliance.toFixed(1)}%`} 
                         size="sm" 
                       />
                     </div>
@@ -1208,6 +1257,14 @@ export default function DashboardLider() {
                     </div>
                   </div>
                 ))}
+                {advisorsAtRisk.length > 5 && (
+                  <button
+                    onClick={() => setAtRiskPopupOpen(true)}
+                    className="w-full text-center text-xs text-primary hover:underline py-2"
+                  >
+                    Ver todos ({advisorsAtRisk.length} asesores)
+                  </button>
+                )}
               </div>
             )}
           </CardContent>

@@ -365,12 +365,18 @@ export function RankingTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayRanking.map((advisor, index) => {
+              {displayRanking.map((advisor, index) => {
                   const displayTotal = selectedFilters.length > 0 
                     ? (advisor.filteredTotal ?? advisor.total) 
                     : advisor.total;
-                  const compliancePercent = advisor.meta > 0 
-                    ? Math.round((displayTotal / advisor.meta) * 100) 
+                    
+                  // Calculate meta based on selected filters - if filters active, sum only selected type metas
+                  const displayMeta = selectedFilters.length > 0 && advisor.metaByType
+                    ? selectedFilters.reduce((sum, tipo) => sum + (advisor.metaByType?.[tipo] || 0), 0)
+                    : advisor.meta;
+                    
+                  const compliancePercent = displayMeta > 0 
+                    ? (displayTotal / displayMeta) * 100
                     : 0;
 
                   // Calculate position in current filtered/sorted ranking
@@ -487,16 +493,16 @@ export function RankingTable({
                         </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground whitespace-nowrap">
-                        {advisor.meta > 0 ? formatCurrencyThousands(advisor.meta) : '-'}
+                        {displayMeta > 0 ? formatCurrencyThousands(displayMeta) : '-'}
                       </TableCell>
                       <TableCell className="text-right">
-                        {advisor.meta > 0 ? (
+                        {displayMeta > 0 ? (
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             compliancePercent >= 100 ? 'bg-success/10 text-success' :
                             compliancePercent >= 80 ? 'bg-warning/10 text-warning' :
                             'bg-danger/10 text-danger'
                           }`}>
-                            {compliancePercent}%
+                            {compliancePercent.toFixed(1)}%
                           </span>
                         ) : '-'}
                       </TableCell>
@@ -519,7 +525,15 @@ export function RankingTable({
                     {isMobile ? formatCurrencyThousands(rankingTotal) : formatCurrency(rankingTotal)}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    {formatCurrencyThousands(filteredByTipoAsesor.reduce((sum, a) => sum + a.meta, 0))}
+                    {formatCurrencyThousands(
+                      filteredByTipoAsesor.reduce((sum, a) => {
+                        // Calculate meta based on selected filters
+                        const metaValue = selectedFilters.length > 0 && a.metaByType
+                          ? selectedFilters.reduce((s, tipo) => s + (a.metaByType?.[tipo] || 0), 0)
+                          : a.meta;
+                        return sum + metaValue;
+                      }, 0)
+                    )}
                   </TableCell>
                   <TableCell className="text-right">-</TableCell>
                 </TableRow>
