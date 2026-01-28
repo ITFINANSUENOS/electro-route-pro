@@ -1272,8 +1272,8 @@ export default function DashboardLider() {
                 <p>¡Todos los asesores proyectan cumplir!</p>
               </div>
             ) : (
-              <div className="space-y-2 sm:space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 500px)', minHeight: '200px' }}>
-                {advisorsAtRisk.slice(0, 8).map((advisor) => (
+              <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1" style={{ maxHeight: '500px' }}>
+                {advisorsAtRisk.map((advisor) => (
                   <div
                     key={advisor.codigo}
                     className="p-2 sm:p-3 rounded-lg border bg-danger/5 border-danger/20 cursor-pointer hover:bg-danger/10 transition-colors"
@@ -1299,14 +1299,6 @@ export default function DashboardLider() {
                     </div>
                   </div>
                 ))}
-                {advisorsAtRisk.length > 8 && (
-                  <button
-                    onClick={() => setAtRiskPopupOpen(true)}
-                    className="w-full text-center text-xs text-primary hover:underline py-2"
-                  >
-                    Ver todos ({advisorsAtRisk.length} asesores)
-                  </button>
-                )}
               </div>
             )}
           </CardContent>
