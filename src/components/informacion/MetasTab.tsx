@@ -8,13 +8,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportMetasTemplate } from '@/utils/exportMetasTemplate';
 import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
 import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMetaQuantity';
+import { importMetasCSV } from '@/utils/importMetasCSV';
 
 interface MetaData {
   id: string;
@@ -52,7 +53,9 @@ export default function MetasTab() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [selectedTipoVenta, setSelectedTipoVenta] = useState('all');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { role, profile } = useAuth();
 
   const currentMonth = new Date().getMonth() + 1;
@@ -127,18 +130,46 @@ export default function MetasTab() {
   };
 
   const handleUploadMetas = () => {
-    // Open file picker - would need to implement CSV parsing
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
+      if (!file) return;
+
+      setIsUploading(true);
+      toast({
+        title: 'Procesando archivo',
+        description: `Cargando ${file.name}...`,
+      });
+
+      try {
+        const content = await file.text();
+        const result = await importMetasCSV(content, currentMonth, currentYear);
+
+        if (result.success) {
+          toast({
+            title: 'Metas cargadas exitosamente',
+            description: `Se importaron ${result.imported} metas para ${currentMonth}/${currentYear}`,
+          });
+          // Refresh the metas query
+          queryClient.invalidateQueries({ queryKey: ['metas', currentMonth, currentYear] });
+        } else {
+          toast({
+            title: 'Error al cargar metas',
+            description: result.errors.join(', ') || 'Error desconocido',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        console.error('Error uploading metas:', error);
         toast({
-          title: 'Archivo seleccionado',
-          description: `Procesando ${file.name}...`,
+          title: 'Error',
+          description: 'Error al procesar el archivo CSV',
+          variant: 'destructive',
         });
-        // TODO: Implement CSV parsing for metas
+      } finally {
+        setIsUploading(false);
       }
     };
     input.click();
@@ -249,9 +280,9 @@ export default function MetasTab() {
           <Download className="mr-2 h-4 w-4" />
           {isDownloading ? 'Descargando...' : 'Plantilla Metas'}
         </Button>
-        <Button onClick={handleUploadMetas} className="btn-brand">
+        <Button onClick={handleUploadMetas} className="btn-brand" disabled={isUploading}>
           <Upload className="mr-2 h-4 w-4" />
-          Cargar Metas (.CSV)
+          {isUploading ? 'Cargando...' : 'Cargar Metas (.CSV)'}
         </Button>
       </div>
 
