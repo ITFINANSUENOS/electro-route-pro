@@ -690,15 +690,53 @@ export default function DashboardLider() {
     };
   }, [advancedFilteredSales, metasData, profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
 
-  // Calculate budget vs executed by type
+  // Build set of advisor codes in scope for filtering metas
+  const advisorCodesInScopeForMetas = useMemo(() => {
+    const normalizeForMeta = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
+    
+    const codes = new Set<string>();
+    (profiles || []).forEach(p => {
+      if (!p.activo || !p.codigo_asesor) return;
+      if (p.codigo_asesor === '00001') return;
+      
+      let inScope = true;
+      if (role === 'lider_zona' && profile?.regional_id) {
+        inScope = p.regional_id === profile.regional_id;
+      } else if (isGlobalRole && selectedRegional !== 'todos') {
+        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
+        inScope = selectedReg ? p.regional_id === selectedReg.id : false;
+      }
+      
+      if (inScope) {
+        codes.add(normalizeForMeta(p.codigo_asesor));
+        codes.add(p.codigo_asesor);
+      }
+    });
+    return codes;
+  }, [profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
+
+  // Calculate budget vs executed by type - FILTER by advisors in scope
   const budgetVsExecuted = useMemo(() => {
     if (!metasData || !advancedFilteredSales) return [];
+
+    const normalizeForMeta = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
 
     const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
     
     return tiposVenta.map(tipo => {
+      // Filter metas by advisors in scope
       const presupuesto = metasData
-        .filter(m => m.tipo_meta === tipo.toLowerCase())
+        .filter(m => {
+          if (m.tipo_meta !== tipo.toLowerCase()) return false;
+          const normalizedCode = normalizeForMeta(m.codigo_asesor);
+          return advisorCodesInScopeForMetas.has(normalizedCode) || advisorCodesInScopeForMetas.has(m.codigo_asesor);
+        })
         .reduce((sum, m) => sum + m.valor_meta, 0);
       
       const ejecutado = Math.abs(
@@ -713,9 +751,9 @@ export default function DashboardLider() {
         ejecutado: ejecutado / 1000000,
       };
     });
-  }, [metasData, advancedFilteredSales]);
+  }, [metasData, advancedFilteredSales, advisorCodesInScopeForMetas]);
 
-  // Calculate metas by tipo_asesor
+  // Calculate metas by tipo_asesor - FILTER by advisors in scope
   const metasByTipoAsesor = useMemo(() => {
     if (!metasData || !profiles) return {};
     
@@ -734,17 +772,21 @@ export default function DashboardLider() {
       }
     });
     
-    // Sum metas by tipo_asesor
+    // Sum metas by tipo_asesor - FILTER by advisors in scope
     const metasTotals: Record<string, number> = { INTERNO: 0, EXTERNO: 0, CORRETAJE: 0 };
     
     metasData.forEach(m => {
       const normalizedCode = normalizeCode(m.codigo_asesor);
+      // Only include if advisor is in scope
+      if (!advisorCodesInScopeForMetas.has(normalizedCode) && !advisorCodesInScopeForMetas.has(m.codigo_asesor)) {
+        return;
+      }
       const tipo = codigoToTipo.get(normalizedCode) || codigoToTipo.get(m.codigo_asesor) || 'EXTERNO';
       metasTotals[tipo] = (metasTotals[tipo] || 0) + m.valor_meta;
     });
     
     return metasTotals;
-  }, [metasData, profiles]);
+  }, [metasData, profiles, advisorCodesInScopeForMetas]);
 
   // Calculate unique sales counts using the advanced grouping logic
   const salesCountData = useSalesCount(
@@ -1230,8 +1272,8 @@ export default function DashboardLider() {
                 <p>¡Todos los asesores proyectan cumplir!</p>
               </div>
             ) : (
-              <div className="space-y-2 sm:space-y-3 max-h-[300px] overflow-y-auto">
-                {advisorsAtRisk.slice(0, 5).map((advisor) => (
+              <div className="space-y-2 sm:space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 500px)', minHeight: '200px' }}>
+                {advisorsAtRisk.slice(0, 8).map((advisor) => (
                   <div
                     key={advisor.codigo}
                     className="p-2 sm:p-3 rounded-lg border bg-danger/5 border-danger/20 cursor-pointer hover:bg-danger/10 transition-colors"
@@ -1257,7 +1299,7 @@ export default function DashboardLider() {
                     </div>
                   </div>
                 ))}
-                {advisorsAtRisk.length > 5 && (
+                {advisorsAtRisk.length > 8 && (
                   <button
                     onClick={() => setAtRiskPopupOpen(true)}
                     className="w-full text-center text-xs text-primary hover:underline py-2"
