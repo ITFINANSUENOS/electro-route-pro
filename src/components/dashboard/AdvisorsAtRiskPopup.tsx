@@ -45,6 +45,9 @@ const tiposVentaLabels: Record<string, string> = {
   CONVENIO: 'Convenio',
 };
 
+// All sale types in order - ensure they're always displayed
+const ALL_SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as const;
+
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/20 text-success',
   CREDICONTADO: 'bg-warning/20 text-warning',
@@ -108,43 +111,40 @@ export function AdvisorsAtRiskPopup({
                               <TooltipContent side="top" className="max-w-xs p-3 bg-popover border shadow-lg">
                                 <p className="text-xs font-medium mb-2">Desglose por tipo de venta:</p>
                                 <div className="space-y-1.5">
-                                  {Object.entries(advisor.byType)
-                                    .filter(([_, value]) => value !== 0)
-                                    .map(([tipo, value]) => {
-                                      const meta = advisor.metaByType?.[tipo] || 0;
-                                      const typeCompliance = meta > 0 ? ((value / meta) * 100).toFixed(1) : 0;
-                                      return (
-                                        <div key={tipo} className="flex items-center justify-between gap-3 text-xs">
-                                          <span className={`px-1.5 py-0.5 rounded ${tiposVentaColors[tipo] || 'bg-muted'}`}>
-                                            {tiposVentaLabels[tipo] || tipo}
-                                          </span>
-                                          <div className="text-right">
-                                            <span className="font-medium">{formatCurrency(value)}</span>
-                                            {meta > 0 && (
-                                              <span className={`ml-2 ${
-                                                Number(typeCompliance) >= 80 ? 'text-success' :
-                                                Number(typeCompliance) >= 50 ? 'text-warning' :
-                                                'text-danger'
-                                              }`}>
-                                                ({typeCompliance}%)
-                                              </span>
-                                            )}
-                                          </div>
+                                  {ALL_SALE_TYPES.map(tipo => {
+                                    const value = advisor.byType[tipo] || 0;
+                                    const meta = advisor.metaByType?.[tipo] || 0;
+                                    const typeCompliance = meta > 0 ? ((value / meta) * 100).toFixed(1) : 0;
+                                    return (
+                                      <div key={tipo} className="flex items-center justify-between gap-3 text-xs">
+                                        <span className={`px-1.5 py-0.5 rounded ${tiposVentaColors[tipo] || 'bg-muted'}`}>
+                                          {tiposVentaLabels[tipo] || tipo}
+                                        </span>
+                                        <div className="text-right">
+                                          <span className="font-medium">{formatCurrency(value)}</span>
+                                          {meta > 0 && (
+                                            <span className={`ml-2 ${
+                                              Number(typeCompliance) >= 80 ? 'text-success' :
+                                              Number(typeCompliance) >= 50 ? 'text-warning' :
+                                              'text-danger'
+                                            }`}>
+                                              ({typeCompliance}%)
+                                            </span>
+                                          )}
                                         </div>
-                                      );
-                                    })}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                                 {advisor.metaByType && Object.keys(advisor.metaByType).length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-border">
                                     <p className="text-xs text-muted-foreground">Metas por tipo:</p>
-                                    {Object.entries(advisor.metaByType)
-                                      .filter(([_, value]) => value > 0)
-                                      .map(([tipo, value]) => (
-                                        <div key={tipo} className="flex justify-between text-xs mt-1">
-                                          <span>{tiposVentaLabels[tipo] || tipo}:</span>
-                                          <span className="text-muted-foreground">{formatCurrency(value)}</span>
-                                        </div>
-                                      ))}
+                                    {ALL_SALE_TYPES.filter(tipo => (advisor.metaByType?.[tipo] || 0) > 0).map(tipo => (
+                                      <div key={tipo} className="flex justify-between text-xs mt-1">
+                                        <span>{tiposVentaLabels[tipo] || tipo}:</span>
+                                        <span className="text-muted-foreground">{formatCurrency(advisor.metaByType?.[tipo] || 0)}</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </TooltipContent>
@@ -181,39 +181,38 @@ export function AdvisorsAtRiskPopup({
                         </div>
                       </div>
                       
-                      {/* Expanded Details */}
+                      {/* Expanded Details - Show ALL 4 sale types */}
                       {isExpanded && (
                         <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
                           <p className="text-xs font-medium text-foreground">Detalle por tipo de venta:</p>
                           <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(advisor.byType)
-                              .filter(([_, value]) => value !== 0)
-                              .map(([tipo, value]) => {
-                                const meta = advisor.metaByType?.[tipo] || 0;
-                                const typeCompliance = meta > 0 ? ((value / meta) * 100).toFixed(1) : 0;
-                                return (
-                                  <div key={tipo} className="p-2 rounded bg-background/50 border border-border/50">
-                                    <div className="flex items-center justify-between">
-                                      <Badge variant="outline" className={tiposVentaColors[tipo]}>
-                                        {tiposVentaLabels[tipo] || tipo}
-                                      </Badge>
-                                      {meta > 0 && (
-                                        <span className={`text-xs font-medium ${
-                                          Number(typeCompliance) >= 80 ? 'text-success' :
-                                          Number(typeCompliance) >= 50 ? 'text-warning' :
-                                          'text-danger'
-                                        }`}>
-                                          {typeCompliance}%
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-sm font-medium mt-1">{formatCurrency(value)}</p>
+                            {ALL_SALE_TYPES.map(tipo => {
+                              const value = advisor.byType[tipo] || 0;
+                              const meta = advisor.metaByType?.[tipo] || 0;
+                              const typeCompliance = meta > 0 ? ((value / meta) * 100).toFixed(1) : 0;
+                              return (
+                                <div key={tipo} className="p-2 rounded bg-background/50 border border-border/50">
+                                  <div className="flex items-center justify-between">
+                                    <Badge variant="outline" className={tiposVentaColors[tipo]}>
+                                      {tiposVentaLabels[tipo] || tipo}
+                                    </Badge>
                                     {meta > 0 && (
-                                      <p className="text-[10px] text-muted-foreground">Meta: {formatCurrency(meta)}</p>
+                                      <span className={`text-xs font-medium ${
+                                        Number(typeCompliance) >= 80 ? 'text-success' :
+                                        Number(typeCompliance) >= 50 ? 'text-warning' :
+                                        'text-danger'
+                                      }`}>
+                                        {typeCompliance}%
+                                      </span>
                                     )}
                                   </div>
-                                );
-                              })}
+                                  <p className="text-sm font-medium mt-1">{formatCurrency(value)}</p>
+                                  {meta > 0 && (
+                                    <p className="text-[10px] text-muted-foreground">Meta: {formatCurrency(meta)}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
