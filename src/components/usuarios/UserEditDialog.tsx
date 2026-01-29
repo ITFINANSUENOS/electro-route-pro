@@ -344,14 +344,14 @@ export function UserEditDialog({
               <div className="grid gap-2">
                 <Label htmlFor="edit_jefe_ventas">Jefe de Ventas</Label>
                 <Select
-                  value={formData.codigo_jefe}
-                  onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value })}
+                  value={formData.codigo_jefe || '__none__'}
+                  onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value === '__none__' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione jefe de ventas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin asignar</SelectItem>
+                    <SelectItem value="__none__">Sin asignar</SelectItem>
                     {filteredJefes.map((jefe) => (
                       <SelectItem key={jefe.id} value={jefe.codigo}>
                         {jefe.nombre} ({jefe.codigo})
