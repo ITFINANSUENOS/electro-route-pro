@@ -32,6 +32,7 @@ import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
+import { AdvisorsByTypePopup } from './AdvisorsByTypePopup';
 import {
   BarChart,
   Bar,
@@ -102,6 +103,7 @@ export default function DashboardLider() {
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [solicitudesPopupOpen, setSolicitudesPopupOpen] = useState(false);
   const [atRiskPopupOpen, setAtRiskPopupOpen] = useState(false);
+  const [selectedTypePopup, setSelectedTypePopup] = useState<string | null>(null);
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -852,6 +854,34 @@ export default function DashboardLider() {
       .sort((a, b) => a.compliance - b.compliance); // Sort by current compliance, not projected
   }, [metrics.byAdvisor]);
 
+  // Get advisors filtered by tipo_asesor for the popup
+  const advisorsBySelectedType = useMemo(() => {
+    if (!selectedTypePopup) return [];
+    
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = 31;
+    const projectionFactor = daysInMonth / Math.max(dayOfMonth, 1);
+
+    return metrics.byAdvisor
+      .filter(a => {
+        // Exclude GERENCIA entries
+        const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+          a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+        if (isGerencia) return false;
+        
+        // Filter by tipo_asesor
+        const advisorTipo = (a.tipoAsesor || 'EXTERNO').toUpperCase();
+        return advisorTipo === selectedTypePopup;
+      })
+      .map(a => ({
+        ...a,
+        projected: a.total * projectionFactor,
+        compliance: a.meta > 0 ? (a.total / a.meta) * 100 : 0,
+        projectedCompliance: a.meta > 0 ? ((a.total * projectionFactor) / a.meta) * 100 : 0,
+      }))
+      .sort((a, b) => b.total - a.total); // Sort by total sales descending
+  }, [metrics.byAdvisor, selectedTypePopup]);
+
   // Filter ranking by selected types - use net values for accurate totals
   // CRITICAL: When filters are applied, we need to:
   // 1. Calculate filteredTotal based only on selected types
@@ -1208,9 +1238,10 @@ export default function DashboardLider() {
                 return (
                   <div
                     key={tipo.tipo}
-                    className="p-3 sm:p-4 rounded-lg border group cursor-pointer hover:bg-muted/30 transition-colors"
+                    className="p-3 sm:p-4 rounded-lg border group cursor-pointer hover:bg-muted/30 transition-colors hover:ring-1 hover:ring-primary/30"
                     style={{ borderLeftColor: tipo.color, borderLeftWidth: 4 }}
-                    title={`${salesCountForType.count} ventas únicas`}
+                    title={`Click para ver asesores ${tipo.label}`}
+                    onClick={() => setSelectedTypePopup(tipo.tipo)}
                   >
                     <div className="flex items-center justify-between mb-1 sm:mb-2">
                       <span className="text-xs sm:text-sm font-medium text-foreground">{tipo.label}</span>
@@ -1255,6 +1286,16 @@ export default function DashboardLider() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Advisors by Type Popup */}
+      <AdvisorsByTypePopup
+        open={!!selectedTypePopup}
+        onOpenChange={(open) => !open && setSelectedTypePopup(null)}
+        advisors={advisorsBySelectedType}
+        tipoAsesor={selectedTypePopup || ''}
+        tipoAsesorLabel={tipoAsesorLabels[selectedTypePopup || ''] || selectedTypePopup || ''}
+        tipoAsesorColor={tipoAsesorColors[selectedTypePopup || ''] || 'hsl(var(--primary))'}
+      />
 
       <motion.div variants={item} className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Advisors at Risk */}
