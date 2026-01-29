@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, TrendingDown, Info } from 'lucide-react';
+import { AlertTriangle, TrendingDown, Info, Download } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -30,6 +31,7 @@ interface AdvisorsAtRiskPopupProps {
   advisorsAtRisk: AdvisorAtRisk[];
   title?: string;
   showRegional?: boolean;
+  onDownload?: () => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -76,6 +78,7 @@ export function AdvisorsAtRiskPopup({
   advisorsAtRisk,
   title = 'Asesores en Riesgo',
   showRegional = false,
+  onDownload,
 }: AdvisorsAtRiskPopupProps) {
   const [selectedAdvisor, setSelectedAdvisor] = useState<string | null>(null);
 
@@ -83,10 +86,23 @@ export function AdvisorsAtRiskPopup({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            {title}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              {title}
+            </DialogTitle>
+            {onDownload && advisorsAtRisk.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onDownload}
+                className="gap-1.5"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Descargar</span>
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         
         <ScrollArea className="max-h-[calc(85vh-100px)] pr-2">
