@@ -1039,9 +1039,18 @@ export default function DashboardLider() {
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Desglose por tipo de venta"
           tooltipItems={metrics.byType.map(t => {
-            const tipoMeta = metasData
-              ?.filter(m => m.tipo_meta === t.key.toLowerCase())
-              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            // CRITICAL: Filter metas by advisors in scope (same as budgetVsExecuted)
+            const normalizeForMeta = (code: string): string => {
+              const clean = (code || '').replace(/^0+/, '').trim();
+              return clean.padStart(5, '0');
+            };
+            const tipoMeta = (metasData || [])
+              .filter(m => {
+                if (m.tipo_meta !== t.key.toLowerCase()) return false;
+                const normalizedCode = normalizeForMeta(m.codigo_asesor);
+                return advisorCodesInScopeForMetas.has(normalizedCode) || advisorCodesInScopeForMetas.has(m.codigo_asesor);
+              })
+              .reduce((sum, m) => sum + m.valor_meta, 0);
             const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
             return {
               label: t.name,
@@ -1057,9 +1066,18 @@ export default function DashboardLider() {
           icon={Hash}
           tooltipTitle="Cantidad por tipo de venta"
           tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => {
-            const tipoMeta = metasData
-              ?.filter(m => m.tipo_meta === key.toLowerCase())
-              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            // CRITICAL: Filter metas by advisors in scope (same as budgetVsExecuted)
+            const normalizeForMeta = (code: string): string => {
+              const clean = (code || '').replace(/^0+/, '').trim();
+              return clean.padStart(5, '0');
+            };
+            const tipoMeta = (metasData || [])
+              .filter(m => {
+                if (m.tipo_meta !== key.toLowerCase()) return false;
+                const normalizedCode = normalizeForMeta(m.codigo_asesor);
+                return advisorCodesInScopeForMetas.has(normalizedCode) || advisorCodesInScopeForMetas.has(m.codigo_asesor);
+              })
+              .reduce((sum, m) => sum + m.valor_meta, 0);
             const tipoCompliance = tipoMeta > 0 ? Math.round((data.value / tipoMeta) * 100) : 0;
             return {
               label: tiposVentaLabels[key] || key,
@@ -1102,9 +1120,18 @@ export default function DashboardLider() {
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Cumplimiento por tipo de venta"
           tooltipItems={metrics.byType.map(t => {
-            const tipoMeta = metasData
-              ?.filter(m => m.tipo_meta === t.key.toLowerCase())
-              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            // CRITICAL: Filter metas by advisors in scope (same as budgetVsExecuted)
+            const normalizeForMeta = (code: string): string => {
+              const clean = (code || '').replace(/^0+/, '').trim();
+              return clean.padStart(5, '0');
+            };
+            const tipoMeta = (metasData || [])
+              .filter(m => {
+                if (m.tipo_meta !== t.key.toLowerCase()) return false;
+                const normalizedCode = normalizeForMeta(m.codigo_asesor);
+                return advisorCodesInScopeForMetas.has(normalizedCode) || advisorCodesInScopeForMetas.has(m.codigo_asesor);
+              })
+              .reduce((sum, m) => sum + m.valor_meta, 0);
             const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
             return {
               label: t.name,
