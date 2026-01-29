@@ -154,12 +154,27 @@ export default function Programacion() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
+        .select('*, regionales(nombre)');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch regionales for mapping
+  const { data: regionales = [] } = useQuery({
+    queryKey: ['regionales-programacion'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('regionales')
         .select('*')
         .eq('activo', true);
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Determine if user is coordinador or admin (shows regional in activities)
+  const showRegionalInActivities = role === 'coordinador_comercial' || role === 'administrador';
 
   // Fetch jefes de ventas for the dialog filter
   const { data: jefesVentas = [] } = useQuery({
@@ -191,6 +206,14 @@ export default function Programacion() {
     return profileItem?.nombre_completo || 'Sin asignar';
   };
 
+  // Get profile regional by user_id
+  const getProfileRegional = (userId: string): string | null => {
+    const profileItem = profiles.find((p) => p.user_id === userId);
+    if (!profileItem?.regional_id) return null;
+    const regional = regionales.find(r => r.id === profileItem.regional_id);
+    return regional?.nombre || null;
+  };
+
   const getActivitiesForDate = (date: Date) => {
     return programacion.filter(
       (a) => a.fecha === format(date, 'yyyy-MM-dd')
@@ -200,12 +223,12 @@ export default function Programacion() {
   // Get grouped activities for a date (for calendar display)
   const getGroupedActivitiesForDate = (date: Date): GroupedActivity[] => {
     const activities = getActivitiesForDate(date);
-    return groupActivities(activities, getProfileName);
+    return groupActivities(activities, getProfileName, showRegionalInActivities ? getProfileRegional : undefined);
   };
 
   const selectedActivities = selectedDate ? getActivitiesForDate(selectedDate) : [];
   const selectedGroupedActivities = selectedDate 
-    ? groupActivities(selectedActivities, getProfileName) 
+    ? groupActivities(selectedActivities, getProfileName, showRegionalInActivities ? getProfileRegional : undefined) 
     : [];
 
   // Get evidence status for selected date activities
@@ -664,6 +687,7 @@ export default function Programacion() {
                       group={group} 
                       showFullDetails={true}
                       evidenceStatus={statusByActivity[group.key]}
+                      showRegional={showRegionalInActivities}
                       onClick={() => {
                         setSelectedActivity(group);
                         setIsDetailDialogOpen(true);

@@ -14,6 +14,7 @@ interface AdvisorByType {
   projectedCompliance: number;
   byType: Record<string, number>;
   metaByType?: Record<string, number>;
+  regional?: string;
 }
 
 interface AdvisorsByTypePopupProps {
@@ -23,6 +24,7 @@ interface AdvisorsByTypePopupProps {
   tipoAsesor: string;
   tipoAsesorLabel: string;
   tipoAsesorColor: string;
+  showRegional?: boolean;
 }
 
 const formatCurrency = (value: number) => {
@@ -55,6 +57,7 @@ export function AdvisorsByTypePopup({
   tipoAsesor,
   tipoAsesorLabel,
   tipoAsesorColor,
+  showRegional = false,
 }: AdvisorsByTypePopupProps) {
   const [expandedAdvisor, setExpandedAdvisor] = useState<string | null>(null);
 
@@ -123,8 +126,17 @@ export function AdvisorsByTypePopup({
                     {/* Header Row */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm sm:text-base truncate">{advisor.nombre}</span>
+                          {/* Regional Badge - Only for coordinador/admin */}
+                          {showRegional && advisor.regional && (
+                            <Badge 
+                              variant="outline" 
+                              className="text-[10px] px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground border-muted"
+                            >
+                              {advisor.regional}
+                            </Badge>
+                          )}
                           {isExpanded ? (
                             <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           ) : (
