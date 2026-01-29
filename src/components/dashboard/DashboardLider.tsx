@@ -24,6 +24,7 @@ import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
+import { exportAdvisorsToExcel, AdvisorExportData } from '@/utils/exportAdvisorsExcel';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
@@ -977,6 +978,80 @@ export default function DashboardLider() {
     });
   };
 
+  // Helper to build advisor export data from metrics.byAdvisor
+  const buildAdvisorExportData = (advisors: typeof metrics.byAdvisor): AdvisorExportData[] => {
+    // Build cedula map from profiles
+    const cedulaMap = new Map<string, string>();
+    const regionalIdMap = new Map<string, string>();
+    profiles?.forEach(p => {
+      if (p.codigo_asesor) {
+        const normalizeCode = (code: string): string => {
+          const clean = (code || '').replace(/^0+/, '').trim();
+          return clean.padStart(5, '0');
+        };
+        const normalized = normalizeCode(p.codigo_asesor);
+        cedulaMap.set(normalized, p.cedula);
+        cedulaMap.set(p.codigo_asesor, p.cedula);
+        // Get regional name from regionales
+        const regional = regionales.find(r => r.id === p.regional_id);
+        if (regional) {
+          regionalIdMap.set(normalized, regional.nombre);
+          regionalIdMap.set(p.codigo_asesor, regional.nombre);
+        }
+      }
+    });
+
+    return advisors
+      .filter(a => {
+        // Exclude GERENCIA entries
+        const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+          a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+        return !isGerencia;
+      })
+      .map(advisor => ({
+        cedula: cedulaMap.get(advisor.codigo) || '',
+        codigoAsesor: advisor.codigo,
+        nombre: advisor.nombre,
+        tipoAsesor: advisor.tipoAsesor || 'EXTERNO',
+        regional: regionalIdMap.get(advisor.codigo) || advisor.regional || '',
+        byType: advisor.byType,
+        metaByType: advisor.metaByType || {},
+      }));
+  };
+
+  // Handle export all active advisors
+  const handleExportAllAdvisors = async () => {
+    const data = buildAdvisorExportData(metrics.byAdvisor);
+    await exportAdvisorsToExcel({
+      data,
+      includeRegional: isGlobalRole,
+      fileName: 'asesores_activos',
+      title: 'Asesores Activos',
+    });
+  };
+
+  // Handle export advisors at risk
+  const handleExportAtRisk = async () => {
+    const data = buildAdvisorExportData(advisorsAtRisk);
+    await exportAdvisorsToExcel({
+      data,
+      includeRegional: isGlobalRole,
+      fileName: 'asesores_en_riesgo',
+      title: 'Asesores en Riesgo',
+    });
+  };
+
+  // Handle export advisors by type
+  const handleExportByType = async (tipoAsesor: string) => {
+    const data = buildAdvisorExportData(advisorsBySelectedType);
+    await exportAdvisorsToExcel({
+      data,
+      includeRegional: isGlobalRole,
+      fileName: `asesores_${tipoAsesor.toLowerCase()}`,
+      title: `Asesores ${tipoAsesorLabels[tipoAsesor] || tipoAsesor}`,
+    });
+  };
+
   const toggleFilter = (tipo: TipoVentaKey) => {
     setSelectedFilters(prev => 
       prev.includes(tipo) 
@@ -1104,6 +1179,7 @@ export default function DashboardLider() {
           value={metrics.totalActiveAdvisors.toString()}
           subtitle={`${metrics.advisorsWithSales} con ventas`}
           icon={Users}
+          onDownload={handleExportAllAdvisors}
         />
         <KpiCard
           title="En Riesgo"
@@ -1112,6 +1188,7 @@ export default function DashboardLider() {
           icon={AlertTriangle}
           status={advisorsAtRisk.length > 3 ? 'danger' : advisorsAtRisk.length > 0 ? 'warning' : 'success'}
           onClick={() => setAtRiskPopupOpen(true)}
+          onDownload={handleExportAtRisk}
         />
       </motion.div>
 
@@ -1122,6 +1199,7 @@ export default function DashboardLider() {
         advisorsAtRisk={advisorsAtRisk}
         title="Asesores en Riesgo"
         showRegional={isGlobalRole}
+        onDownload={handleExportAtRisk}
       />
 
       {/* KPI Cards - Row 2: Cumplimiento y actividad */}
@@ -1337,6 +1415,7 @@ export default function DashboardLider() {
         tipoAsesorLabel={tipoAsesorLabels[selectedTypePopup || ''] || selectedTypePopup || ''}
         tipoAsesorColor={tipoAsesorColors[selectedTypePopup || ''] || 'hsl(var(--primary))'}
         showRegional={isGlobalRole}
+        onDownload={selectedTypePopup ? () => handleExportByType(selectedTypePopup) : undefined}
       />
 
       <motion.div variants={item} className="grid gap-4 sm:gap-6 lg:grid-cols-3">

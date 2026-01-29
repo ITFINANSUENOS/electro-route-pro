@@ -2,8 +2,9 @@ import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Users, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, TrendingUp, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { Button } from '@/components/ui/button';
 
 interface AdvisorByType {
   codigo: string;
@@ -25,6 +26,7 @@ interface AdvisorsByTypePopupProps {
   tipoAsesorLabel: string;
   tipoAsesorColor: string;
   showRegional?: boolean;
+  onDownload?: () => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -58,6 +60,7 @@ export function AdvisorsByTypePopup({
   tipoAsesorLabel,
   tipoAsesorColor,
   showRegional = false,
+  onDownload,
 }: AdvisorsByTypePopupProps) {
   const [expandedAdvisor, setExpandedAdvisor] = useState<string | null>(null);
 
@@ -88,10 +91,23 @@ export function AdvisorsByTypePopup({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" style={{ color: tipoAsesorColor }} />
-            Asesores {tipoAsesorLabel}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" style={{ color: tipoAsesorColor }} />
+              Asesores {tipoAsesorLabel}
+            </DialogTitle>
+            {onDownload && advisors.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onDownload}
+                className="gap-1.5"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Descargar</span>
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             {advisors.length} asesores • {formatCurrency(totalSales)} vendido • {overallCompliance.toFixed(1)}% de cumplimiento
           </DialogDescription>

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
   Tooltip,
@@ -28,6 +28,7 @@ interface KpiCardProps {
   tooltipItems?: TooltipItem[];
   tooltipTitle?: string;
   onClick?: () => void;
+  onDownload?: () => void;
 }
 
 export function KpiCard({
@@ -41,11 +42,17 @@ export function KpiCard({
   tooltipItems,
   tooltipTitle,
   onClick,
+  onDownload,
 }: KpiCardProps) {
   const statusColors = {
     success: 'border-l-4 border-l-success',
     warning: 'border-l-4 border-l-warning',
     danger: 'border-l-4 border-l-danger',
+  };
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDownload?.();
   };
 
   const cardContent = (
@@ -55,12 +62,21 @@ export function KpiCard({
       whileHover={{ y: -2 }}
       onClick={onClick}
       className={cn(
-        'kpi-card overflow-hidden',
+        'kpi-card overflow-hidden relative',
         status && statusColors[status],
         (tooltipItems || onClick) && 'cursor-pointer',
         className
       )}
     >
+      {onDownload && (
+        <button
+          onClick={handleDownload}
+          className="absolute top-2 right-2 p-1.5 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors z-10"
+          title="Descargar Excel"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1 min-w-0 flex-1">
           <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{title}</p>
@@ -70,7 +86,7 @@ export function KpiCard({
           )}
         </div>
         {Icon && (
-          <div className="rounded-lg bg-accent p-1.5 sm:p-2 flex-shrink-0">
+          <div className={cn("rounded-lg bg-accent p-1.5 sm:p-2 flex-shrink-0", onDownload && "mr-6")}>
             <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
           </div>
         )}
