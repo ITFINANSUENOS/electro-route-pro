@@ -537,18 +537,6 @@ export default function Usuarios() {
         {/* Only show admin actions for administrators */}
         {isAdmin && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleSyncPasswords} disabled={syncing}>
-              {syncing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <KeyRound className="h-4 w-4 mr-2" />
-              )}
-              Sincronizar Contraseñas
-            </Button>
-            <Button variant="outline" onClick={handleDownloadCSV} disabled={loading || users.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Descargar CSV
-            </Button>
             <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
               <Download className="h-4 w-4 mr-2" />
               Descargar Excel
