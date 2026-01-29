@@ -49,13 +49,6 @@ const allNavItems: NavItem[] = [
     roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
-    id: 'informacion',
-    title: 'Información', 
-    href: '/informacion', 
-    icon: Settings,
-    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
-  },
-  { 
     id: 'actividades',
     title: 'Actividades', 
     href: '/actividades', 
@@ -77,11 +70,18 @@ const allNavItems: NavItem[] = [
     roles: ['lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
+    id: 'informacion',
+    title: 'Información', 
+    href: '/informacion', 
+    icon: Settings,
+    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
+  },
+  { 
     id: 'usuarios',
     title: 'Usuarios', 
     href: '/usuarios', 
     icon: Users,
-    roles: ['administrador']
+    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
     id: 'configuracion',

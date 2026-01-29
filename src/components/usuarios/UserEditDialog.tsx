@@ -20,8 +20,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { roleLabels, UserRole } from "@/types/auth";
+import { roleLabels, UserRole, getZonaByRegional } from "@/types/auth";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface UserWithRole {
   id: string;
@@ -60,6 +61,7 @@ interface UserEditDialogProps {
   onOpenChange: (open: boolean) => void;
   regionales: Regional[];
   onUserUpdated: () => void;
+  limitedEdit?: boolean; // For leaders/coordinators who can only edit limited fields
 }
 
 const ROLES: UserRole[] = [
@@ -71,7 +73,6 @@ const ROLES: UserRole[] = [
   'administrador',
 ];
 
-const ZONAS = ['norte', 'sur', 'centro', 'oriente'];
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
 
 // Regionales that have jefes de ventas
@@ -82,8 +83,10 @@ export function UserEditDialog({
   open, 
   onOpenChange, 
   regionales,
-  onUserUpdated 
+  onUserUpdated,
+  limitedEdit = false,
 }: UserEditDialogProps) {
+  const { profile: currentUserProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     nombre_completo: '',
@@ -97,6 +100,9 @@ export function UserEditDialog({
     codigo_jefe: '',
     tipo_asesor: '',
   });
+
+  // Track original values for historial
+  const [originalData, setOriginalData] = useState<typeof formData | null>(null);
 
   // Fetch jefes de ventas
   const { data: jefesVentas = [] } = useQuery({
@@ -124,47 +130,111 @@ export function UserEditDialog({
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      const data = {
         nombre_completo: user.nombre_completo || '',
         telefono: user.telefono || '',
         zona: user.zona || '',
         correo: user.correo || '',
         activo: user.activo,
-        role: user.role || '',
+        role: (user.role || '') as UserRole | '',
         regional_id: user.regional_id || '',
         codigo_asesor: user.codigo_asesor || '',
         codigo_jefe: user.codigo_jefe || '',
         tipo_asesor: user.tipo_asesor || '',
-      });
+      };
+      setFormData(data);
+      setOriginalData(data);
     }
   }, [user]);
 
+  // Log change to historial_ediciones
+  const logChange = async (campo: string, valorAnterior: string | null, valorNuevo: string | null) => {
+    if (!user) return;
+    
+    try {
+      await supabase.from('historial_ediciones').insert({
+        tabla: 'profiles',
+        registro_id: user.id,
+        campo_editado: campo,
+        valor_anterior: valorAnterior,
+        valor_nuevo: valorNuevo,
+        modificado_por: currentUserProfile?.user_id || null,
+      });
+    } catch (error) {
+      console.error('Error logging change:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !originalData) return;
 
     setSaving(true);
     try {
+      // Prepare update data based on limited vs full edit
+      const updateData: Record<string, unknown> = {};
+      
+      if (limitedEdit) {
+        // Limited edit: only telefono, activo, codigo_jefe
+        updateData.telefono = formData.telefono || null;
+        updateData.activo = formData.activo;
+        updateData.codigo_jefe = formData.codigo_jefe || null;
+      } else {
+        // Full edit
+        updateData.nombre_completo = formData.nombre_completo;
+        updateData.telefono = formData.telefono || null;
+        updateData.zona = formData.zona || null;
+        updateData.correo = formData.correo || null;
+        updateData.activo = formData.activo;
+        updateData.regional_id = formData.regional_id || null;
+        updateData.codigo_asesor = formData.codigo_asesor || null;
+        updateData.codigo_jefe = formData.codigo_jefe || null;
+        updateData.tipo_asesor = formData.tipo_asesor || null;
+      }
+
       // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          nombre_completo: formData.nombre_completo,
-          telefono: formData.telefono || null,
-          zona: formData.zona || null,
-          correo: formData.correo || null,
-          activo: formData.activo,
-          regional_id: formData.regional_id || null,
-          codigo_asesor: formData.codigo_asesor || null,
-          codigo_jefe: formData.codigo_jefe || null,
-          tipo_asesor: formData.tipo_asesor || null,
-        })
+        .update(updateData)
         .eq('id', user.id);
 
       if (profileError) throw profileError;
 
-      // Update role if changed
-      if (formData.role && formData.role !== user.role) {
+      // Log changes to historial
+      if (originalData.telefono !== formData.telefono) {
+        await logChange('telefono', originalData.telefono, formData.telefono);
+      }
+      if (originalData.activo !== formData.activo) {
+        await logChange('activo', originalData.activo ? 'Activo' : 'Inactivo', formData.activo ? 'Activo' : 'Inactivo');
+      }
+      if (originalData.codigo_jefe !== formData.codigo_jefe) {
+        await logChange('codigo_jefe', originalData.codigo_jefe, formData.codigo_jefe);
+      }
+      
+      // Log additional changes for full edit
+      if (!limitedEdit) {
+        if (originalData.nombre_completo !== formData.nombre_completo) {
+          await logChange('nombre_completo', originalData.nombre_completo, formData.nombre_completo);
+        }
+        if (originalData.zona !== formData.zona) {
+          await logChange('zona', originalData.zona, formData.zona);
+        }
+        if (originalData.correo !== formData.correo) {
+          await logChange('correo', originalData.correo, formData.correo);
+        }
+        if (originalData.regional_id !== formData.regional_id) {
+          await logChange('regional_id', originalData.regional_id, formData.regional_id);
+        }
+        if (originalData.codigo_asesor !== formData.codigo_asesor) {
+          await logChange('codigo_asesor', originalData.codigo_asesor, formData.codigo_asesor);
+        }
+        if (originalData.tipo_asesor !== formData.tipo_asesor) {
+          await logChange('tipo_asesor', originalData.tipo_asesor, formData.tipo_asesor);
+        }
+      }
+
+      // Update role if changed (only for full edit)
+      if (!limitedEdit && formData.role && formData.role !== user.role) {
         // First delete existing role
         await supabase
           .from('user_roles')
@@ -180,6 +250,8 @@ export function UserEditDialog({
           });
 
         if (roleError) throw roleError;
+        
+        await logChange('role', user.role || '', formData.role);
       }
 
       toast.success('Usuario actualizado exitosamente');
@@ -195,40 +267,66 @@ export function UserEditDialog({
 
   if (!user) return null;
 
+  // Calculate zona from regional for display
+  const zonaCalculada = formData.regional_id 
+    ? getZonaByRegional(regionales.find(r => r.id === formData.regional_id)?.nombre || '')
+    : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Usuario</DialogTitle>
+          <DialogTitle>
+            {limitedEdit ? 'Editar Datos del Usuario' : 'Editar Usuario'}
+          </DialogTitle>
           <DialogDescription>
-            Modifique los datos del usuario. Cédula: {user.cedula}
+            {limitedEdit 
+              ? 'Puedes modificar el teléfono, estado y jefe de ventas del usuario.'
+              : `Modifique los datos del usuario. Cédula: ${user.cedula}`
+            }
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            {/* Nombre Completo */}
+            {/* Nombre Completo - Read-only for limited edit */}
             <div className="grid gap-2">
-              <Label htmlFor="edit_nombre">Nombre Completo *</Label>
-              <Input
-                id="edit_nombre"
-                value={formData.nombre_completo}
-                onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
-                required
-              />
+              <Label htmlFor="edit_nombre">Nombre Completo {!limitedEdit && '*'}</Label>
+              {limitedEdit ? (
+                <div className="h-10 px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+                  {formData.nombre_completo}
+                </div>
+              ) : (
+                <Input
+                  id="edit_nombre"
+                  value={formData.nombre_completo}
+                  onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
+                  required
+                />
+              )}
             </div>
 
-            {/* Email */}
+            {/* Cédula - Read-only always */}
             <div className="grid gap-2">
-              <Label htmlFor="edit_correo">Email</Label>
-              <Input
-                id="edit_correo"
-                type="email"
-                value={formData.correo}
-                onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
-              />
+              <Label>Cédula</Label>
+              <div className="h-10 px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+                {user.cedula}
+              </div>
             </div>
 
-            {/* Teléfono */}
+            {/* Email - Read-only for limited edit */}
+            {!limitedEdit && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit_correo">Email</Label>
+                <Input
+                  id="edit_correo"
+                  type="email"
+                  value={formData.correo}
+                  onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                />
+              </div>
+            )}
+
+            {/* Teléfono - Editable */}
             <div className="grid gap-2">
               <Label htmlFor="edit_telefono">Teléfono</Label>
               <Input
@@ -238,28 +336,30 @@ export function UserEditDialog({
               />
             </div>
 
-            {/* Rol */}
-            <div className="grid gap-2">
-              <Label htmlFor="edit_role">Rol *</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {roleLabels[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Rol - Only for full edit */}
+            {!limitedEdit && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit_role">Rol *</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {roleLabels[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            {/* Tipo Asesor - solo si rol es asesor */}
-            {formData.role === 'asesor_comercial' && (
+            {/* Tipo Asesor - Only for full edit and if role is asesor */}
+            {!limitedEdit && formData.role === 'asesor_comercial' && (
               <div className="grid gap-2">
                 <Label htmlFor="edit_tipo_asesor">Tipo Asesor</Label>
                 <Select
@@ -280,55 +380,55 @@ export function UserEditDialog({
               </div>
             )}
 
-            {/* Zona */}
+            {/* Regional - Only for full edit */}
+            {!limitedEdit && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit_regional">Regional</Label>
+                <Select
+                  value={formData.regional_id}
+                  onValueChange={(value) => {
+                    const regional = regionales.find(r => r.id === value);
+                    const zona = regional ? getZonaByRegional(regional.nombre) : '';
+                    setFormData({ 
+                      ...formData, 
+                      regional_id: value,
+                      zona: zona || '',
+                      // Reset codigo_jefe when regional changes if it doesn't match
+                      codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
+                        ? formData.codigo_jefe 
+                        : ''
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione regional" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regionales.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.nombre} ({r.codigo})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Zona - Display only (auto-calculated from regional) */}
             <div className="grid gap-2">
-              <Label htmlFor="edit_zona">Zona</Label>
-              <Select
-                value={formData.zona}
-                onValueChange={(value) => setFormData({ ...formData, zona: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione zona" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ZONAS.map((z) => (
-                    <SelectItem key={z} value={z}>
-                      {z.charAt(0).toUpperCase() + z.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Zona</Label>
+              <div className="h-10 px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+                {zonaCalculada ? zonaCalculada.charAt(0).toUpperCase() + zonaCalculada.slice(1) : (formData.zona ? formData.zona.charAt(0).toUpperCase() + formData.zona.slice(1) : 'Sin zona')}
+              </div>
+              {!limitedEdit && (
+                <p className="text-xs text-muted-foreground">
+                  La zona se asigna automáticamente según la regional
+                </p>
+              )}
             </div>
 
-            {/* Regional */}
-            <div className="grid gap-2">
-              <Label htmlFor="edit_regional">Regional</Label>
-              <Select
-                value={formData.regional_id}
-                onValueChange={(value) => setFormData({ 
-                  ...formData, 
-                  regional_id: value,
-                  // Reset codigo_jefe when regional changes if it doesn't match
-                  codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
-                    ? formData.codigo_jefe 
-                    : ''
-                })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione regional" />
-                </SelectTrigger>
-                <SelectContent>
-                  {regionales.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.nombre} ({r.codigo})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Código Asesor - solo si rol es asesor */}
-            {formData.role === 'asesor_comercial' && (
+            {/* Código Asesor - Only for full edit and if role is asesor */}
+            {!limitedEdit && formData.role === 'asesor_comercial' && (
               <div className="grid gap-2">
                 <Label htmlFor="edit_codigo_asesor">Código Asesor</Label>
                 <Input
@@ -339,8 +439,9 @@ export function UserEditDialog({
               </div>
             )}
 
-            {/* Jefe de Ventas - solo si rol es asesor y regional tiene jefes */}
-            {formData.role === 'asesor_comercial' && formData.regional_id && regionalHasJefes && (
+            {/* Jefe de Ventas - Editable for limited edit (only if regional has jefes) */}
+            {(formData.role === 'asesor_comercial' || (limitedEdit && user.role === 'asesor_comercial')) && 
+             formData.regional_id && regionalHasJefes && (
               <div className="grid gap-2">
                 <Label htmlFor="edit_jefe_ventas">Jefe de Ventas</Label>
                 <Select
@@ -365,8 +466,8 @@ export function UserEditDialog({
               </div>
             )}
 
-            {/* Código Jefe - solo si rol es jefe */}
-            {formData.role === 'jefe_ventas' && (
+            {/* Código Jefe - Only for full edit and if role is jefe */}
+            {!limitedEdit && formData.role === 'jefe_ventas' && (
               <div className="grid gap-2">
                 <Label htmlFor="edit_codigo_jefe">Código Jefe</Label>
                 <Input
@@ -377,7 +478,7 @@ export function UserEditDialog({
               </div>
             )}
 
-            {/* Estado */}
+            {/* Estado - Editable */}
             <div className="grid gap-2">
               <Label htmlFor="edit_activo">Estado</Label>
               <Select

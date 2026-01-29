@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X, Upload, KeyRound } from "lucide-react";
-import { roleLabels, UserRole } from "@/types/auth";
+import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X, KeyRound } from "lucide-react";
+import { roleLabels, UserRole, getZonaByRegional } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
@@ -77,14 +77,13 @@ const ROLES: UserRole[] = [
   'administrador',
 ];
 
-const ZONAS = ['norte', 'sur', 'centro', 'oriente'];
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
 
 // Regionales that have jefes de ventas
 const REGIONALES_CON_JEFES = ['SANTANDER', 'POPAYAN', 'AMBIENTA', 'BORDO'];
 
 export default function Usuarios() {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [regionales, setRegionales] = useState<Regional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +91,11 @@ export default function Usuarios() {
   const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Check if user is admin (full access) or leader/coordinator (limited access)
+  const isAdmin = role === 'administrador';
+  const isLeaderOrCoordinator = role === 'lider_zona' || role === 'coordinador_comercial';
+  const hasAccess = isAdmin || isLeaderOrCoordinator;
   
   // Filter states
   const [filterRole, setFilterRole] = useState<string>('all');
@@ -142,16 +146,23 @@ export default function Usuarios() {
     selectedRegionalName.toUpperCase().includes(r)
   );
   
-  // Filtered users
+  // Filtered users - for leaders/coordinators, only show users from their regional
   const filteredUsers = users.filter((user) => {
+    // Leaders and coordinators can only see users from their regional
+    if (isLeaderOrCoordinator && profile?.regional_id) {
+      if (user.regional_id !== profile.regional_id) return false;
+      // Only show asesores and jefes de ventas to leaders/coordinators
+      if (user.role !== 'asesor_comercial' && user.role !== 'jefe_ventas') return false;
+    }
+    
     // Filter by role
     if (filterRole !== 'all' && user.role !== filterRole) return false;
     
     // Filter by name (case insensitive)
     if (filterNombre && !user.nombre_completo.toLowerCase().includes(filterNombre.toLowerCase())) return false;
     
-    // Filter by regional
-    if (filterRegional !== 'all' && user.regional_id !== filterRegional) return false;
+    // Filter by regional (only for admin)
+    if (isAdmin && filterRegional !== 'all' && user.regional_id !== filterRegional) return false;
     
     // Filter by estado
     if (filterEstado === 'activo' && !user.activo) return false;
@@ -333,6 +344,8 @@ export default function Usuarios() {
     
     // Add data
     users.forEach((user) => {
+      // Calculate correct zona based on regional
+      const zonaCorrecta = user.regional_nombre ? getZonaByRegional(user.regional_nombre) : user.zona;
       worksheet.addRow({
         rol: user.role ? roleLabels[user.role] : 'Sin rol',
         tipo: user.tipo_asesor || '-',
@@ -341,7 +354,7 @@ export default function Usuarios() {
         nombre: user.nombre_completo,
         telefono: user.telefono || '-',
         regional: user.regional_nombre || '-',
-        zona: user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
+        zona: zonaCorrecta ? zonaCorrecta.charAt(0).toUpperCase() + zonaCorrecta.slice(1) : '-',
         estado: user.activo ? 'Activo' : 'Inactivo',
       });
     });
@@ -454,17 +467,21 @@ export default function Usuarios() {
 
   const handleDownloadCSV = () => {
     const headers = ['Rol', 'Tipo', 'Email', 'Cédula', 'Nombre', 'Teléfono', 'Regional', 'Zona', 'Estado'];
-    const rows = users.map((user) => [
-      user.role ? roleLabels[user.role] : 'Sin rol',
-      user.tipo_asesor || '-',
-      user.correo || '-',
-      user.cedula,
-      user.nombre_completo,
-      user.telefono || '-',
-      user.regional_nombre || '-',
-      user.zona ? user.zona.charAt(0).toUpperCase() + user.zona.slice(1) : '-',
-      user.activo ? 'Activo' : 'Inactivo',
-    ]);
+    const rows = users.map((user) => {
+      // Calculate correct zona based on regional
+      const zonaCorrecta = user.regional_nombre ? getZonaByRegional(user.regional_nombre) : user.zona;
+      return [
+        user.role ? roleLabels[user.role] : 'Sin rol',
+        user.tipo_asesor || '-',
+        user.correo || '-',
+        user.cedula,
+        user.nombre_completo,
+        user.telefono || '-',
+        user.regional_nombre || '-',
+        zonaCorrecta ? zonaCorrecta.charAt(0).toUpperCase() + zonaCorrecta.slice(1) : '-',
+        user.activo ? 'Activo' : 'Inactivo',
+      ];
+    });
     
     // Escape values with semicolons or quotes
     const escapeCSV = (val: string) => {
@@ -495,7 +512,7 @@ export default function Usuarios() {
     setEditDialogOpen(true);
   };
 
-  if (role !== 'administrador') {
+  if (!hasAccess) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <p className="text-muted-foreground">No tienes permisos para ver esta página</p>
@@ -507,298 +524,323 @@ export default function Usuarios() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isLeaderOrCoordinator ? 'Mi Equipo' : 'Gestión de Usuarios'}
+          </h1>
           <p className="text-muted-foreground">
-            Administra los usuarios del sistema
+            {isLeaderOrCoordinator 
+              ? 'Visualiza y gestiona los usuarios de tu regional'
+              : 'Administra los usuarios del sistema'
+            }
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleSyncPasswords} disabled={syncing}>
-            {syncing ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <KeyRound className="h-4 w-4 mr-2" />
-            )}
-            Sincronizar Contraseñas
-          </Button>
-          <Button variant="outline" onClick={handleDownloadCSV} disabled={loading || users.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
-            Descargar CSV
-          </Button>
-          <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
-            Descargar Excel
-          </Button>
-          <Button variant="outline" onClick={fetchUsers} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Actualizar
-          </Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo Usuario
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                <DialogDescription>
-                  Complete los datos para crear un nuevo usuario en el sistema.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit}>
-                <div className="grid gap-4 py-4">
-                  {/* Email */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="usuario@electrocreditos.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  {/* Password */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Contraseña *</Label>
-                    <div className="relative">
+        {/* Only show admin actions for administrators */}
+        {isAdmin && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleSyncPasswords} disabled={syncing}>
+              {syncing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <KeyRound className="h-4 w-4 mr-2" />
+              )}
+              Sincronizar Contraseñas
+            </Button>
+            <Button variant="outline" onClick={handleDownloadCSV} disabled={loading || users.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Descargar CSV
+            </Button>
+            <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Excel
+            </Button>
+            <Button variant="outline" onClick={fetchUsers} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuevo Usuario
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                  <DialogDescription>
+                    Complete los datos para crear un nuevo usuario en el sistema.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit}>
+                  <div className="grid gap-4 py-4">
+                    {/* Email */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email *</Label>
                       <Input
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Mínimo 6 caracteres"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        id="email"
+                        type="email"
+                        placeholder="usuario@electrocreditos.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         required
-                        minLength={6}
                       />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
                     </div>
-                  </div>
 
-                  {/* Cédula */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="cedula">Cédula *</Label>
-                    <Input
-                      id="cedula"
-                      placeholder="1234567890"
-                      value={formData.cedula}
-                      onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  {/* Nombre Completo */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="nombre_completo">Nombre Completo *</Label>
-                    <Input
-                      id="nombre_completo"
-                      placeholder="Juan Pérez García"
-                      value={formData.nombre_completo}
-                      onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  {/* Teléfono */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="telefono">Teléfono</Label>
-                    <Input
-                      id="telefono"
-                      placeholder="3001234567"
-                      value={formData.telefono}
-                      onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Rol */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="role">Rol *</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione un rol" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLES.map((r) => (
-                          <SelectItem key={r} value={r}>
-                            {roleLabels[r]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Zona */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="zona">Zona</Label>
-                    <Select
-                      value={formData.zona}
-                      onValueChange={(value) => setFormData({ ...formData, zona: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione zona" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ZONAS.map((z) => (
-                          <SelectItem key={z} value={z}>
-                            {z.charAt(0).toUpperCase() + z.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Regional */}
-                  <div className="grid gap-2">
-                    <Label htmlFor="regional_id">Regional</Label>
-                    <Select
-                      value={formData.regional_id}
-                      onValueChange={(value) => setFormData({ 
-                        ...formData, 
-                        regional_id: value,
-                        // Reset codigo_jefe when regional changes if it doesn't match
-                        codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
-                          ? formData.codigo_jefe 
-                          : ''
-                      })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione regional" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {regionales.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.nombre} ({r.codigo})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Tipo Asesor - solo si rol es asesor */}
-                  {formData.role === 'asesor_comercial' && (
+                    {/* Password */}
                     <div className="grid gap-2">
-                      <Label htmlFor="tipo_asesor">Tipo Asesor</Label>
+                      <Label htmlFor="password">Contraseña *</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Mínimo 6 caracteres"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          required
+                          minLength={6}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Cédula */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="cedula">Cédula *</Label>
+                      <Input
+                        id="cedula"
+                        placeholder="1234567890"
+                        value={formData.cedula}
+                        onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    {/* Nombre Completo */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="nombre_completo">Nombre Completo *</Label>
+                      <Input
+                        id="nombre_completo"
+                        placeholder="Juan Pérez García"
+                        value={formData.nombre_completo}
+                        onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    {/* Teléfono */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="telefono">Teléfono</Label>
+                      <Input
+                        id="telefono"
+                        placeholder="3001234567"
+                        value={formData.telefono}
+                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Rol */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="role">Rol *</Label>
                       <Select
-                        value={formData.tipo_asesor}
-                        onValueChange={(value) => setFormData({ ...formData, tipo_asesor: value })}
+                        value={formData.role}
+                        onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccione tipo" />
+                          <SelectValue placeholder="Seleccione un rol" />
                         </SelectTrigger>
                         <SelectContent>
-                          {TIPOS_ASESOR.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {t}
+                          {ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {roleLabels[r]}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
 
-                  {/* Código Asesor - solo si rol es asesor */}
-                  {formData.role === 'asesor_comercial' && (
+                    {/* Regional */}
                     <div className="grid gap-2">
-                      <Label htmlFor="codigo_asesor">Código Asesor</Label>
-                      <Input
-                        id="codigo_asesor"
-                        placeholder="12345"
-                        value={formData.codigo_asesor}
-                        onChange={(e) => setFormData({ ...formData, codigo_asesor: e.target.value })}
-                      />
-                    </div>
-                  )}
-
-                  {/* Jefe de Ventas - solo si rol es asesor y regional tiene jefes */}
-                  {formData.role === 'asesor_comercial' && formData.regional_id && regionalHasJefes && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="jefe_ventas">Jefe de Ventas</Label>
+                      <Label htmlFor="regional_id">Regional</Label>
                       <Select
-                        value={formData.codigo_jefe}
-                        onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value })}
+                        value={formData.regional_id}
+                        onValueChange={(value) => {
+                          const regional = regionales.find(r => r.id === value);
+                          const zona = regional ? getZonaByRegional(regional.nombre) : '';
+                          setFormData({ 
+                            ...formData, 
+                            regional_id: value,
+                            zona: zona || '',
+                            // Reset codigo_jefe when regional changes if it doesn't match
+                            codigo_jefe: jefesVentas.find(j => j.codigo === formData.codigo_jefe && j.regional_id === value) 
+                              ? formData.codigo_jefe 
+                              : ''
+                          });
+                        }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccione jefe de ventas" />
+                          <SelectValue placeholder="Seleccione regional" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Sin asignar</SelectItem>
-                          {filteredJefes.map((jefe) => (
-                            <SelectItem key={jefe.id} value={jefe.codigo}>
-                              {jefe.nombre} ({jefe.codigo})
+                          {regionales.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.nombre} ({r.codigo})
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        El jefe de ventas determina el grupo al que pertenece el asesor
-                      </p>
                     </div>
-                  )}
 
-                  {/* Código Jefe - solo si rol es jefe */}
-                  {formData.role === 'jefe_ventas' && (
-                    <div className="grid gap-2">
-                      <Label htmlFor="codigo_jefe">Código Jefe</Label>
-                      <Input
-                        id="codigo_jefe"
-                        placeholder="69334"
-                        value={formData.codigo_jefe}
-                        onChange={(e) => setFormData({ ...formData, codigo_jefe: e.target.value })}
-                      />
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={creating}>
-                    {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Crear Usuario
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                    {/* Zona - Display only (auto-calculated from regional) */}
+                    {formData.regional_id && (
+                      <div className="grid gap-2">
+                        <Label>Zona</Label>
+                        <div className="h-10 px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+                          {formData.zona ? formData.zona.charAt(0).toUpperCase() + formData.zona.slice(1) : 'Sin zona'}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          La zona se asigna automáticamente según la regional
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tipo Asesor - solo si rol es asesor */}
+                    {formData.role === 'asesor_comercial' && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="tipo_asesor">Tipo Asesor</Label>
+                        <Select
+                          value={formData.tipo_asesor}
+                          onValueChange={(value) => setFormData({ ...formData, tipo_asesor: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccione tipo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIPOS_ASESOR.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Código Asesor - solo si rol es asesor */}
+                    {formData.role === 'asesor_comercial' && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="codigo_asesor">Código Asesor</Label>
+                        <Input
+                          id="codigo_asesor"
+                          placeholder="12345"
+                          value={formData.codigo_asesor}
+                          onChange={(e) => setFormData({ ...formData, codigo_asesor: e.target.value })}
+                        />
+                      </div>
+                    )}
+
+                    {/* Jefe de Ventas - solo si rol es asesor y regional tiene jefes */}
+                    {formData.role === 'asesor_comercial' && formData.regional_id && regionalHasJefes && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="jefe_ventas">Jefe de Ventas</Label>
+                        <Select
+                          value={formData.codigo_jefe || '__none__'}
+                          onValueChange={(value) => setFormData({ ...formData, codigo_jefe: value === '__none__' ? '' : value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccione jefe de ventas" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Sin asignar</SelectItem>
+                            {filteredJefes.map((jefe) => (
+                              <SelectItem key={jefe.id} value={jefe.codigo}>
+                                {jefe.nombre} ({jefe.codigo})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          El jefe de ventas determina el grupo al que pertenece el asesor
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Código Jefe - solo si rol es jefe */}
+                    {formData.role === 'jefe_ventas' && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="codigo_jefe">Código Jefe</Label>
+                        <Input
+                          id="codigo_jefe"
+                          placeholder="69334"
+                          value={formData.codigo_jefe}
+                          onChange={(e) => setFormData({ ...formData, codigo_jefe: e.target.value })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={creating}>
+                      {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Crear Usuario
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
 
       {/* Filtros avanzados */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-end gap-4">
-            {/* Filtro por Rol */}
-            <div className="flex flex-col gap-1.5 min-w-[180px]">
-              <Label className="text-xs text-muted-foreground">Rol</Label>
-              <Select value={filterRole} onValueChange={setFilterRole}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todos los roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los roles</SelectItem>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {roleLabels[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Filtro por Rol - Only for admin, leaders see only asesores/jefes */}
+            {isAdmin && (
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                <Label className="text-xs text-muted-foreground">Rol</Label>
+                <Select value={filterRole} onValueChange={setFilterRole}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos los roles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los roles</SelectItem>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {roleLabels[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Filtro por Rol limitado para líderes/coordinadores */}
+            {isLeaderOrCoordinator && (
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                <Label className="text-xs text-muted-foreground">Rol</Label>
+                <Select value={filterRole} onValueChange={setFilterRole}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="asesor_comercial">Asesor Comercial</SelectItem>
+                    <SelectItem value="jefe_ventas">Jefe de Ventas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Filtro por Nombre */}
             <div className="flex flex-col gap-1.5 min-w-[200px] flex-1 max-w-xs">
@@ -814,23 +856,25 @@ export default function Usuarios() {
               </div>
             </div>
 
-            {/* Filtro por Regional */}
-            <div className="flex flex-col gap-1.5 min-w-[180px]">
-              <Label className="text-xs text-muted-foreground">Regional</Label>
-              <Select value={filterRegional} onValueChange={setFilterRegional}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todas las regionales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las regionales</SelectItem>
-                  {regionales.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Filtro por Regional - Only for admin */}
+            {isAdmin && (
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                <Label className="text-xs text-muted-foreground">Regional</Label>
+                <Select value={filterRegional} onValueChange={setFilterRegional}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todas las regionales" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las regionales</SelectItem>
+                    {regionales.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Filtro por Estado */}
             <div className="flex flex-col gap-1.5 min-w-[140px]">
@@ -857,11 +901,12 @@ export default function Usuarios() {
           </div>
           
           {/* Contador de resultados */}
-          {hasActiveFilters && (
-            <p className="text-sm text-muted-foreground mt-3">
-              Mostrando {filteredUsers.length} de {users.length} usuarios
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground mt-3">
+            Mostrando {filteredUsers.length} usuarios
+            {isLeaderOrCoordinator && profile?.regional_id && (
+              <span className="ml-1">de tu regional</span>
+            )}
+          </p>
         </CardContent>
       </Card>
 
@@ -872,11 +917,11 @@ export default function Usuarios() {
             <TableRow>
               <TableHead>Rol</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Email</TableHead>
+              {isAdmin && <TableHead>Email</TableHead>}
               <TableHead>Cédula</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Teléfono</TableHead>
-              <TableHead>Regional</TableHead>
+              {isAdmin && <TableHead>Regional</TableHead>}
               <TableHead>Zona</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="w-[50px]">Editar</TableHead>
@@ -885,68 +930,75 @@ export default function Usuarios() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8">
+                <TableCell colSpan={isAdmin ? 10 : 8} className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   <p className="text-muted-foreground mt-2">Cargando usuarios...</p>
                 </TableCell>
               </TableRow>
             ) : filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8">
+                <TableCell colSpan={isAdmin ? 10 : 8} className="text-center py-8">
                   <p className="text-muted-foreground">
                     {hasActiveFilters ? 'No hay usuarios que coincidan con los filtros' : 'No hay usuarios registrados'}
                   </p>
                 </TableCell>
               </TableRow>
             ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {user.role ? roleLabels[user.role] : 'Sin rol'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.tipo_asesor ? (
-                      <Badge variant="outline" className="text-xs">
-                        {user.tipo_asesor}
+              filteredUsers.map((user) => {
+                // Calculate correct zona based on regional
+                const zonaCorrecta = user.regional_nombre ? getZonaByRegional(user.regional_nombre) : user.zona;
+                
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(user.role)}>
+                        {user.role ? roleLabels[user.role] : 'Sin rol'}
                       </Badge>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {user.correo || '-'}
-                  </TableCell>
-                  <TableCell>{user.cedula}</TableCell>
-                  <TableCell className="font-medium">{user.nombre_completo}</TableCell>
-                  <TableCell>{user.telefono || '-'}</TableCell>
-                  <TableCell>{user.regional_nombre || '-'}</TableCell>
-                  <TableCell className="capitalize">{user.zona || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant={user.activo ? 'default' : 'secondary'}>
-                      {user.activo ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditUser(user)}
-                      title="Editar usuario"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>
+                      {user.tipo_asesor ? (
+                        <Badge variant="outline" className="text-xs">
+                          {user.tipo_asesor}
+                        </Badge>
+                      ) : '-'}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell className="font-mono text-sm">
+                        {user.correo || '-'}
+                      </TableCell>
+                    )}
+                    <TableCell>{user.cedula}</TableCell>
+                    <TableCell className="font-medium">{user.nombre_completo}</TableCell>
+                    <TableCell>{user.telefono || '-'}</TableCell>
+                    {isAdmin && <TableCell>{user.regional_nombre || '-'}</TableCell>}
+                    <TableCell className="capitalize">{zonaCorrecta || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.activo ? 'default' : 'secondary'}>
+                        {user.activo ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditUser(user)}
+                        title="Editar usuario"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
       {/* Stats */}
-      {!loading && users.length > 0 && (
+      {!loading && filteredUsers.length > 0 && (
         <div className="text-sm text-muted-foreground">
-          Total: {users.length} usuarios
+          Total: {filteredUsers.length} usuarios
         </div>
       )}
 
@@ -957,6 +1009,7 @@ export default function Usuarios() {
         onOpenChange={setEditDialogOpen}
         regionales={regionales}
         onUserUpdated={fetchUsers}
+        limitedEdit={isLeaderOrCoordinator}
       />
     </div>
   );
