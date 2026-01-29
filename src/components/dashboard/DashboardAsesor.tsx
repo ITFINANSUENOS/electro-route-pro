@@ -27,7 +27,15 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+  Tooltip as RechartsTooltip,
 } from 'recharts';
+import { TrendingUp } from 'lucide-react';
 
 const container = {
   hidden: { opacity: 0 },
@@ -338,6 +346,32 @@ export default function DashboardAsesor() {
     }).filter(t => t.meta > 0);
   }, [metaData, metrics.byType]);
 
+  // Calculate budget vs executed for bar chart
+  const budgetVsExecuted = useMemo(() => {
+    if (!metaData || !salesData) return [];
+    
+    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    
+    return tiposVenta.map(tipo => {
+      // Get advisor's meta for this tipo_venta
+      const meta = metaData.find(m => m.tipo_meta?.toUpperCase() === tipo);
+      const presupuesto = meta?.valor_meta || 0;
+      
+      // Calculate executed from sales
+      const ejecutado = Math.abs(
+        salesData
+          .filter(s => s.tipo_venta === tipo)
+          .reduce((sum, s) => sum + (s.vtas_ant_i || 0), 0)
+      );
+
+      return {
+        name: tiposVentaLabels[tipo] || tipo,
+        presupuesto: presupuesto / 1000000,
+        ejecutado: ejecutado / 1000000,
+      };
+    }).filter(d => d.presupuesto > 0 || d.ejecutado > 0); // Only show types with data
+  }, [metaData, salesData]);
+
   return (
     <motion.div
       variants={container}
@@ -522,48 +556,50 @@ export default function DashboardAsesor() {
         </Card>
       </motion.div>
 
-      {/* Compliance by Type */}
+      {/* Budget vs Executed Chart */}
       <motion.div variants={item}>
         <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-secondary" />
-              Cumplimiento por Tipo de Venta
+          <CardHeader className="pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
+              Presupuesto vs Ejecutado
             </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Mi cumplimiento por tipo de venta (en millones)</CardDescription>
           </CardHeader>
           <CardContent>
-            {complianceByType.length === 0 ? (
-              <p className="text-center py-4 text-muted-foreground">
+            {budgetVsExecuted.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
                 No hay metas asignadas para este período
               </p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {complianceByType.map((tipo) => (
-                  <div
-                    key={tipo.name}
-                    className="p-4 rounded-lg border"
-                    style={{ borderLeftColor: tipo.color, borderLeftWidth: 4 }}
-                  >
-                    <p className="text-sm font-medium text-foreground">{tipo.name}</p>
-                    <div className="flex items-end justify-between mt-2">
-                      <div>
-                        <p className="text-2xl font-bold">{tipo.compliance}%</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatCurrency(tipo.ventas)} / {formatCurrency(tipo.meta)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full transition-all"
-                        style={{ 
-                          width: `${Math.min(tipo.compliance, 100)}%`,
-                          backgroundColor: tipo.color,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+              <div className="h-[220px] sm:h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={budgetVsExecuted} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} />
+                    <YAxis dataKey="name" type="category" width={70} className="text-[10px] sm:text-xs" />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 'var(--radius)',
+                        fontSize: '12px',
+                      }}
+                      formatter={(value: number, name: string, props: { payload?: { presupuesto?: number; ejecutado?: number } }) => {
+                        if (name === 'Ejecutado' && props.payload?.presupuesto) {
+                          const complianceVal = props.payload.presupuesto > 0 
+                            ? Math.round((value / props.payload.presupuesto) * 100) 
+                            : 0;
+                          return [`$${value.toFixed(1)}M (${complianceVal}%)`, name];
+                        }
+                        return [`$${value.toFixed(1)}M`, name];
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    <Bar dataKey="presupuesto" name="Presupuesto" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="ejecutado" name="Ejecutado" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             )}
           </CardContent>
