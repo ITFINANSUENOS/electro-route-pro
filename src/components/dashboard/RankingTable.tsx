@@ -329,6 +329,10 @@ export function RankingTable({
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
+                  {/* Regional column - Only visible when maximized AND for coordinador/admin */}
+                  {isMaximized && includeRegional && (
+                    <TableHead className="min-w-[120px]">Regional</TableHead>
+                  )}
                   <TableHead className="min-w-[200px] sm:min-w-[250px]">Asesor</TableHead>
                   {/* Dynamic columns for selected sale types - sortable */}
                   {selectedFilters.map(tipo => (
@@ -420,8 +424,16 @@ export function RankingTable({
                               <span className="text-xs">{tipoAsesorConfig[advisor.tipoAsesor?.toUpperCase() || '']?.label || 'Sin definir'}</span>
                             </TooltipContent>
                           </Tooltip>
-                        </TooltipProvider>
+                      </TooltipProvider>
                       </TableCell>
+                      {/* Regional column - Only visible when maximized AND for coordinador/admin */}
+                      {isMaximized && includeRegional && (
+                        <TableCell className="text-muted-foreground">
+                          <span className="block whitespace-nowrap text-xs">
+                            {advisor.regional || '-'}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell className="font-medium">
                         <span className="block whitespace-nowrap">
                           {advisor.nombre}
