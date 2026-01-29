@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { MapPin, Clock, Users, CheckCircle, XCircle, Camera, Navigation } from "lucide-react";
+import { MapPin, Clock, Users, CheckCircle, XCircle, Camera, Navigation, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EvidenceStatus } from "@/hooks/useActivityEvidenceStatus";
@@ -29,6 +29,7 @@ export interface GroupedActivity {
   user_ids: string[];
   user_names: string[];
   nombre?: string | null;
+  regional?: string | null;
 }
 
 interface GroupedActivityCardProps {
@@ -40,6 +41,7 @@ interface GroupedActivityCardProps {
     with_evidence: number;
     evidence_by_user: EvidenceStatus[];
   };
+  showRegional?: boolean;
 }
 
 // Check if current time is within 2 hours of activity end time
@@ -64,7 +66,7 @@ function shouldShowPendingBadge(fecha: string, horaFin: string | null): boolean 
   return now >= twoHoursBeforeEnd && now <= activityEndTime;
 }
 
-export function GroupedActivityCard({ group, showFullDetails = false, onClick, evidenceStatus }: GroupedActivityCardProps) {
+export function GroupedActivityCard({ group, showFullDetails = false, onClick, evidenceStatus, showRegional = false }: GroupedActivityCardProps) {
   const { user } = useAuth();
   const isTeamActivity = group.user_ids.length > 1;
   const isCorriera = group.tipo_actividad === 'correria';
@@ -115,7 +117,7 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
         </div>
       )}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={cn(
             'text-xs font-medium px-2 py-1 rounded',
             activityColors[group.tipo_actividad]
@@ -126,6 +128,16 @@ export function GroupedActivityCard({ group, showFullDetails = false, onClick, e
             <span className="text-sm font-medium text-foreground truncate max-w-[120px]">
               {group.nombre}
             </span>
+          )}
+          {/* Regional Badge - Only for coordinador/admin */}
+          {showRegional && group.regional && (
+            <Badge 
+              variant="outline" 
+              className="text-[10px] px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground border-muted flex items-center gap-1"
+            >
+              <Building2 className="h-3 w-3" />
+              {group.regional}
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -271,7 +283,8 @@ export function groupActivities(
     user_id: string;
     nombre?: string | null;
   }>,
-  getProfileName: (userId: string) => string
+  getProfileName: (userId: string) => string,
+  getProfileRegional?: (userId: string) => string | null
 ): GroupedActivity[] {
   const grouped = new Map<string, GroupedActivity>();
 
@@ -286,6 +299,9 @@ export function groupActivities(
         existing.user_names.push(getProfileName(activity.user_id));
       }
     } else {
+      // Get regional from the first user in the group
+      const regional = getProfileRegional ? getProfileRegional(activity.user_id) : null;
+      
       grouped.set(key, {
         key,
         fecha: activity.fecha,
@@ -296,6 +312,7 @@ export function groupActivities(
         user_ids: [activity.user_id],
         user_names: [getProfileName(activity.user_id)],
         nombre: activity.nombre,
+        regional,
       });
     }
   });

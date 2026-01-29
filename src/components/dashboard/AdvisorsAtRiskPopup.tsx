@@ -20,6 +20,8 @@ interface AdvisorAtRisk {
   projectedCompliance: number;
   byType: Record<string, number>;
   metaByType?: Record<string, number>;
+  tipoAsesor?: string;
+  regional?: string;
 }
 
 interface AdvisorsAtRiskPopupProps {
@@ -27,6 +29,7 @@ interface AdvisorsAtRiskPopupProps {
   onOpenChange: (open: boolean) => void;
   advisorsAtRisk: AdvisorAtRisk[];
   title?: string;
+  showRegional?: boolean;
 }
 
 const formatCurrency = (value: number) => {
@@ -55,11 +58,24 @@ const tiposVentaColors: Record<string, string> = {
   CONVENIO: 'bg-secondary/20 text-secondary',
 };
 
+const tipoAsesorLabels: Record<string, string> = {
+  'INTERNO': 'Interno',
+  'EXTERNO': 'Externo',
+  'CORRETAJE': 'Corretaje',
+};
+
+const tipoAsesorColors: Record<string, string> = {
+  'INTERNO': 'bg-primary/20 text-primary border-primary/30',
+  'EXTERNO': 'bg-success/20 text-success border-success/30',
+  'CORRETAJE': 'bg-warning/20 text-warning border-warning/30',
+};
+
 export function AdvisorsAtRiskPopup({
   open,
   onOpenChange,
   advisorsAtRisk,
   title = 'Asesores en Riesgo',
+  showRegional = false,
 }: AdvisorsAtRiskPopupProps) {
   const [selectedAdvisor, setSelectedAdvisor] = useState<string | null>(null);
 
@@ -88,6 +104,7 @@ export function AdvisorsAtRiskPopup({
               
               {advisorsAtRisk.map((advisor) => {
                 const isExpanded = selectedAdvisor === advisor.codigo;
+                const tipoAsesor = (advisor.tipoAsesor || 'EXTERNO').toUpperCase();
                 
                 return (
                   <TooltipProvider key={advisor.codigo} delayDuration={300}>
@@ -102,8 +119,24 @@ export function AdvisorsAtRiskPopup({
                       {/* Header Row */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-sm sm:text-base truncate">{advisor.nombre}</span>
+                            {/* Tipo Asesor Badge */}
+                            <Badge 
+                              variant="outline" 
+                              className={`text-[10px] px-1.5 py-0 h-5 ${tipoAsesorColors[tipoAsesor] || 'bg-muted'}`}
+                            >
+                              {tipoAsesorLabels[tipoAsesor] || tipoAsesor}
+                            </Badge>
+                            {/* Regional Badge - Only for coordinador/admin */}
+                            {showRegional && advisor.regional && (
+                              <Badge 
+                                variant="outline" 
+                                className="text-[10px] px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground border-muted"
+                              >
+                                {advisor.regional}
+                              </Badge>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 cursor-help" />

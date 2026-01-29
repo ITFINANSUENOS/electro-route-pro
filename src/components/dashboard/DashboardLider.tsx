@@ -480,10 +480,19 @@ export default function DashboardLider() {
 
     // Pre-build a map of normalized code -> tipo_asesor for fast lookup
     const tipoAsesorMap = new Map<string, string>();
+    // Pre-build a map of normalized code -> regional name for fast lookup
+    const regionalMap = new Map<string, string>();
     (profiles || []).forEach(p => {
       if (p.codigo_asesor) {
         const normalized = normalizeCode(p.codigo_asesor);
         tipoAsesorMap.set(normalized, (p.tipo_asesor || 'EXTERNO').toUpperCase());
+        // Map regional_id to regional name
+        if (p.regional_id) {
+          const regional = regionales.find(r => r.id === p.regional_id);
+          if (regional) {
+            regionalMap.set(normalized, regional.nombre);
+          }
+        }
       }
     });
 
@@ -533,12 +542,16 @@ export default function DashboardLider() {
           tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(advisorCode) || 'EXTERNO';
         }
         
+        // Get regional name from map
+        const regional = regionalMap.get(normalizedCode) || regionalMap.get(advisorCode) || undefined;
+        
         // CRITICAL: Use uniqueKey as codigo for GERENCIA entries to prevent duplicate React keys
         // For regular advisors, use the normalized code for consistency
         acc[uniqueKey] = { 
           codigo: isGerencia ? uniqueKey : normalizedCode, 
           nombre: sale.asesor_nombre || advisorCode,
           tipoAsesor: tipoAsesor,
+          regional: regional,
           total: 0, 
           byType: {} as Record<string, number>,
           isGerencia: isGerencia
@@ -548,7 +561,7 @@ export default function DashboardLider() {
       const tipo = sale.tipo_venta || 'OTRO';
       acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
-    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
+    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; regional?: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
 
     // Sort by net sales value (not absolute) - use net values for accurate ranking
     // Also build metaByType for each advisor
@@ -1108,6 +1121,7 @@ export default function DashboardLider() {
         onOpenChange={setAtRiskPopupOpen}
         advisorsAtRisk={advisorsAtRisk}
         title="Asesores en Riesgo"
+        showRegional={isGlobalRole}
       />
 
       {/* KPI Cards - Row 2: Cumplimiento y actividad */}
@@ -1322,6 +1336,7 @@ export default function DashboardLider() {
         tipoAsesor={selectedTypePopup || ''}
         tipoAsesorLabel={tipoAsesorLabels[selectedTypePopup || ''] || selectedTypePopup || ''}
         tipoAsesorColor={tipoAsesorColors[selectedTypePopup || ''] || 'hsl(var(--primary))'}
+        showRegional={isGlobalRole}
       />
 
       <motion.div variants={item} className="grid gap-4 sm:gap-6 lg:grid-cols-3">
