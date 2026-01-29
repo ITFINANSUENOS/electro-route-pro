@@ -86,10 +86,21 @@ export const rolePermissions: Record<UserRole, string[]> = {
 
 // Orden de menú por rol (consolidado sin reportes separado)
 export const menuOrderByRole: Record<UserRole, string[]> = {
-  lider_zona: ['dashboard', 'programacion', 'informacion', 'mapa'],
-  coordinador_comercial: ['dashboard', 'programacion', 'informacion', 'mapa'],
-  jefe_ventas: ['dashboard', 'programacion'],
   asesor_comercial: ['dashboard', 'programacion', 'actividades'],
+  jefe_ventas: ['dashboard', 'programacion', 'actividades'],
+  lider_zona: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios'],
+  coordinador_comercial: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios'],
   administrativo: ['dashboard', 'cargar-ventas'],
-  administrador: ['dashboard', 'programacion', 'informacion', 'mapa', 'usuarios', 'configuracion'],
+  administrador: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios', 'configuracion'],
+};
+
+// Helper function to get zona based on regional name
+export const getZonaByRegional = (regionalNombre: string): 'norte' | 'sur' | null => {
+  const nombre = regionalNombre?.toUpperCase() || '';
+  const zonaNorte = ['POPAYAN', 'CALI', 'VALLE', 'SANTANDER', 'AMBIENTA', 'PUERTO TEJADA'];
+  const zonaSur = ['BORDO', 'PASTO', 'TUQUERRES', 'HUILA'];
+  
+  if (zonaNorte.some(r => nombre.includes(r))) return 'norte';
+  if (zonaSur.some(r => nombre.includes(r))) return 'sur';
+  return null;
 };
