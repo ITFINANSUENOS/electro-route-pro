@@ -6,25 +6,21 @@ import { Users, TrendingUp, ChevronDown, ChevronUp, Download } from 'lucide-reac
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 
-interface AdvisorByType {
+interface AdvisorData {
   codigo: string;
   nombre: string;
   total: number;
   meta: number;
-  compliance: number;
-  projectedCompliance: number;
   byType: Record<string, number>;
   metaByType?: Record<string, number>;
+  tipoAsesor?: string;
   regional?: string;
 }
 
-interface AdvisorsByTypePopupProps {
+interface AllAdvisorsPopupProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  advisors: AdvisorByType[];
-  tipoAsesor: string;
-  tipoAsesorLabel: string;
-  tipoAsesorColor: string;
+  advisors: AdvisorData[];
   showRegional?: boolean;
   onDownload?: () => void;
 }
@@ -52,32 +48,47 @@ const tiposVentaColors: Record<string, string> = {
   CONVENIO: 'bg-secondary/20 text-secondary',
 };
 
-export function AdvisorsByTypePopup({
+const tipoAsesorLabels: Record<string, string> = {
+  'INTERNO': 'Interno',
+  'EXTERNO': 'Externo',
+  'CORRETAJE': 'Corretaje',
+};
+
+const tipoAsesorColors: Record<string, string> = {
+  'INTERNO': 'bg-primary/20 text-primary border-primary/30',
+  'EXTERNO': 'bg-success/20 text-success border-success/30',
+  'CORRETAJE': 'bg-warning/20 text-warning border-warning/30',
+};
+
+export function AllAdvisorsPopup({
   open,
   onOpenChange,
   advisors,
-  tipoAsesor,
-  tipoAsesorLabel,
-  tipoAsesorColor,
   showRegional = false,
   onDownload,
-}: AdvisorsByTypePopupProps) {
+}: AllAdvisorsPopupProps) {
   const [expandedAdvisor, setExpandedAdvisor] = useState<string | null>(null);
 
-  // Sort advisors by total sales descending
+  // Filter out GERENCIA entries and sort by total sales descending
   const sortedAdvisors = useMemo(() => {
-    return [...advisors].sort((a, b) => b.total - a.total);
+    return [...advisors]
+      .filter(a => {
+        const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+          a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+        return !isGerencia;
+      })
+      .sort((a, b) => b.total - a.total);
   }, [advisors]);
 
   // Calculate totals for the header
   const totalSales = useMemo(() => 
-    advisors.reduce((sum, a) => sum + a.total, 0), 
-    [advisors]
+    sortedAdvisors.reduce((sum, a) => sum + a.total, 0), 
+    [sortedAdvisors]
   );
   
   const totalMeta = useMemo(() => 
-    advisors.reduce((sum, a) => sum + a.meta, 0), 
-    [advisors]
+    sortedAdvisors.reduce((sum, a) => sum + a.meta, 0), 
+    [sortedAdvisors]
   );
 
   const overallCompliance = totalMeta > 0 ? (totalSales / totalMeta) * 100 : 0;
@@ -93,10 +104,10 @@ export function AdvisorsByTypePopup({
         <DialogHeader className="pr-8">
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" style={{ color: tipoAsesorColor }} />
-              Asesores {tipoAsesorLabel}
+              <Users className="h-5 w-5 text-primary" />
+              Todos los Asesores
             </DialogTitle>
-            {onDownload && advisors.length > 0 && (
+            {onDownload && sortedAdvisors.length > 0 && (
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -109,7 +120,7 @@ export function AdvisorsByTypePopup({
             )}
           </div>
           <DialogDescription>
-            {advisors.length} asesores • {formatCurrency(totalSales)} vendido • {overallCompliance.toFixed(1)}% de cumplimiento
+            {sortedAdvisors.length} asesores • {formatCurrency(totalSales)} vendido • {overallCompliance.toFixed(1)}% de cumplimiento
           </DialogDescription>
         </DialogHeader>
         
@@ -118,14 +129,17 @@ export function AdvisorsByTypePopup({
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-4 text-muted" />
               <p className="text-lg font-medium">Sin asesores</p>
-              <p>No hay asesores de tipo {tipoAsesorLabel}</p>
+              <p>No hay asesores activos</p>
             </div>
           ) : (
             <div className="space-y-3">
               {sortedAdvisors.map((advisor) => {
                 const isExpanded = expandedAdvisor === advisor.codigo;
+                const compliance = advisor.meta > 0 ? (advisor.total / advisor.meta) * 100 : 0;
                 const projected = advisor.total * projectionFactor;
+                const projectedCompliance = advisor.meta > 0 ? (projected / advisor.meta) * 100 : 0;
                 const willMeetGoal = advisor.meta > 0 && projected >= advisor.meta;
+                const tipoAsesor = (advisor.tipoAsesor || 'EXTERNO').toUpperCase();
                 
                 // Sort sale types by value descending
                 const sortedSaleTypes = Object.entries(advisor.byType)
@@ -144,6 +158,13 @@ export function AdvisorsByTypePopup({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm sm:text-base truncate">{advisor.nombre}</span>
+                          {/* Tipo Asesor Badge */}
+                          <Badge 
+                            variant="outline" 
+                            className={`text-[10px] px-1.5 py-0 h-5 ${tipoAsesorColors[tipoAsesor] || 'bg-muted'}`}
+                          >
+                            {tipoAsesorLabels[tipoAsesor] || tipoAsesor}
+                          </Badge>
                           {/* Regional Badge - Only for coordinador/admin */}
                           {showRegional && advisor.regional && (
                             <Badge 
@@ -169,16 +190,16 @@ export function AdvisorsByTypePopup({
                       <div className="flex flex-col items-end gap-1">
                         <StatusBadge 
                           status={
-                            advisor.compliance >= 100 ? 'success' :
+                            compliance >= 100 ? 'success' :
                             willMeetGoal ? 'warning' : 
-                            advisor.compliance >= 50 ? 'warning' : 'danger'
+                            compliance >= 50 ? 'warning' : 'danger'
                           } 
-                          label={`${advisor.compliance.toFixed(1)}%`} 
+                          label={`${compliance.toFixed(1)}%`} 
                           size="sm" 
                         />
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                           <TrendingUp className="h-3 w-3" />
-                          Proyección: {advisor.projectedCompliance.toFixed(1)}%
+                          Proyección: {projectedCompliance.toFixed(1)}%
                         </span>
                       </div>
                     </div>
@@ -188,11 +209,11 @@ export function AdvisorsByTypePopup({
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all ${
-                            advisor.compliance >= 100 ? 'bg-success' :
+                            compliance >= 100 ? 'bg-success' :
                             willMeetGoal ? 'bg-warning' :
-                            advisor.compliance >= 50 ? 'bg-warning' : 'bg-danger'
+                            compliance >= 50 ? 'bg-warning' : 'bg-danger'
                           }`}
-                          style={{ width: `${Math.min(advisor.compliance, 100)}%` }}
+                          style={{ width: `${Math.min(compliance, 100)}%` }}
                         />
                       </div>
                     </div>

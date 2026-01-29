@@ -34,6 +34,7 @@ import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import { AdvisorsByTypePopup } from './AdvisorsByTypePopup';
+import { AllAdvisorsPopup } from './AllAdvisorsPopup';
 import {
   BarChart,
   Bar,
@@ -104,6 +105,7 @@ export default function DashboardLider() {
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [solicitudesPopupOpen, setSolicitudesPopupOpen] = useState(false);
   const [atRiskPopupOpen, setAtRiskPopupOpen] = useState(false);
+  const [allAdvisorsPopupOpen, setAllAdvisorsPopupOpen] = useState(false);
   const [selectedTypePopup, setSelectedTypePopup] = useState<string | null>(null);
   
   // Activity compliance tracking
@@ -1179,6 +1181,7 @@ export default function DashboardLider() {
           value={metrics.totalActiveAdvisors.toString()}
           subtitle={`${metrics.advisorsWithSales} con ventas`}
           icon={Users}
+          onClick={() => setAllAdvisorsPopupOpen(true)}
           onDownload={handleExportAllAdvisors}
         />
         <KpiCard
@@ -1191,6 +1194,15 @@ export default function DashboardLider() {
           onDownload={handleExportAtRisk}
         />
       </motion.div>
+
+      {/* All Advisors Popup */}
+      <AllAdvisorsPopup
+        open={allAdvisorsPopupOpen}
+        onOpenChange={setAllAdvisorsPopupOpen}
+        advisors={metrics.byAdvisor}
+        showRegional={isGlobalRole}
+        onDownload={handleExportAllAdvisors}
+      />
 
       {/* Advisors at Risk Popup */}
       <AdvisorsAtRiskPopup
