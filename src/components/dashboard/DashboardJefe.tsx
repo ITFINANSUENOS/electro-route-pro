@@ -23,6 +23,8 @@ import { InteractiveSalesChart } from './InteractiveSalesChart';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
+import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
+import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import {
@@ -33,6 +35,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
+  Tooltip as RechartsTooltip,
 } from 'recharts';
 
 const container = {
@@ -384,6 +388,76 @@ export default function DashboardJefe() {
     ? Math.round((metrics.total / metrics.totalMeta) * 100) 
     : 0;
 
+  // Fetch meta quantity config for calculating quantity goals
+  const { data: metaQuantityConfig } = useMetaQuantityConfig();
+
+  // Calculate total quantity meta for the team
+  const { totalQuantityMeta, quantityCompliance } = useMemo(() => {
+    if (!metasData || !metaQuantityConfig || !teamProfiles || !regionalId) {
+      return { totalQuantityMeta: 0, quantityCompliance: 0 };
+    }
+
+    let total = 0;
+    const teamCodes = new Set(teamAdvisorCodes);
+
+    metasData
+      .filter(m => teamCodes.has(m.codigo_asesor))
+      .forEach(meta => {
+        if (!meta.tipo_meta || meta.valor_meta <= 0) return;
+        
+        // Find the tipo_asesor for this advisor
+        const profile = teamProfiles.find(p => p.codigo_asesor === meta.codigo_asesor);
+        const tipoAsesor = profile?.tipo_asesor || 'EXTERNO';
+        
+        const result = calculateMetaQuantity(
+          meta.valor_meta,
+          tipoAsesor,
+          meta.tipo_meta.toUpperCase(),
+          regionalId,
+          metaQuantityConfig
+        );
+
+        if (result) {
+          total += result.cantidadFinal;
+        }
+      });
+
+    const quantityComp = total > 0
+      ? Math.round((salesCountData.totalSalesCount / total) * 100)
+      : 0;
+
+    return { totalQuantityMeta: total, quantityCompliance: quantityComp };
+  }, [metasData, metaQuantityConfig, teamProfiles, teamAdvisorCodes, regionalId, salesCountData.totalSalesCount]);
+
+  // Calculate budget vs executed for bar chart
+  const budgetVsExecuted = useMemo(() => {
+    if (!metasData || !salesData) return [];
+    
+    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    const teamCodes = new Set(teamAdvisorCodes);
+    
+    return tiposVenta.map(tipo => {
+      // Calculate budget from team's metas
+      const presupuesto = metasData
+        .filter(m => m.tipo_meta === tipo.toLowerCase())
+        .filter(m => teamCodes.has(m.codigo_asesor))
+        .reduce((sum, m) => sum + m.valor_meta, 0);
+      
+      // Calculate executed from sales
+      const ejecutado = Math.abs(
+        salesData
+          .filter(s => s.tipo_venta === tipo)
+          .reduce((sum, s) => sum + (s.vtas_ant_i || 0), 0)
+      );
+
+      return {
+        name: tiposVentaLabels[tipo],
+        presupuesto: presupuesto / 1000000,
+        ejecutado: ejecutado / 1000000,
+      };
+    });
+  }, [metasData, salesData, teamAdvisorCodes]);
+
   // Toggle filter for ranking
   const toggleFilter = (tipo: TipoVentaKey) => {
     setSelectedFilters(prev =>
@@ -496,21 +570,29 @@ export default function DashboardJefe() {
         <KpiCard
           title="Ventas del Equipo"
           value={formatCurrency(metrics.total)}
-          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)}`}
+          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)} • ${compliance}%`}
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Desglose por tipo de venta"
-          tooltipItems={metrics.byType.map(t => ({
-            label: t.name,
-            value: formatCurrency(t.value),
-            color: t.color,
-          }))}
+          tooltipItems={metrics.byType.map(t => {
+            const tipoMeta = metasData
+              ?.filter(m => m.tipo_meta === t.key.toLowerCase())
+              .filter(m => teamAdvisorCodes.includes(m.codigo_asesor))
+              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
+            return {
+              label: t.name,
+              value: `${formatCurrency(t.value)} (${tipoCompliance}%)`,
+              color: t.color,
+            };
+          })}
         />
         <KpiCard
           title="Q Ventas Mes"
           value={salesCountData.totalSalesCount.toString()}
-          subtitle="Ventas únicas"
+          subtitle={`Meta: ${totalQuantityMeta} uds • ${quantityCompliance}%`}
           icon={Hash}
+          status={quantityCompliance >= 80 ? 'success' : quantityCompliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Cantidad por tipo de venta"
           tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => ({
             label: tiposVentaLabels[key] || key,
@@ -528,6 +610,7 @@ export default function DashboardJefe() {
           tooltipItems={metrics.byType.map(t => {
             const tipoMeta = metasData
               ?.filter(m => m.tipo_meta === t.key.toLowerCase())
+              .filter(m => teamAdvisorCodes.includes(m.codigo_asesor))
               .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
             const tipoCompliance = tipoMeta > 0 ? Math.round((t.value / tipoMeta) * 100) : 0;
             return {
@@ -577,31 +660,42 @@ export default function DashboardJefe() {
           salesCountByType={salesCountData.byType}
         />
 
-        {/* Team Performance */}
+        {/* Budget vs Executed */}
         <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-secondary" />
-              Rendimiento del Equipo
+          <CardHeader className="pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
+              Presupuesto vs Ejecutado
             </CardTitle>
-            <CardDescription>Ventas por asesor (en millones)</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Comparativo (en millones)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[280px]">
+            <div className="h-[220px] sm:h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={teamPerformance} layout="vertical">
+                <BarChart data={budgetVsExecuted} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-xs" tickFormatter={(v) => `$${v}M`} />
-                  <YAxis dataKey="name" type="category" width={70} className="text-xs" />
-                  <Tooltip
+                  <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} />
+                  <YAxis dataKey="name" type="category" width={70} className="text-[10px] sm:text-xs" />
+                  <RechartsTooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: 'var(--radius)',
+                      fontSize: '12px',
                     }}
-                    formatter={(value: number) => [`$${value.toFixed(1)}M`, 'Ventas']}
+                    formatter={(value: number, name: string, props: { payload?: { presupuesto?: number; ejecutado?: number } }) => {
+                      if (name === 'Ejecutado' && props.payload?.presupuesto) {
+                        const complianceVal = props.payload.presupuesto > 0 
+                          ? Math.round((value / props.payload.presupuesto) * 100) 
+                          : 0;
+                        return [`$${value.toFixed(1)}M (${complianceVal}%)`, name];
+                      }
+                      return [`$${value.toFixed(1)}M`, name];
+                    }}
                   />
-                  <Bar dataKey="ventas" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Bar dataKey="presupuesto" name="Presupuesto" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="ejecutado" name="Ejecutado" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
