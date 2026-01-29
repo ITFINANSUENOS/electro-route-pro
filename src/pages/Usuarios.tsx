@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X, KeyRound } from "lucide-react";
+import { Plus, RefreshCw, Eye, EyeOff, Loader2, Download, Pencil, Search, X } from "lucide-react";
 import { roleLabels, UserRole, getZonaByRegional } from "@/types/auth";
 import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
