@@ -6,11 +6,13 @@ import {
   ShoppingCart,
   Target,
   AlertCircle,
+  AlertTriangle,
   Hash,
   MessageSquare,
   FileText,
 } from 'lucide-react';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
+import { exportAdvisorsToExcel, AdvisorExportData } from '@/utils/exportAdvisorsExcel';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +29,7 @@ import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
 import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
+import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import {
   BarChart,
   Bar,
@@ -74,6 +77,7 @@ export default function DashboardJefe() {
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [consultasPopupMode, setConsultasPopupMode] = useState<'consultas' | 'solicitudes'>('consultas');
+  const [atRiskPopupOpen, setAtRiskPopupOpen] = useState(false);
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -523,7 +527,95 @@ export default function DashboardJefe() {
     });
   };
 
-  // Calculate incompliance from useActivityCompliance
+  // Calculate advisors at risk (not projecting to meet their goal)
+  const advisorsAtRisk = useMemo(() => {
+    const dayOfMonth = new Date().getDate();
+    const daysInMonth = 31;
+    const projectionFactor = daysInMonth / Math.max(dayOfMonth, 1);
+
+    return metrics.byAdvisor
+      .filter(a => {
+        // Exclude GERENCIA entries
+        const isGerencia = a.codigo === '01' || a.codigo === '00001' || 
+          a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
+        return !isGerencia && a.meta > 0;
+      })
+      .map(a => ({
+        ...a,
+        projected: a.total * projectionFactor,
+        compliance: (a.total / a.meta) * 100,
+        projectedCompliance: ((a.total * projectionFactor) / a.meta) * 100,
+      }))
+      .filter(a => a.projectedCompliance < 100)
+      .sort((a, b) => a.compliance - b.compliance);
+  }, [metrics.byAdvisor]);
+
+  // Handle export for at-risk advisors
+  const handleExportAtRisk = async () => {
+    // Build metaByType from the metasData for each advisor
+    const metasByAdvisor = new Map<string, Record<string, number>>();
+    metasData?.forEach(m => {
+      if (!metasByAdvisor.has(m.codigo_asesor)) {
+        metasByAdvisor.set(m.codigo_asesor, {});
+      }
+      const tipoKey = (m.tipo_meta || '').toUpperCase();
+      metasByAdvisor.get(m.codigo_asesor)![tipoKey] = m.valor_meta;
+    });
+
+    const dataForExport: AdvisorExportData[] = advisorsAtRisk.map(a => ({
+      cedula: a.cedula || '',
+      codigoAsesor: a.codigo,
+      nombre: a.nombre,
+      tipoAsesor: a.tipoAsesor || 'EXTERNO',
+      byType: a.byType,
+      metaByType: metasByAdvisor.get(a.codigo) || {},
+    }));
+
+    await exportAdvisorsToExcel({
+      data: dataForExport,
+      fileName: 'asesores_en_riesgo_equipo',
+      title: 'Asesores en Riesgo - Mi Equipo',
+      includeRegional: false,
+    });
+  };
+
+  // Filter compliance summaries to only show team members
+  const teamAdvisorSummaries = useMemo(() => {
+    if (!teamProfiles || !advisorSummaries) return [];
+    
+    const teamUserIds = new Set<string>(
+      teamProfiles.map(p => (p as any).user_id).filter(Boolean)
+    );
+    
+    return advisorSummaries.filter(summary => teamUserIds.has(summary.user_id));
+  }, [advisorSummaries, teamProfiles]);
+
+  // Calculate team-specific compliance stats
+  const teamComplianceStats = useMemo(() => {
+    let totalActivities = 0;
+    let missingEvidence = 0;
+    
+    teamAdvisorSummaries.forEach(summary => {
+      totalActivities += summary.total_activities;
+      missingEvidence += summary.issues.filter(i => 
+        i.issue_type === 'missing_photo' || 
+        i.issue_type === 'missing_evidence' ||
+        i.issue_type === 'missing_gps'
+      ).length;
+    });
+    
+    const complianceRate = totalActivities > 0 
+      ? Math.round(((totalActivities - missingEvidence) / totalActivities) * 100)
+      : 100;
+    
+    return {
+      missing_evidence: missingEvidence,
+      compliance_rate: complianceRate,
+      totalActivities,
+    };
+  }, [teamAdvisorSummaries]);
+
+  // Calculate incompliance from useActivityCompliance (filtered by team)
   const incompliance = useMemo(() => {
     const counts = {
       sinFoto: 0,
@@ -531,7 +623,7 @@ export default function DashboardJefe() {
       sinConsultas: 0,
     };
     
-    advisorSummaries.forEach(summary => {
+    teamAdvisorSummaries.forEach(summary => {
       summary.issues.forEach(issue => {
         if (issue.issue_type === 'missing_photo' || issue.issue_type === 'missing_evidence') {
           counts.sinFoto++;
@@ -546,7 +638,7 @@ export default function DashboardJefe() {
     });
     
     return counts;
-  }, [advisorSummaries]);
+  }, [teamAdvisorSummaries]);
 
   return (
     <motion.div
@@ -565,12 +657,12 @@ export default function DashboardJefe() {
         </p>
       </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-5">
+      {/* KPI Cards - Row 1: Ventas */}
+      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Ventas del Equipo"
           value={formatCurrency(metrics.total)}
-          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)} • ${compliance}%`}
+          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)}`}
           icon={ShoppingCart}
           status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Desglose por tipo de venta"
@@ -590,7 +682,7 @@ export default function DashboardJefe() {
         <KpiCard
           title="Q Ventas Mes"
           value={salesCountData.totalSalesCount.toString()}
-          subtitle={`Meta: ${totalQuantityMeta} uds • ${quantityCompliance}%`}
+          subtitle={`Meta: ${totalQuantityMeta} uds`}
           icon={Hash}
           status={quantityCompliance >= 80 ? 'success' : quantityCompliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Cantidad por tipo de venta"
@@ -600,6 +692,25 @@ export default function DashboardJefe() {
             color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
           }))}
         />
+        <KpiCard
+          title="Asesores"
+          value={metrics.byAdvisor.length.toString()}
+          subtitle="Con ventas este mes"
+          icon={Users}
+        />
+        <KpiCard
+          title="En Riesgo"
+          value={advisorsAtRisk.length.toString()}
+          subtitle="No proyectan cumplir"
+          icon={AlertTriangle}
+          status={advisorsAtRisk.length > 3 ? 'danger' : advisorsAtRisk.length > 0 ? 'warning' : 'success'}
+          onClick={() => setAtRiskPopupOpen(true)}
+          onDownload={handleExportAtRisk}
+        />
+      </motion.div>
+
+      {/* KPI Cards - Row 2: Cumplimiento y actividad */}
+      <motion.div variants={item} className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Cumplimiento"
           value={`${compliance}%`}
@@ -621,34 +732,44 @@ export default function DashboardJefe() {
           })}
         />
         <KpiCard
-          title="Asesores"
-          value={metrics.byAdvisor.length.toString()}
-          subtitle="Con ventas este mes"
-          icon={Users}
-        />
-        <KpiCard
           title="Consultas"
           value={totalConsultas.toString()}
-          subtitle="Este mes"
+          subtitle={`${consultasByAdvisor.filter(a => a.consultas > 0).length} asesores`}
           icon={MessageSquare}
           onClick={() => {
             setConsultasPopupMode('consultas');
             setConsultasPopupOpen(true);
           }}
-          className="cursor-pointer hover:bg-muted/30 transition-colors"
         />
         <KpiCard
           title="Solicitudes"
           value={totalSolicitudes.toString()}
-          subtitle="Este mes"
+          subtitle={`${consultasByAdvisor.filter(a => a.solicitudes > 0).length} asesores`}
           icon={FileText}
           onClick={() => {
             setConsultasPopupMode('solicitudes');
             setConsultasPopupOpen(true);
           }}
-          className="cursor-pointer hover:bg-muted/30 transition-colors"
+        />
+        <KpiCard
+          title="Incumplimientos"
+          value={teamComplianceStats.missing_evidence.toString()}
+          subtitle={`${teamComplianceStats.compliance_rate}% cumplimiento evidencias`}
+          icon={AlertCircle}
+          status={teamComplianceStats.missing_evidence > 5 ? 'danger' : teamComplianceStats.missing_evidence > 0 ? 'warning' : 'success'}
+          onClick={() => setCompliancePopupOpen(true)}
         />
       </motion.div>
+
+      {/* Advisors at Risk Popup */}
+      <AdvisorsAtRiskPopup
+        open={atRiskPopupOpen}
+        onOpenChange={setAtRiskPopupOpen}
+        advisorsAtRisk={advisorsAtRisk}
+        title="Asesores en Riesgo - Mi Equipo"
+        showRegional={false}
+        onDownload={handleExportAtRisk}
+      />
 
       {/* Charts Row */}
       <motion.div variants={item} className="grid gap-6 lg:grid-cols-2">
@@ -720,55 +841,11 @@ export default function DashboardJefe() {
         />
       </motion.div>
 
-      {/* Incompliance Section */}
-      <motion.div variants={item}>
-        <Card className="card-elevated cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setCompliancePopupOpen(true)}>
-          <CardHeader className="pb-2 sm:pb-4">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
-              Indicadores de Incumplimiento
-            </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Haz clic para ver detalle por asesor</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
-              <div className="p-3 sm:p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium">Sin evidencia</span>
-                  <StatusBadge status="danger" label={`${incompliance.sinFoto}`} size="sm" />
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                  No subieron foto
-                </p>
-              </div>
-              <div className="p-3 sm:p-4 rounded-lg bg-warning/10 border border-warning/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium">Sin GPS</span>
-                  <StatusBadge status="warning" label={`${incompliance.sinGPS}`} size="sm" />
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                  No validaron ubicación
-                </p>
-              </div>
-              <div className="p-3 sm:p-4 rounded-lg bg-accent border border-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-medium">Sin consultas</span>
-                  <StatusBadge status="neutral" label={`${incompliance.sinConsultas}`} size="sm" />
-                </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                  Sin gestión registrada
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
       {/* Compliance Detail Popup */}
       <ComplianceDetailPopup
         open={compliancePopupOpen}
         onOpenChange={setCompliancePopupOpen}
-        advisorSummaries={advisorSummaries}
+        advisorSummaries={teamAdvisorSummaries}
         month={new Date(2026, 0, 1)}
       />
 
