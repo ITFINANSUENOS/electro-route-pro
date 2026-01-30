@@ -408,20 +408,27 @@ export default function DashboardAsesor() {
               />
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="p-3 max-w-xs">
-            <p className="font-semibold mb-2">Cumplimiento por Tipo</p>
-            <div className="space-y-1 text-sm">
-              {complianceByType.map(t => (
-                <div key={t.name} className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                    <span>{t.name}</span>
+          <TooltipContent side="bottom" className="p-3 max-w-sm">
+            <p className="font-semibold mb-2">Ventas por Tipo</p>
+            <div className="space-y-2 text-sm">
+              {complianceByType.map(t => {
+                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'Credi Contado' ? 'CREDICONTADO' : t.name === 'Crédito' ? 'CREDITO' : 'ALIADOS';
+                const qtyData = salesCount.byType[typeKey];
+                return (
+                  <div key={t.name} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                      <span>{t.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-right">
+                      <span className="text-muted-foreground">{formatCurrency(t.ventas)}</span>
+                      <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
+                        {t.compliance}%
+                      </span>
+                    </div>
                   </div>
-                  <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
-                    {t.compliance}%
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </TooltipContent>
         </Tooltip>
@@ -441,20 +448,27 @@ export default function DashboardAsesor() {
               />
             </div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="p-3 max-w-xs">
-            <p className="font-semibold mb-2">Cumplimiento por Tipo</p>
-            <div className="space-y-1 text-sm">
-              {complianceByType.map(t => (
-                <div key={t.name} className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
-                    <span>{t.name}</span>
+          <TooltipContent side="bottom" className="p-3 max-w-sm">
+            <p className="font-semibold mb-2">Cantidad por Tipo</p>
+            <div className="space-y-2 text-sm">
+              {complianceByType.map(t => {
+                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'Credi Contado' ? 'CREDICONTADO' : t.name === 'Crédito' ? 'CREDITO' : 'ALIADOS';
+                const qtyData = salesCount.byType[typeKey];
+                return (
+                  <div key={t.name} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                      <span>{t.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-right">
+                      <span className="text-muted-foreground">{qtyData?.count || 0} uds</span>
+                      <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
+                        {t.compliance}%
+                      </span>
+                    </div>
                   </div>
-                  <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
-                    {t.compliance}%
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </TooltipContent>
         </Tooltip>
