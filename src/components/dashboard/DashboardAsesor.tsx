@@ -389,8 +389,8 @@ export default function DashboardAsesor() {
         </p>
       </motion.div>
 
-      {/* KPI Cards */}
-      <motion.div variants={item} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {/* KPI Cards - 2 rows of 3 for better readability */}
+      <motion.div variants={item} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard
           title="Mis Ventas del Mes"
           value={formatCurrency(metrics.total)}
