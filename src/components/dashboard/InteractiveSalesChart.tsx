@@ -64,14 +64,14 @@ const tiposVentaColors: Record<string, string> = {
   CONTADO: 'hsl(var(--success))',
   CREDICONTADO: 'hsl(var(--warning))',
   CREDITO: 'hsl(var(--primary))',
-  CONVENIO: 'hsl(var(--secondary))',
+  ALIADOS: 'hsl(var(--secondary))',
 };
 
 const tipoVentaBadgeColors: Record<string, string> = {
   CONTADO: 'bg-success/10 text-success border-success/30',
   CREDICONTADO: 'bg-warning/10 text-warning border-warning/30',
   CREDITO: 'bg-primary/10 text-primary border-primary/30',
-  CONVENIO: 'bg-secondary/10 text-secondary border-secondary/30',
+  ALIADOS: 'bg-secondary/10 text-secondary border-secondary/30',
 };
 
 // Color configurations for each sale type with gradient variations
@@ -79,7 +79,7 @@ const tipoVentaColorConfig: Record<string, { hue: number; saturation: number; ba
   CONTADO: { hue: 142, saturation: 70, baseLightness: 35 },      // green
   CREDICONTADO: { hue: 38, saturation: 85, baseLightness: 40 },  // orange/yellow
   CREDITO: { hue: 262, saturation: 80, baseLightness: 45 },      // purple
-  CONVENIO: { hue: 199, saturation: 75, baseLightness: 40 },     // blue
+  ALIADOS: { hue: 199, saturation: 75, baseLightness: 40 },     // blue
 };
 
 // Custom active shape for highlighted slice

@@ -41,7 +41,7 @@ function parseCSVLine(line: string, delimiter: string): string[] {
 
 /**
  * Import metas from CSV content
- * Expected columns: SEDE, CEDULA_ASE, CODIGO_ASE, ASESOR, CONTADO, CREDITO, CREDICONTADO, CONVENIO, TOTAL
+ * Expected columns: SEDE, CEDULA_ASE, CODIGO_ASE, ASESOR, CONTADO, CREDITO, CREDICONTADO, ALIADOS, TOTAL
  */
 export async function importMetasCSV(
   csvContent: string,
@@ -64,7 +64,7 @@ export async function importMetasCSV(
   const contadoIdx = headers.findIndex(h => h === 'CONTADO');
   const creditoIdx = headers.findIndex(h => h === 'CREDITO' || h === 'CRÉDITO');
   const credicontadoIdx = headers.findIndex(h => h === 'CREDICONTADO');
-  const convenioIdx = headers.findIndex(h => h === 'CONVENIO');
+  const aliadosIdx = headers.findIndex(h => h === 'ALIADOS' || h === 'CONVENIO');
 
   if (codigoIdx === -1) {
     return { success: false, imported: 0, errors: ['No se encontró la columna CODIGO_ASE'] };
@@ -88,7 +88,7 @@ export async function importMetasCSV(
       { idx: contadoIdx, tipo: 'contado' },
       { idx: creditoIdx, tipo: 'credito' },
       { idx: credicontadoIdx, tipo: 'credicontado' },
-      { idx: convenioIdx, tipo: 'convenio' },
+      { idx: aliadosIdx, tipo: 'aliados' },
     ];
 
     for (const { idx, tipo } of tiposMeta) {

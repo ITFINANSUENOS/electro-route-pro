@@ -2,13 +2,13 @@ import ExcelJS from 'exceljs';
 import { supabase } from '@/integrations/supabase/client';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
-const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as const;
+const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 const tiposAsesorLabels: Record<string, string> = {
@@ -79,7 +79,7 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       ['INSTRUCCIONES PARA LLENAR LA PLANTILLA DE PROMEDIOS'],
       [''],
       ['1. No modifique las columnas REGIONAL_ID, CODIGO, REGIONAL, ZONA ni TIPO_ASESOR'],
-      ['2. Solo edite los valores en las columnas: Contado, Credi Contado, Crédito, Convenio'],
+      ['2. Solo edite los valores en las columnas: Contado, Credi Contado, Crédito, Aliados'],
       ['3. Los valores deben ser números enteros (sin decimales ni símbolos de moneda)'],
       ['4. Ejemplo: 2895000 (NO $2.895.000)'],
       ['5. Cada regional tiene 3 filas: una por cada tipo de asesor (Interno, Externo, Corretaje)'],
@@ -108,7 +108,7 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       { header: tiposVentaLabels.CONTADO, key: 'contado', width: 15 },
       { header: tiposVentaLabels.CREDICONTADO, key: 'credicontado', width: 15 },
       { header: tiposVentaLabels.CREDITO, key: 'credito', width: 15 },
-      { header: tiposVentaLabels.CONVENIO, key: 'convenio', width: 15 },
+      { header: tiposVentaLabels.ALIADOS, key: 'aliados', width: 15 },
     ];
 
     // Style header row
@@ -132,7 +132,7 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
           contado: promedioLookup[`${regional.id}-${tipoAsesor}-CONTADO`] || 0,
           credicontado: promedioLookup[`${regional.id}-${tipoAsesor}-CREDICONTADO`] || 0,
           credito: promedioLookup[`${regional.id}-${tipoAsesor}-CREDITO`] || 0,
-          convenio: promedioLookup[`${regional.id}-${tipoAsesor}-CONVENIO`] || 0,
+          aliados: promedioLookup[`${regional.id}-${tipoAsesor}-ALIADOS`] || 0,
         };
         dataSheet.addRow(row);
       });
@@ -142,7 +142,7 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
     dataSheet.getColumn('contado').numFmt = '#,##0';
     dataSheet.getColumn('credicontado').numFmt = '#,##0';
     dataSheet.getColumn('credito').numFmt = '#,##0';
-    dataSheet.getColumn('convenio').numFmt = '#,##0';
+    dataSheet.getColumn('aliados').numFmt = '#,##0';
 
     // Generate filename with date
     const now = new Date();

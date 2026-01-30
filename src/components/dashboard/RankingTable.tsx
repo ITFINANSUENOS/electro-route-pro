@@ -44,21 +44,21 @@ export interface RankingAdvisor {
   isGerencia?: boolean; // Flag to identify GERENCIA entries (not counted as advisors)
 }
 
-export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'CONVENIO';
+export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'ALIADOS';
 export type TipoAsesorFilter = 'TODOS' | 'INTERNO' | 'EXTERNO' | 'CORRETAJE';
 
 export const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 const tiposVentaShortLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'C. Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 const tipoAsesorConfig: Record<string, { label: string; letter: string; bgColor: string; textColor: string }> = {

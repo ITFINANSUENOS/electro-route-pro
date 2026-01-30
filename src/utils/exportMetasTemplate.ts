@@ -74,7 +74,7 @@ export async function exportMetasTemplate(
       { header: 'CONTADO', key: 'contado', width: 15 },
       { header: 'CREDICONTADO', key: 'credicontado', width: 15 },
       { header: 'CRÉDITO', key: 'credito', width: 15 },
-      { header: 'CONVENIO', key: 'convenio', width: 15 },
+      { header: 'ALIADOS', key: 'aliados', width: 15 },
       { header: 'TOTAL', key: 'total', width: 15 },
     ];
 
@@ -100,7 +100,7 @@ export async function exportMetasTemplate(
         contado: 0,
         credicontado: 0,
         credito: 0,
-        convenio: 0,
+        aliados: 0,
         total: { formula: `SUM(E${rowNumber}:H${rowNumber})` },
       });
     });
@@ -109,7 +109,7 @@ export async function exportMetasTemplate(
     worksheet.getColumn('contado').numFmt = '#,##0';
     worksheet.getColumn('credicontado').numFmt = '#,##0';
     worksheet.getColumn('credito').numFmt = '#,##0';
-    worksheet.getColumn('convenio').numFmt = '#,##0';
+    worksheet.getColumn('aliados').numFmt = '#,##0';
     worksheet.getColumn('total').numFmt = '#,##0';
 
     // Generate filename with date

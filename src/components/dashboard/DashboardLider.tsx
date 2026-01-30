@@ -72,7 +72,7 @@ const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
   CREDICONTADO: 'hsl(var(--warning))',
   CREDITO: 'hsl(var(--primary))',
-  CONVENIO: 'hsl(var(--secondary))',
+  ALIADOS: 'hsl(var(--secondary))',
 };
 
 // Regional codes mapping: 106 PUERTO TEJADA joins 103 SANTANDER
@@ -98,7 +98,7 @@ const tipoAsesorColors: Record<string, string> = {
 
 export default function DashboardLider() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
   const [selectedRegional, setSelectedRegional] = useState<string>('todos');
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
@@ -745,7 +745,7 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
 
-    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // Filter metas by advisors in scope

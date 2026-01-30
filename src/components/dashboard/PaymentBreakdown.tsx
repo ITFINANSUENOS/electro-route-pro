@@ -50,7 +50,7 @@ const tipoVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/10 text-success border-success/30',
   CREDICONTADO: 'bg-warning/10 text-warning border-warning/30',
   CREDITO: 'bg-primary/10 text-primary border-primary/30',
-  CONVENIO: 'bg-secondary/10 text-secondary border-secondary/30',
+  ALIADOS: 'bg-secondary/10 text-secondary border-secondary/30',
 };
 
 export function PaymentBreakdown({
@@ -113,7 +113,7 @@ export function PaymentBreakdown({
     return Object.values(groupedByPayment)
       .sort((a, b) => {
         // First sort by tipo_venta
-        const tipoOrder = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+        const tipoOrder = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
         const tipoA = tipoOrder.indexOf(a.tipo_venta);
         const tipoB = tipoOrder.indexOf(b.tipo_venta);
         if (tipoA !== tipoB) return tipoA - tipoB;
@@ -150,7 +150,7 @@ export function PaymentBreakdown({
   // Get the active filter types to display
   const displayTipos = selectedFilters.length > 0 
     ? selectedFilters 
-    : (['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as TipoVentaKey[]);
+    : (['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as TipoVentaKey[]);
 
   if (breakdown.length === 0) {
     return null;

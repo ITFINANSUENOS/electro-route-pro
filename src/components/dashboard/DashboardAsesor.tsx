@@ -63,14 +63,14 @@ const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
   CREDICONTADO: 'hsl(var(--warning))',
   CREDITO: 'hsl(var(--primary))',
-  CONVENIO: 'hsl(var(--secondary))',
+  ALIADOS: 'hsl(var(--secondary))',
 };
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 export default function DashboardAsesor() {
@@ -350,7 +350,7 @@ export default function DashboardAsesor() {
   const budgetVsExecuted = useMemo(() => {
     if (!metaData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // Get advisor's meta for this tipo_venta

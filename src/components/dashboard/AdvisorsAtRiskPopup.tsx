@@ -47,17 +47,17 @@ const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 // All sale types in order - ensure they're always displayed
-const ALL_SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as const;
+const ALL_SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
 
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/20 text-success',
   CREDICONTADO: 'bg-warning/20 text-warning',
   CREDITO: 'bg-primary/20 text-primary',
-  CONVENIO: 'bg-secondary/20 text-secondary',
+  ALIADOS: 'bg-secondary/20 text-secondary',
 };
 
 const tipoAsesorLabels: Record<string, string> = {

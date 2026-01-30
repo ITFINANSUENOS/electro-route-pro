@@ -203,7 +203,8 @@ function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<stri
   if (formaGeneral === 'CONTADO') return 'CONTADO';
   if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
   if (formaGeneral === 'CREDITO') return 'CREDITO';
-  if (formaGeneral === 'CONVENIO') return 'CONVENIO';
+  if (formaGeneral === 'CONVENIO') return 'ALIADOS'; // Legacy mapping
+  if (formaGeneral === 'ALIADOS') return 'ALIADOS';
   
   return null;
 }

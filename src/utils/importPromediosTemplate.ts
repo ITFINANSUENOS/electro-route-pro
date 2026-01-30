@@ -10,8 +10,10 @@ const TIPOS_VENTA_MAP: Record<string, string> = {
   'Crédito': 'CREDITO',
   'CRÉDITO': 'CREDITO',
   'CREDITO': 'CREDITO',
-  'Convenio': 'CONVENIO',
-  'CONVENIO': 'CONVENIO',
+  'Aliados': 'ALIADOS',
+  'ALIADOS': 'ALIADOS',
+  'Convenio': 'ALIADOS', // Map legacy Convenio to Aliados
+  'CONVENIO': 'ALIADOS',
 };
 
 const TIPOS_ASESOR_MAP: Record<string, string> = {
@@ -108,7 +110,7 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
           resolve({ 
             success: false, 
             imported: 0, 
-            errors: ['No se encontraron columnas de tipos de venta (Contado, Credi Contado, Crédito, Convenio)'] 
+            errors: ['No se encontraron columnas de tipos de venta (Contado, Credi Contado, Crédito, Aliados)'] 
           });
           return;
         }
