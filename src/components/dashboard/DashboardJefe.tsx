@@ -686,11 +686,18 @@ export default function DashboardJefe() {
           icon={Hash}
           status={quantityCompliance >= 80 ? 'success' : quantityCompliance >= 50 ? 'warning' : 'danger'}
           tooltipTitle="Cantidad por tipo de venta"
-          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => ({
-            label: tiposVentaLabels[key] || key,
-            value: `${data.count} ventas`,
-            color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
-          }))}
+          tooltipItems={Object.entries(salesCountData.byType).map(([key, data]) => {
+            const tipoMeta = metasData
+              ?.filter(m => m.tipo_meta === key.toLowerCase())
+              .filter(m => teamAdvisorCodes.includes(m.codigo_asesor))
+              .reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+            const tipoCompliance = tipoMeta > 0 ? Math.round((data.value / tipoMeta) * 100) : 0;
+            return {
+              label: tiposVentaLabels[key] || key,
+              value: `${data.count} ventas (${tipoCompliance}%)`,
+              color: tiposVentaColors[key as TipoVentaKey] || 'hsl(var(--muted))',
+            };
+          })}
         />
         <KpiCard
           title="Asesores"
