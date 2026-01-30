@@ -526,6 +526,10 @@ export function RankingTable({
                 <TableRow className="font-bold text-sm">
                   <TableCell className="text-center">-</TableCell>
                   <TableCell className="text-center">-</TableCell>
+                  {/* Regional column in footer - Only visible when maximized AND includeRegional */}
+                  {isMaximized && includeRegional && (
+                    <TableCell>-</TableCell>
+                  )}
                   <TableCell>TOTAL ({filteredRealAdvisorCount} asesores)</TableCell>
                   {/* Dynamic totals for selected sale types */}
                   {selectedFilters.map(tipo => (
