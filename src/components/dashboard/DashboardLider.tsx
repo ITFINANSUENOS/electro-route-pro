@@ -19,6 +19,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RegionalMultiSelect } from './RegionalMultiSelect';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -100,7 +101,7 @@ export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
   const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
-  const [selectedRegional, setSelectedRegional] = useState<string>('todos');
+  const [selectedRegionals, setSelectedRegionals] = useState<string[]>([]);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [solicitudesPopupOpen, setSolicitudesPopupOpen] = useState(false);
@@ -135,7 +136,58 @@ export default function DashboardLider() {
     enabled: isGlobalRole,
   });
 
-  // Fetch formas_pago for payment breakdown
+  // Helper: Get selected regional IDs from codes for filtering
+  const selectedRegionalIds = useMemo(() => {
+    if (selectedRegionals.length === 0) return new Set<string>(); // Empty = all regionales
+    const ids = new Set<string>();
+    selectedRegionals.forEach(code => {
+      const regional = regionales.find(r => r.codigo.toString() === code);
+      if (regional) {
+        ids.add(regional.id);
+        // Include mapped codes (e.g., 106 -> 103)
+        const mappedCodes = REGIONAL_CODE_MAPPING[parseInt(code)] || [];
+        mappedCodes.forEach(mc => {
+          const mapped = regionales.find(r => r.codigo === mc);
+          if (mapped) ids.add(mapped.id);
+        });
+      }
+    });
+    return ids;
+  }, [selectedRegionals, regionales]);
+
+  // Helper: Get all selected regional codes (including mapped) for sales filtering
+  const selectedRegionalCodes = useMemo(() => {
+    if (selectedRegionals.length === 0) return []; // Empty = all regionales
+    const codes: number[] = [];
+    selectedRegionals.forEach(code => {
+      const codeNum = parseInt(code);
+      codes.push(codeNum);
+      // Include mapped codes
+      const mappedCodes = REGIONAL_CODE_MAPPING[codeNum] || [];
+      mappedCodes.forEach(mc => {
+        if (!codes.includes(mc)) codes.push(mc);
+      });
+    });
+    return codes;
+  }, [selectedRegionals]);
+
+  // Helper function to check if a profile is in the selected regional scope
+  const isProfileInScope = (p: { regional_id?: string | null }) => {
+    // For lider_zona, always filter by their regional
+    if (role === 'lider_zona' && profile?.regional_id) {
+      return p.regional_id === profile.regional_id;
+    }
+    // For global roles with no selection = all
+    if (isGlobalRole && selectedRegionalIds.size === 0) {
+      return true;
+    }
+    // For global roles with selection
+    if (isGlobalRole && selectedRegionalIds.size > 0) {
+      return p.regional_id ? selectedRegionalIds.has(p.regional_id) : false;
+    }
+    return true;
+  };
+
   const { data: formasPago = [] } = useQuery({
     queryKey: ['formas-pago-dashboard'],
     queryFn: async () => {
@@ -279,28 +331,15 @@ export default function DashboardLider() {
     const regionalUserIds = new Set<string>();
     
     profiles.forEach(p => {
-      // For lider_zona, filter by their regional_id
-      if (role === 'lider_zona' && profile?.regional_id) {
-        if (p.regional_id === profile.regional_id && p.user_id) {
-          regionalUserIds.add(p.user_id);
-        }
-      } 
-      // For admin/coordinador with selectedRegional filter
-      else if (isGlobalRole && selectedRegional !== 'todos') {
-        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-        if (selectedReg && p.regional_id === selectedReg.id && p.user_id) {
-          regionalUserIds.add(p.user_id);
-        }
-      }
-      // For admin/coordinador without filter (see all)
-      else if (isGlobalRole && selectedRegional === 'todos' && p.user_id) {
+      if (!p.user_id) return;
+      if (isProfileInScope(p)) {
         regionalUserIds.add(p.user_id);
       }
     });
     
     // Filter reports by users in the regional scope
     return reportesDiarios.filter(r => regionalUserIds.has(r.user_id));
-  }, [reportesDiarios, profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
+  }, [reportesDiarios, profiles, role, profile?.regional_id, isGlobalRole, selectedRegionalIds, regionales]);
 
   // Consultas y solicitudes totales - using filtered data
   const totalConsultas = filteredReportesDiarios.reduce((sum, r) => sum + (r.consultas || 0), 0);
@@ -344,20 +383,10 @@ export default function DashboardLider() {
   const incumplimientos = useMemo(() => {
     if (!profiles) return [];
     
-    // Filter profiles by regional scope first
+    // Filter profiles by regional scope first using helper
     const regionalProfiles = profiles.filter(p => {
       if (!p.codigo_asesor) return false;
-      
-      // For lider_zona, filter by their regional_id
-      if (role === 'lider_zona' && profile?.regional_id) {
-        return p.regional_id === profile.regional_id;
-      }
-      // For admin/coordinador with selectedRegional filter
-      if (isGlobalRole && selectedRegional !== 'todos') {
-        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-        return selectedReg && p.regional_id === selectedReg.id;
-      }
-      return true;
+      return isProfileInScope(p);
     });
     
     const asesoresMap = new Map<string, {
@@ -398,7 +427,7 @@ export default function DashboardLider() {
     return Array.from(asesoresMap.values()).filter(
       (a) => a.sinFoto > 0 || a.sinGPS > 0 || a.sinConsultas > 0
     );
-  }, [profiles, filteredReportesDiarios, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
+  }, [profiles, filteredReportesDiarios, role, profile?.regional_id, isGlobalRole, selectedRegionalIds, regionales]);
 
   // Apply advanced filters to sales data
   const advancedFilteredSales = useMemo(() => {
@@ -407,12 +436,9 @@ export default function DashboardLider() {
     // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
     let filtered = salesData.filter(sale => sale.tipo_venta !== 'OTROS');
     
-    // Filter by regional if selected
-    if (selectedRegional !== 'todos') {
-      const regionalCode = parseInt(selectedRegional);
-      // Include mapped codes
-      const codesToInclude = REGIONAL_CODE_MAPPING[regionalCode] || [regionalCode];
-      filtered = filtered.filter(sale => codesToInclude.includes(sale.cod_region || 0));
+    // Filter by regional if any are selected (global roles only)
+    if (isGlobalRole && selectedRegionalCodes.length > 0) {
+      filtered = filtered.filter(sale => selectedRegionalCodes.includes(sale.cod_region || 0));
     }
     
     // Filter by tipo_asesor if selected
@@ -450,7 +476,7 @@ export default function DashboardLider() {
     }
     
     return filtered;
-  }, [salesData, profiles, selectedRegional, selectedTipoAsesor]);
+  }, [salesData, profiles, selectedRegionalCodes, selectedTipoAsesor, isGlobalRole]);
 
   // Calculate metrics including sales by advisor type
   // Wait for both salesData AND profiles to be loaded for accurate calculations
@@ -603,16 +629,7 @@ export default function DashboardLider() {
         if (!p.activo || !p.codigo_asesor) return false;
         // Exclude GERENCIA code 00001
         if (p.codigo_asesor === '00001') return false;
-        // For lider_zona, filter by regional_id
-        if (role === 'lider_zona' && profile?.regional_id) {
-          return p.regional_id === profile.regional_id;
-        }
-        // For admin/coordinador with selectedRegional filter
-        if (isGlobalRole && selectedRegional !== 'todos') {
-          const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-          return selectedReg && p.regional_id === selectedReg.id;
-        }
-        return true;
+        return isProfileInScope(p);
       })
       .reduce((acc, p) => {
         const tipo = (p.tipo_asesor?.toUpperCase()) || 'EXTERNO';
@@ -648,16 +665,7 @@ export default function DashboardLider() {
       if (!p.activo || !p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       
-      // Check if profile is in scope
-      let inScope = true;
-      if (role === 'lider_zona' && profile?.regional_id) {
-        inScope = p.regional_id === profile.regional_id;
-      } else if (isGlobalRole && selectedRegional !== 'todos') {
-        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-        inScope = selectedReg ? p.regional_id === selectedReg.id : false;
-      }
-      
-      if (inScope) {
+      if (isProfileInScope(p)) {
         advisorCodesInScope.add(normalizeForMeta(p.codigo_asesor));
         advisorCodesInScope.add(p.codigo_asesor); // Also add original
       }
@@ -686,14 +694,7 @@ export default function DashboardLider() {
     const totalActiveAdvisors = (profiles || []).filter(p => {
       if (!p.activo || !p.codigo_asesor) return false;
       if (p.codigo_asesor === '00001') return false;
-      if (role === 'lider_zona' && profile?.regional_id) {
-        return p.regional_id === profile.regional_id;
-      }
-      if (isGlobalRole && selectedRegional !== 'todos') {
-        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-        return selectedReg && p.regional_id === selectedReg.id;
-      }
-      return true;
+      return isProfileInScope(p);
     }).length;
 
     return {
@@ -706,7 +707,7 @@ export default function DashboardLider() {
       advisorsWithSales: advisorsWithSales.size,
       totalActiveAdvisors,
     };
-  }, [advancedFilteredSales, metasData, profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
+  }, [advancedFilteredSales, metasData, profiles, role, profile?.regional_id, isGlobalRole, selectedRegionalIds, regionales]);
 
   // Build set of advisor codes in scope for filtering metas
   const advisorCodesInScopeForMetas = useMemo(() => {
@@ -720,21 +721,13 @@ export default function DashboardLider() {
       if (!p.activo || !p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       
-      let inScope = true;
-      if (role === 'lider_zona' && profile?.regional_id) {
-        inScope = p.regional_id === profile.regional_id;
-      } else if (isGlobalRole && selectedRegional !== 'todos') {
-        const selectedReg = regionales.find(r => r.codigo.toString() === selectedRegional);
-        inScope = selectedReg ? p.regional_id === selectedReg.id : false;
-      }
-      
-      if (inScope) {
+      if (isProfileInScope(p)) {
         codes.add(normalizeForMeta(p.codigo_asesor));
         codes.add(p.codigo_asesor);
       }
     });
     return codes;
-  }, [profiles, role, profile?.regional_id, isGlobalRole, selectedRegional, regionales]);
+  }, [profiles, role, profile?.regional_id, isGlobalRole, selectedRegionalIds, regionales]);
 
   // Calculate budget vs executed by type - FILTER by advisors in scope
   const budgetVsExecuted = useMemo(() => {
@@ -1088,20 +1081,11 @@ export default function DashboardLider() {
         {/* Advanced Filters - Only for global roles */}
         {isGlobalRole && (
           <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
-            <Select value={selectedRegional} onValueChange={setSelectedRegional}>
-              <SelectTrigger className="w-full xs:w-[180px] bg-card text-sm">
-                <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Regional" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border z-50">
-                <SelectItem value="todos">Todas las regionales</SelectItem>
-                {regionales.map((r) => (
-                  <SelectItem key={r.id} value={r.codigo.toString()}>
-                    {r.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <RegionalMultiSelect
+              regionales={regionales}
+              selectedCodes={selectedRegionals}
+              onChange={setSelectedRegionals}
+            />
             
             <Select value={selectedTipoAsesor} onValueChange={setSelectedTipoAsesor}>
               <SelectTrigger className="w-full xs:w-[160px] bg-card text-sm">
