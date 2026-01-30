@@ -65,12 +65,12 @@ const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
   CREDICONTADO: 'hsl(var(--warning))',
   CREDITO: 'hsl(var(--primary))',
-  CONVENIO: 'hsl(var(--secondary))',
+  ALIADOS: 'hsl(var(--secondary))',
 };
 
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [consultasPopupMode, setConsultasPopupMode] = useState<'consultas' | 'solicitudes'>('consultas');
@@ -433,7 +433,7 @@ export default function DashboardJefe() {
   const budgetVsExecuted = useMemo(() => {
     if (!metasData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'];
+    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
     const teamCodes = new Set(teamAdvisorCodes);
     
     return tiposVenta.map(tipo => {

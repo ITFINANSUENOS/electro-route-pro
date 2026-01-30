@@ -42,14 +42,14 @@ const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/20 text-success',
   CREDICONTADO: 'bg-warning/20 text-warning',
   CREDITO: 'bg-primary/20 text-primary',
-  CONVENIO: 'bg-secondary/20 text-secondary',
+  ALIADOS: 'bg-secondary/20 text-secondary',
 };
 
 export function AdvisorsByTypePopup({
@@ -233,7 +233,7 @@ export function AdvisorsByTypePopup({
                             );
                           })}
                           {/* Show sale types with 0 value if they have a meta */}
-                          {['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO']
+                          {['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']
                             .filter(tipo => 
                               !sortedSaleTypes.some(([t]) => t === tipo) && 
                               (advisor.metaByType?.[tipo] || 0) > 0

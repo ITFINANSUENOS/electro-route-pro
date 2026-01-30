@@ -350,12 +350,12 @@ export default function CargarVentasTab() {
               forma1.includes('ACTIVOS FIJOS')) {
             venta.tipo_venta = 'OTROS';
           }
-          // CONVENIO: ADDI, BRILLA, SISTECREDITO (third-party financing)
+          // ALIADOS: ADDI, BRILLA, SISTECREDITO (third-party financing)
           else if (forma1.includes('ADDI') || 
                    forma1.includes('BRILLA') || 
                    forma1.includes('SISTECREDITO') || 
                    forma1.includes('SISTEMCREDITO')) {
-            venta.tipo_venta = 'CONVENIO';
+            venta.tipo_venta = 'ALIADOS';
           } 
           // CREDITO: FINANSUEDOS, ARPESOD, RETANQUEO (internal long-term)
           else if (forma1.includes('FINANSUE') || 
@@ -378,8 +378,8 @@ export default function CargarVentasTab() {
         // Fallback to forma_pago if tipo_venta not set
         if (!venta.tipo_venta && venta.forma_pago) {
           const formaPago = (venta.forma_pago as string).toUpperCase();
-          if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'].includes(formaPago)) {
-            venta.tipo_venta = formaPago;
+          if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS', 'CONVENIO'].includes(formaPago)) {
+            venta.tipo_venta = formaPago === 'CONVENIO' ? 'ALIADOS' : formaPago;
           }
         }
         

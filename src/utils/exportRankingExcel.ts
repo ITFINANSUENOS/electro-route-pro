@@ -34,7 +34,7 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
       { header: 'Contado', key: 'contado', width: 15 },
       { header: 'Credi Contado', key: 'credicontado', width: 15 },
       { header: 'Crédito', key: 'credito', width: 15 },
-      { header: 'Convenio', key: 'convenio', width: 15 },
+      { header: 'Aliados', key: 'aliados', width: 15 },
       { header: 'Total Ventas', key: 'totalVentas', width: 15 },
     ];
   } else {
@@ -46,7 +46,7 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
       { header: 'Contado', key: 'contado', width: 15 },
       { header: 'Credi Contado', key: 'credicontado', width: 15 },
       { header: 'Crédito', key: 'credito', width: 15 },
-      { header: 'Convenio', key: 'convenio', width: 15 },
+      { header: 'Aliados', key: 'aliados', width: 15 },
       { header: 'Total Ventas', key: 'totalVentas', width: 15 },
     ];
   }
@@ -66,8 +66,8 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
     const contado = advisor.byType['CONTADO'] || 0;
     const credicontado = advisor.byType['CREDICONTADO'] || 0;
     const credito = advisor.byType['CREDITO'] || 0;
-    const convenio = advisor.byType['CONVENIO'] || 0;
-    const totalVentas = contado + credicontado + credito + convenio;
+    const aliados = advisor.byType['ALIADOS'] || 0;
+    const totalVentas = contado + credicontado + credito + aliados;
 
     if (includeRegional) {
       worksheet.addRow({
@@ -79,7 +79,7 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
         contado,
         credicontado,
         credito,
-        convenio,
+        aliados,
         totalVentas,
       });
     } else {
@@ -91,7 +91,7 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
         contado,
         credicontado,
         credito,
-        convenio,
+        aliados,
         totalVentas,
       });
     }
@@ -102,9 +102,9 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
     acc.contado += advisor.byType['CONTADO'] || 0;
     acc.credicontado += advisor.byType['CREDICONTADO'] || 0;
     acc.credito += advisor.byType['CREDITO'] || 0;
-    acc.convenio += advisor.byType['CONVENIO'] || 0;
+    acc.aliados += advisor.byType['ALIADOS'] || 0;
     return acc;
-  }, { contado: 0, credicontado: 0, credito: 0, convenio: 0 });
+  }, { contado: 0, credicontado: 0, credito: 0, aliados: 0 });
 
   const totalRow = worksheet.addRow(
     includeRegional
@@ -117,8 +117,8 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
           contado: totals.contado,
           credicontado: totals.credicontado,
           credito: totals.credito,
-          convenio: totals.convenio,
-          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.convenio,
+          aliados: totals.aliados,
+          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.aliados,
         }
       : {
           posicion: '',
@@ -128,8 +128,8 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
           contado: totals.contado,
           credicontado: totals.credicontado,
           credito: totals.credito,
-          convenio: totals.convenio,
-          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.convenio,
+          aliados: totals.aliados,
+          totalVentas: totals.contado + totals.credicontado + totals.credito + totals.aliados,
         }
   );
 
@@ -144,7 +144,7 @@ export async function exportRankingToExcel({ data, includeRegional, fileName = '
   worksheet.getColumn('contado').numFmt = '#,##0';
   worksheet.getColumn('credicontado').numFmt = '#,##0';
   worksheet.getColumn('credito').numFmt = '#,##0';
-  worksheet.getColumn('convenio').numFmt = '#,##0';
+  worksheet.getColumn('aliados').numFmt = '#,##0';
   worksheet.getColumn('totalVentas').numFmt = '#,##0';
 
   // Generate buffer and download

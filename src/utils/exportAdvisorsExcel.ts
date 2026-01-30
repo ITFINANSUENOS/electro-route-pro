@@ -17,13 +17,13 @@ interface ExportAdvisorsOptions {
   title?: string;
 }
 
-const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'CONVENIO'] as const;
+const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
 
 const SALE_TYPE_LABELS: Record<string, string> = {
   CONTADO: 'Contado',
   CREDICONTADO: 'Credi Contado',
   CREDITO: 'Crédito',
-  CONVENIO: 'Convenio',
+  ALIADOS: 'Aliados',
 };
 
 export async function exportAdvisorsToExcel({

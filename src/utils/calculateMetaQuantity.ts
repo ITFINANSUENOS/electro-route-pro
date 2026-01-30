@@ -38,7 +38,7 @@ export interface MetaQuantityResult {
  * 
  * @param valorMeta - Valor de la meta en pesos
  * @param tipoAsesor - Tipo de asesor (INTERNO, EXTERNO, CORRETAJE)
- * @param tipoVenta - Tipo de venta (CONTADO, CREDICONTADO, CREDITO, CONVENIO)
+ * @param tipoVenta - Tipo de venta (CONTADO, CREDICONTADO, CREDITO, ALIADOS)
  * @param regionalId - ID de la regional
  * @param config - Configuración precargada de promedios y porcentajes
  * @returns Resultado del cálculo con desglose

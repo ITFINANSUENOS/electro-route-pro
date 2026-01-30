@@ -35,7 +35,7 @@ interface ProfileWithRegional {
 
 const tiposVenta = [
   { key: 'credito', label: 'Crédito', color: 'bg-primary' },
-  { key: 'convenio', label: 'Convenio', color: 'bg-secondary' },
+  { key: 'aliados', label: 'Aliados', color: 'bg-secondary' },
   { key: 'credicontado', label: 'Credi Contado', color: 'bg-warning' },
   { key: 'contado', label: 'Contado', color: 'bg-success' },
 ];
