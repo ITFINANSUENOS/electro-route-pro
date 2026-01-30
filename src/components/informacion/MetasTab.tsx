@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash } from 'lucide-react';
+import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportMetasTemplate } from '@/utils/exportMetasTemplate';
+import { exportMetasDetailExcel } from '@/utils/exportMetasDetailExcel';
 import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
 import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMetaQuantity';
 import { importMetasCSV } from '@/utils/importMetasCSV';
@@ -53,6 +54,7 @@ export default function MetasTab() {
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [selectedTipoVenta, setSelectedTipoVenta] = useState('all');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingDetail, setIsDownloadingDetail] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -203,6 +205,34 @@ export default function MetasTab() {
     }
   };
 
+  const handleDownloadDetail = async () => {
+    setIsDownloadingDetail(true);
+    try {
+      const result = await exportMetasDetailExcel(role, profile?.regional_id || null, profile?.zona || null);
+      
+      if (result.success) {
+        toast({
+          title: 'Reporte descargado',
+          description: `Se descargó el detalle de metas para ${result.count} asesores`,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.error || 'No se pudo descargar el reporte',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Error al generar el reporte',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloadingDetail(false);
+    }
+  };
+
   // Calculate totals
   const totalMeta = metas?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
   const uniqueAdvisors = new Set(metas?.map(m => m.codigo_asesor)).size;
@@ -271,7 +301,7 @@ export default function MetasTab() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-wrap justify-end gap-3">
         <Button 
           variant="outline" 
           onClick={handleDownloadTemplate}
@@ -279,6 +309,14 @@ export default function MetasTab() {
         >
           <Download className="mr-2 h-4 w-4" />
           {isDownloading ? 'Descargando...' : 'Plantilla Metas'}
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={handleDownloadDetail}
+          disabled={isDownloadingDetail || !metas || metas.length === 0}
+        >
+          <FileDown className="mr-2 h-4 w-4" />
+          {isDownloadingDetail ? 'Generando...' : 'Descargar Metas ($ y Q)'}
         </Button>
         <Button onClick={handleUploadMetas} className="btn-brand" disabled={isUploading}>
           <Upload className="mr-2 h-4 w-4" />
