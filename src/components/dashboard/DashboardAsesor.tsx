@@ -391,29 +391,86 @@ export default function DashboardAsesor() {
 
       {/* KPI Cards - 2 rows of 3 for better readability */}
       <motion.div variants={item} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard
-          title="Mis Ventas del Mes"
-          value={formatCurrency(metrics.total)}
-          subtitle={`Meta: ${formatCurrency(metrics.totalMeta)} • ${compliance}%`}
-          icon={ShoppingCart}
-          status={compliance >= 80 ? 'success' : compliance >= 50 ? 'warning' : 'danger'}
-        />
-        <KpiCard
-          title="Q Ventas Mes"
-          value={salesCount.totalSalesCount.toString()}
-          subtitle={quantityMetrics.totalQuantityMeta > 0 
-            ? `Meta: ${quantityMetrics.totalQuantityMeta} uds • ${quantityMetrics.quantityCompliance}%`
-            : 'Sin meta de cantidad'}
-          icon={Hash}
-          status={quantityMetrics.quantityCompliance >= 80 ? 'success' : quantityMetrics.quantityCompliance >= 50 ? 'warning' : 'danger'}
-        />
-        <KpiCard
-          title="Mi Cumplimiento"
-          value={`${compliance}%`}
-          subtitle={compliance < 100 ? `${100 - compliance}% para meta` : '¡Meta alcanzada!'}
-          icon={Target}
-          status={compliance >= 100 ? 'success' : compliance >= 80 ? 'warning' : 'danger'}
-        />
+        {/* Mis Ventas del Mes - with breakdown */}
+        <Card className="card-elevated">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Mis Ventas del Mes</CardTitle>
+              <ShoppingCart className={cn("h-5 w-5", compliance >= 80 ? 'text-success' : compliance >= 50 ? 'text-warning' : 'text-destructive')} />
+            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics.total)}</div>
+            <CardDescription>Meta: {formatCurrency(metrics.totalMeta)} • {compliance}%</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {complianceByType.map(t => (
+                <div key={t.name} className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                  <span className="text-muted-foreground truncate">{t.name}:</span>
+                  <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
+                    {t.compliance}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Q Ventas Mes - with breakdown */}
+        <Card className="card-elevated">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Q Ventas Mes</CardTitle>
+              <Hash className={cn("h-5 w-5", quantityMetrics.quantityCompliance >= 80 ? 'text-success' : quantityMetrics.quantityCompliance >= 50 ? 'text-warning' : 'text-destructive')} />
+            </div>
+            <div className="text-2xl font-bold">{salesCount.totalSalesCount}</div>
+            <CardDescription>
+              {quantityMetrics.totalQuantityMeta > 0 
+                ? `Meta: ${quantityMetrics.totalQuantityMeta} uds • ${quantityMetrics.quantityCompliance}%`
+                : 'Sin meta de cantidad'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {complianceByType.map(t => (
+                <div key={t.name} className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                  <span className="text-muted-foreground truncate">{t.name}:</span>
+                  <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
+                    {t.compliance}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Mi Cumplimiento - with breakdown */}
+        <Card className="card-elevated">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Mi Cumplimiento</CardTitle>
+              <Target className={cn("h-5 w-5", compliance >= 100 ? 'text-success' : compliance >= 80 ? 'text-warning' : 'text-destructive')} />
+            </div>
+            <div className="text-2xl font-bold">{compliance}%</div>
+            <CardDescription>{compliance < 100 ? `${100 - compliance}% para meta` : '¡Meta alcanzada!'}</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              {complianceByType.map(t => (
+                <div key={t.name} className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                  <span className="text-muted-foreground truncate">{t.name}:</span>
+                  <span className={cn("font-medium", t.compliance >= 100 ? 'text-success' : t.compliance >= 80 ? 'text-warning' : 'text-destructive')}>
+                    {t.compliance}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Row 2: Simple KPI cards */}
         <KpiCard
           title="Consultas"
           value={reportTotals.consultas.toString()}
