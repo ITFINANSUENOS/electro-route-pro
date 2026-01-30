@@ -18,8 +18,8 @@ import { KpiCard } from '@/components/ui/kpi-card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RegionalMultiSelect } from './RegionalMultiSelect';
+import { TipoAsesorMultiSelect } from './TipoAsesorMultiSelect';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -100,7 +100,7 @@ const tipoAsesorColors: Record<string, string> = {
 export default function DashboardLider() {
   const { profile, role } = useAuth();
   const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
-  const [selectedTipoAsesor, setSelectedTipoAsesor] = useState<string>('todos');
+  const [selectedTiposAsesor, setSelectedTiposAsesor] = useState<string[]>([]);
   const [selectedRegionals, setSelectedRegionals] = useState<string[]>([]);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
@@ -441,8 +441,8 @@ export default function DashboardLider() {
       filtered = filtered.filter(sale => selectedRegionalCodes.includes(sale.cod_region || 0));
     }
     
-    // Filter by tipo_asesor if selected
-    if (selectedTipoAsesor !== 'todos') {
+    // Filter by tipo_asesor if any types are selected
+    if (selectedTiposAsesor.length > 0) {
       const normalizeCode = (code: string): string => {
         const clean = (code || '').replace(/^0+/, '').trim();
         return clean.padStart(5, '0');
@@ -471,12 +471,12 @@ export default function DashboardLider() {
           tipoAsesor = tipoAsesorMap.get(normalizedCode) || tipoAsesorMap.get(codigo) || 'EXTERNO';
         }
         
-        return tipoAsesor === selectedTipoAsesor.toUpperCase();
+        return selectedTiposAsesor.includes(tipoAsesor);
       });
     }
     
     return filtered;
-  }, [salesData, profiles, selectedRegionalCodes, selectedTipoAsesor, isGlobalRole]);
+  }, [salesData, profiles, selectedRegionalCodes, selectedTiposAsesor, isGlobalRole]);
 
   // Calculate metrics including sales by advisor type
   // Wait for both salesData AND profiles to be loaded for accurate calculations
@@ -1080,25 +1080,17 @@ export default function DashboardLider() {
         
         {/* Advanced Filters - Only for global roles */}
         {isGlobalRole && (
-          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
+          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3 items-center justify-center">
             <RegionalMultiSelect
               regionales={regionales}
               selectedCodes={selectedRegionals}
               onChange={setSelectedRegionals}
             />
             
-            <Select value={selectedTipoAsesor} onValueChange={setSelectedTipoAsesor}>
-              <SelectTrigger className="w-full xs:w-[160px] bg-card text-sm">
-                <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Tipo Asesor" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border z-50">
-                <SelectItem value="todos">Todos los tipos</SelectItem>
-                <SelectItem value="INTERNO">Internos</SelectItem>
-                <SelectItem value="EXTERNO">Externos</SelectItem>
-                <SelectItem value="CORRETAJE">Corretaje</SelectItem>
-              </SelectContent>
-            </Select>
+            <TipoAsesorMultiSelect
+              selectedTypes={selectedTiposAsesor}
+              onChange={setSelectedTiposAsesor}
+            />
           </div>
         )}
       </motion.div>
