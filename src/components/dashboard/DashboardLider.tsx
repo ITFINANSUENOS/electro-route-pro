@@ -32,6 +32,8 @@ import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount
 import { useSalesCountByAdvisor } from '@/hooks/useSalesCountByAdvisor';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
+import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
+import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import { AdvisorsByTypePopup } from './AdvisorsByTypePopup';
@@ -111,6 +113,9 @@ export default function DashboardLider() {
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
+  
+  // Meta quantity config for Q calculations
+  const { data: metaQuantityConfig } = useMetaQuantityConfig();
 
   // Get date range - using January 2026 as the data period
   const startDateStr = '2026-01-01';
@@ -942,29 +947,80 @@ export default function DashboardLider() {
       regionalMap.set(r.codigo, r.nombre);
     });
 
-    // Build cedula map from profiles
+    // Build cedula map and regional UUID map from profiles
     const cedulaMap = new Map<string, string>();
     const regionalIdMap = new Map<string, string>();
+    const regionalUuidMap = new Map<string, string>();
+    const normalizeCode = (code: string): string => {
+      const clean = (code || '').replace(/^0+/, '').trim();
+      return clean.padStart(5, '0');
+    };
     profiles?.forEach(p => {
       if (p.codigo_asesor) {
+        const normalized = normalizeCode(p.codigo_asesor);
         cedulaMap.set(p.codigo_asesor, p.cedula);
+        cedulaMap.set(normalized, p.cedula);
         // Get regional name from regionales
         const regional = regionales.find(r => r.id === p.regional_id);
         if (regional) {
           regionalIdMap.set(p.codigo_asesor, regional.nombre);
+          regionalIdMap.set(normalized, regional.nombre);
+        }
+        if (p.regional_id) {
+          regionalUuidMap.set(p.codigo_asesor, p.regional_id);
+          regionalUuidMap.set(normalized, p.regional_id);
         }
       }
     });
 
-    const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => ({
-      codigo: advisor.codigo,
-      nombre: advisor.nombre,
-      tipoAsesor: advisor.tipoAsesor || 'EXTERNO',
-      cedula: cedulaMap.get(advisor.codigo) || '',
-      regional: regionalIdMap.get(advisor.codigo) || '',
-      total: selectedFilters.length > 0 ? (advisor as any).filteredTotal : advisor.total,
-      byType: advisor.byType,
-    }));
+    const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
+
+    const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => {
+      const tipoAsesor = advisor.tipoAsesor || 'EXTERNO';
+      const advisorCode = advisor.codigo;
+      const normalizedCode = normalizeCode(advisorCode);
+      const regionalId = regionalUuidMap.get(normalizedCode) || regionalUuidMap.get(advisorCode) || '';
+      
+      // Get quantity data from salesCountByAdvisorData
+      const advisorQtyData = salesCountByAdvisorData.byAdvisor[advisorCode] || 
+                             salesCountByAdvisorData.byAdvisor[normalizedCode] || { byType: {} };
+      const qtyByType: Record<string, number> = {};
+      const metaQtyByType: Record<string, number> = {};
+      
+      SALE_TYPES.forEach(tipo => {
+        // Get executed quantity
+        qtyByType[tipo] = advisorQtyData.byType[tipo]?.count || 0;
+        
+        // Calculate meta quantity using formula
+        if (metaQuantityConfig && regionalId) {
+          const metaValue = advisor.metaByType?.[tipo] || 0;
+          if (metaValue > 0) {
+            const result = calculateMetaQuantity(metaValue, tipoAsesor, tipo, regionalId, metaQuantityConfig);
+            metaQtyByType[tipo] = result.cantidadFinal;
+          } else {
+            metaQtyByType[tipo] = 0;
+          }
+        } else {
+          metaQtyByType[tipo] = 0;
+        }
+      });
+
+      const totalQty = Object.values(qtyByType).reduce((sum, val) => sum + val, 0);
+
+      return {
+        codigo: advisorCode,
+        nombre: advisor.nombre,
+        tipoAsesor,
+        cedula: cedulaMap.get(advisorCode) || cedulaMap.get(normalizedCode) || '',
+        regional: regionalIdMap.get(advisorCode) || regionalIdMap.get(normalizedCode) || '',
+        total: selectedFilters.length > 0 ? (advisor as any).filteredTotal : advisor.total,
+        byType: advisor.byType,
+        qtyByType,
+        metaByType: advisor.metaByType || {},
+        metaQtyByType,
+        totalQty,
+      };
+    });
 
     await exportRankingToExcel({
       data: dataForExport,
@@ -978,6 +1034,7 @@ export default function DashboardLider() {
     // Build cedula map from profiles
     const cedulaMap = new Map<string, string>();
     const regionalIdMap = new Map<string, string>();
+    const regionalUuidMap = new Map<string, string>(); // Map advisor code to regional UUID
     profiles?.forEach(p => {
       if (p.codigo_asesor) {
         const normalizeCode = (code: string): string => {
@@ -993,8 +1050,14 @@ export default function DashboardLider() {
           regionalIdMap.set(normalized, regional.nombre);
           regionalIdMap.set(p.codigo_asesor, regional.nombre);
         }
+        if (p.regional_id) {
+          regionalUuidMap.set(normalized, p.regional_id);
+          regionalUuidMap.set(p.codigo_asesor, p.regional_id);
+        }
       }
     });
+
+    const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
 
     return advisors
       .filter(a => {
@@ -1003,15 +1066,45 @@ export default function DashboardLider() {
           a.nombre?.toUpperCase().includes('GENERAL') || a.nombre?.toUpperCase().includes('GERENCIA');
         return !isGerencia;
       })
-      .map(advisor => ({
-        cedula: cedulaMap.get(advisor.codigo) || '',
-        codigoAsesor: advisor.codigo,
-        nombre: advisor.nombre,
-        tipoAsesor: advisor.tipoAsesor || 'EXTERNO',
-        regional: regionalIdMap.get(advisor.codigo) || advisor.regional || '',
-        byType: advisor.byType,
-        metaByType: advisor.metaByType || {},
-      }));
+      .map(advisor => {
+        const tipoAsesor = advisor.tipoAsesor || 'EXTERNO';
+        const regionalId = regionalUuidMap.get(advisor.codigo) || '';
+        
+        // Calculate quantity data from salesCountByAdvisorData
+        const advisorQtyData = salesCountByAdvisorData.byAdvisor[advisor.codigo] || { byType: {} };
+        const qtyByType: Record<string, number> = {};
+        const metaQtyByType: Record<string, number> = {};
+        
+        SALE_TYPES.forEach(tipo => {
+          // Get executed quantity
+          qtyByType[tipo] = advisorQtyData.byType[tipo]?.count || 0;
+          
+          // Calculate meta quantity using formula
+          if (metaQuantityConfig && regionalId) {
+            const metaValue = advisor.metaByType?.[tipo] || 0;
+            if (metaValue > 0) {
+              const result = calculateMetaQuantity(metaValue, tipoAsesor, tipo, regionalId, metaQuantityConfig);
+              metaQtyByType[tipo] = result.cantidadFinal;
+            } else {
+              metaQtyByType[tipo] = 0;
+            }
+          } else {
+            metaQtyByType[tipo] = 0;
+          }
+        });
+
+        return {
+          cedula: cedulaMap.get(advisor.codigo) || '',
+          codigoAsesor: advisor.codigo,
+          nombre: advisor.nombre,
+          tipoAsesor,
+          regional: regionalIdMap.get(advisor.codigo) || advisor.regional || '',
+          byType: advisor.byType,
+          metaByType: advisor.metaByType || {},
+          qtyByType,
+          metaQtyByType,
+        };
+      });
   };
 
   // Handle export all active advisors
