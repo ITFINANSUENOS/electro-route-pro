@@ -219,6 +219,45 @@ export type Database = {
         }
         Relationships: []
       }
+      historial_metas: {
+        Row: {
+          accion: string
+          anio: number
+          created_at: string
+          id: string
+          mes: number
+          modificado_por: string | null
+          monto_total_anterior: number | null
+          monto_total_nuevo: number | null
+          notas: string | null
+          registros_afectados: number
+        }
+        Insert: {
+          accion?: string
+          anio: number
+          created_at?: string
+          id?: string
+          mes: number
+          modificado_por?: string | null
+          monto_total_anterior?: number | null
+          monto_total_nuevo?: number | null
+          notas?: string | null
+          registros_afectados?: number
+        }
+        Update: {
+          accion?: string
+          anio?: number
+          created_at?: string
+          id?: string
+          mes?: number
+          modificado_por?: string | null
+          monto_total_anterior?: number | null
+          monto_total_nuevo?: number | null
+          notas?: string | null
+          registros_afectados?: number
+        }
+        Relationships: []
+      }
       jefes_ventas: {
         Row: {
           activo: boolean | null

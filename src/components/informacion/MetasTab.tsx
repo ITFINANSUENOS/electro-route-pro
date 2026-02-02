@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash, FileDown } from 'lucide-react';
+import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash, FileDown, AlertTriangle, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +19,8 @@ import { exportMetasDetailExcel } from '@/utils/exportMetasDetailExcel';
 import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
 import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMetaQuantity';
 import { importMetasCSV } from '@/utils/importMetasCSV';
+import { usePeriodSelector, formatPeriodLabel } from '@/hooks/usePeriodSelector';
+import { PeriodSelector } from '@/components/dashboard/PeriodSelector';
 
 interface MetaData {
   id: string;
@@ -56,12 +60,26 @@ export default function MetasTab() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingDetail, setIsDownloadingDetail] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { role, profile } = useAuth();
 
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  const isAdmin = role === 'administrador';
+
+  // Period selector - only admins can change periods
+  const {
+    selectedPeriod,
+    periodValue,
+    handlePeriodChange,
+    availablePeriods,
+    isLoading: isLoadingPeriods,
+    isPeriodClosed,
+    periodLabel,
+  } = usePeriodSelector();
+
+  const currentMonth = selectedPeriod.mes;
+  const currentYear = selectedPeriod.anio;
 
   // Fetch metas with advisor info
   const { data: metas, isLoading } = useQuery({
@@ -89,6 +107,36 @@ export default function MetasTab() {
       if (error) throw error;
       return data as ProfileWithRegional[];
     },
+  });
+
+  // Fetch historial de metas
+  const { data: historialMetas } = useQuery({
+    queryKey: ['historial-metas', currentMonth, currentYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('historial_metas')
+        .select('*')
+        .eq('mes', currentMonth)
+        .eq('anio', currentYear)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: isAdmin,
+  });
+
+  // Fetch user names for historial
+  const { data: historialUsers } = useQuery({
+    queryKey: ['historial-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, nombre_completo');
+      if (error) throw error;
+      return data;
+    },
+    enabled: isAdmin && !!historialMetas?.length,
   });
 
   // Fetch meta quantity config (promedios y porcentajes)
@@ -132,6 +180,16 @@ export default function MetasTab() {
   };
 
   const handleUploadMetas = () => {
+    // Only admin can upload to closed periods
+    if (isPeriodClosed && !isAdmin) {
+      toast({
+        title: 'Período cerrado',
+        description: 'Solo el administrador puede modificar metas de períodos cerrados',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv';
@@ -152,10 +210,11 @@ export default function MetasTab() {
         if (result.success) {
           toast({
             title: 'Metas cargadas exitosamente',
-            description: `Se importaron ${result.imported} metas para ${currentMonth}/${currentYear}`,
+            description: `Se importaron ${result.imported} metas para ${periodLabel}`,
           });
           // Refresh the metas query
           queryClient.invalidateQueries({ queryKey: ['metas', currentMonth, currentYear] });
+          queryClient.invalidateQueries({ queryKey: ['historial-metas', currentMonth, currentYear] });
         } else {
           toast({
             title: 'Error al cargar metas',
@@ -251,8 +310,39 @@ export default function MetasTab() {
     return metasList.some(m => m.tipo_meta === selectedTipoVenta);
   });
 
+  // Helper to get user name for historial
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Sistema';
+    const user = historialUsers?.find(u => u.user_id === userId);
+    return user?.nombre_completo || 'Usuario';
+  };
+
   return (
     <div className="space-y-6">
+      {/* Period Selector for Admin */}
+      {isAdmin && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">Período:</span>
+            <PeriodSelector
+              value={periodValue}
+              onChange={handlePeriodChange}
+              periods={availablePeriods}
+              isLoading={isLoadingPeriods}
+            />
+          </div>
+          
+          {isPeriodClosed && (
+            <Alert className="max-w-lg">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Este período está cerrado. Las metas cargadas reemplazarán las existentes.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="card-elevated">
@@ -290,9 +380,9 @@ export default function MetasTab() {
                 <FileSpreadsheet className="h-6 w-6 text-accent-foreground" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Período</p>
+              <p className="text-sm text-muted-foreground">Período</p>
                 <p className="text-2xl font-bold capitalize">
-                  {format(new Date(), 'MMMM yyyy', { locale: es })}
+                  {periodLabel}
                 </p>
               </div>
             </div>
@@ -492,6 +582,67 @@ export default function MetasTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Historial de Cambios - Solo para Admin */}
+      {isAdmin && historialMetas && historialMetas.length > 0 && (
+        <Card className="card-elevated">
+          <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-lg">Historial de Cambios</CardTitle>
+                    <Badge variant="outline">{historialMetas.length}</Badge>
+                  </div>
+                  {historyOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  {historialMetas.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg border bg-muted/30"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">
+                          {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: es })}
+                        </span>
+                        <Badge variant={item.accion === 'carga_masiva' ? 'default' : 'secondary'}>
+                          {item.accion === 'carga_masiva' ? 'Carga inicial' : 'Corrección'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {getUserName(item.modificado_por)} • {item.registros_afectados} metas
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {item.monto_total_anterior > 0 && (
+                          <>
+                            Total anterior: {formatCurrency(item.monto_total_anterior)} → 
+                          </>
+                        )}
+                        Total nuevo: {formatCurrency(item.monto_total_nuevo)}
+                      </p>
+                      {item.notas && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          {item.notas}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
     </div>
   );
 }

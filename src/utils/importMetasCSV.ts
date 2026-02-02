@@ -111,6 +111,16 @@ export async function importMetasCSV(
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Get existing metas total before deletion (for history)
+  const { data: existingMetas } = await supabase
+    .from('metas')
+    .select('valor_meta')
+    .eq('mes', mes)
+    .eq('anio', anio);
+
+  const montoTotalAnterior = existingMetas?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+  const registrosAnteriores = existingMetas?.length || 0;
+
   // Delete existing metas for this period
   const { error: deleteError } = await supabase
     .from('metas')
@@ -144,6 +154,34 @@ export async function importMetasCSV(
       errors.push(`Error en lote ${Math.floor(i / batchSize) + 1}: ${insertError.message}`);
     } else {
       inserted += batch.length;
+    }
+  }
+
+  // Calculate new total for history
+  const montoTotalNuevo = metasToInsert.reduce((sum, m) => sum + m.valor_meta, 0);
+
+  // Record in historial_metas
+  if (inserted > 0) {
+    const accion = registrosAnteriores > 0 ? 'correccion' : 'carga_masiva';
+    
+    const { error: historialError } = await supabase
+      .from('historial_metas')
+      .insert({
+        mes,
+        anio,
+        accion,
+        registros_afectados: inserted,
+        monto_total_anterior: montoTotalAnterior,
+        monto_total_nuevo: montoTotalNuevo,
+        modificado_por: user?.id || null,
+        notas: registrosAnteriores > 0 
+          ? `Reemplazo de ${registrosAnteriores} metas por ${inserted} nuevas`
+          : `Carga inicial de ${inserted} metas`,
+      });
+
+    if (historialError) {
+      console.error('Error recording historial:', historialError);
+      // Don't fail the import for this
     }
   }
 
