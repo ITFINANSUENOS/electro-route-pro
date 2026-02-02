@@ -21,6 +21,8 @@ import { CompliancePopup } from './CompliancePopup';
 import { useSalesCount, transformVentasForCounting } from '@/hooks/useSalesCount';
 import { useMetaQuantityConfig } from '@/hooks/useMetaQuantityConfig';
 import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
+import { PeriodSelector } from './PeriodSelector';
+import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import {
   PieChart,
   Pie,
@@ -84,11 +86,22 @@ export default function DashboardAsesor() {
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats } = useActivityCompliance();
 
-  // Get date range - using January 2026 as the data period
-  const startDateStr = '2026-01-01';
-  const endDateStr = '2026-01-31';
-  const currentMonth = 1;
-  const currentYear = 2026;
+  // Period selector for viewing historical data
+  const {
+    selectedPeriod,
+    periodValue,
+    handlePeriodChange,
+    availablePeriods,
+    isLoading: isLoadingPeriods,
+    dateRange,
+    periodLabel,
+  } = usePeriodSelector();
+
+  // Get date range from period selector
+  const startDateStr = dateRange.startDate;
+  const endDateStr = dateRange.endDate;
+  const currentMonth = selectedPeriod.mes;
+  const currentYear = selectedPeriod.anio;
 
   // Get advisor identifiers from profile (3 keys: cedula, codigo, nombre)
   const codigoAsesor = (profile as any)?.codigo_asesor;
@@ -384,13 +397,23 @@ export default function DashboardAsesor() {
       className="space-y-6"
     >
       {/* Header */}
-      <motion.div variants={item}>
-        <h1 className="text-3xl font-bold text-foreground">
-          ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {role && roleLabels[role]} • {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">
+            ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {role && roleLabels[role]} • {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+        </div>
+        
+        {/* Period Selector */}
+        <PeriodSelector
+          value={periodValue}
+          onChange={handlePeriodChange}
+          periods={availablePeriods}
+          isLoading={isLoadingPeriods}
+        />
       </motion.div>
 
       {/* KPI Cards - 2 rows of 3 for better readability */}

@@ -30,6 +30,8 @@ import { calculateMetaQuantity } from '@/utils/calculateMetaQuantity';
 import { ComplianceDetailPopup } from './ComplianceDetailPopup';
 import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
+import { PeriodSelector } from './PeriodSelector';
+import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import {
   BarChart,
   Bar,
@@ -82,11 +84,22 @@ export default function DashboardJefe() {
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
 
-  // Get date range - using January 2026 as the data period
-  const startDateStr = '2026-01-01';
-  const endDateStr = '2026-01-31';
-  const currentMonth = 1;
-  const currentYear = 2026;
+  // Period selector for viewing historical data
+  const {
+    selectedPeriod,
+    periodValue,
+    handlePeriodChange,
+    availablePeriods,
+    isLoading: isLoadingPeriods,
+    dateRange,
+    periodLabel,
+  } = usePeriodSelector();
+
+  // Get date range from period selector
+  const startDateStr = dateRange.startDate;
+  const endDateStr = dateRange.endDate;
+  const currentMonth = selectedPeriod.mes;
+  const currentYear = selectedPeriod.anio;
 
   // Get codigo_jefe from profile for filtering
   const codigoJefe = (profile as any)?.codigo_jefe;
@@ -648,13 +661,23 @@ export default function DashboardJefe() {
       className="space-y-4 sm:space-y-6"
     >
       {/* Header */}
-      <motion.div variants={item} className="flex flex-col gap-2">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
-          ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          {role && roleLabels[role]} • Equipo de {metrics.byAdvisor.length} asesores
-        </p>
+      <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+            ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {role && roleLabels[role]} • Equipo de {metrics.byAdvisor.length} asesores
+          </p>
+        </div>
+        
+        {/* Period Selector */}
+        <PeriodSelector
+          value={periodValue}
+          onChange={handlePeriodChange}
+          periods={availablePeriods}
+          isLoading={isLoadingPeriods}
+        />
       </motion.div>
 
       {/* KPI Cards - Row 1: Ventas */}

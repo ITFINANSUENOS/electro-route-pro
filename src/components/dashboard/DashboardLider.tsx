@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { RegionalMultiSelect } from './RegionalMultiSelect';
 import { TipoAsesorMultiSelect } from './TipoAsesorMultiSelect';
+import { PeriodSelector } from './PeriodSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,6 +39,7 @@ import { ConsultasDetailPopup } from './ConsultasDetailPopup';
 import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import { AdvisorsByTypePopup } from './AdvisorsByTypePopup';
 import { AllAdvisorsPopup } from './AllAdvisorsPopup';
+import { usePeriodSelector } from '@/hooks/usePeriodSelector';
 import {
   BarChart,
   Bar,
@@ -117,11 +119,22 @@ export default function DashboardLider() {
   // Meta quantity config for Q calculations
   const { data: metaQuantityConfig } = useMetaQuantityConfig();
 
-  // Get date range - using January 2026 as the data period
-  const startDateStr = '2026-01-01';
-  const endDateStr = '2026-01-31';
-  const currentMonth = 1;
-  const currentYear = 2026;
+  // Period selector for viewing historical data
+  const {
+    selectedPeriod,
+    periodValue,
+    handlePeriodChange,
+    availablePeriods,
+    isLoading: isLoadingPeriods,
+    dateRange,
+    periodLabel,
+  } = usePeriodSelector();
+
+  // Get date range from period selector
+  const startDateStr = dateRange.startDate;
+  const endDateStr = dateRange.endDate;
+  const currentMonth = selectedPeriod.mes;
+  const currentYear = selectedPeriod.anio;
 
   // Determine if user is admin/coordinador (sees all data) or lider (sees regional data)
   const isGlobalRole = role === 'administrador' || role === 'coordinador_comercial' || role === 'administrativo';
@@ -1161,14 +1174,24 @@ export default function DashboardLider() {
     >
       {/* Header */}
       <motion.div variants={item} className="flex flex-col gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
-            ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {role && roleLabels[role]} • <span className="hidden sm:inline">{new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            <span className="sm:hidden">{new Date().toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}</span>
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+              ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              {role && roleLabels[role]} • <span className="hidden sm:inline">{new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span className="sm:hidden">{new Date().toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}</span>
+            </p>
+          </div>
+          
+          {/* Period Selector */}
+          <PeriodSelector
+            value={periodValue}
+            onChange={handlePeriodChange}
+            periods={availablePeriods}
+            isLoading={isLoadingPeriods}
+          />
         </div>
         
         {/* Advanced Filters - Only for global roles */}
