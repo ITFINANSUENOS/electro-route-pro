@@ -1,80 +1,185 @@
-# Plan: Sistema de Gestión de Períodos Históricos
 
-## ✅ IMPLEMENTADO
+# Plan: Integración de Mapas con Leaflet.js + OpenStreetMap
 
-Este sistema permite:
-- Ver datos históricos de cualquier mes cerrado desde los dashboards
-- Modificar metas de meses pasados (solo administrador)
-- Registrar todos los cambios para trazabilidad
+## Resumen Ejecutivo
+Implementaremos un sistema completo de visualización de mapas usando **Leaflet.js** con tiles de **OpenStreetMap**, reemplazando el placeholder de Google Maps. El mapa mostrará las ubicaciones GPS registradas en las evidencias de actividades con información completa y filtros avanzados.
 
----
+## Arquitectura de la Solución
 
-## Componentes Implementados
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                      COMPONENTES DE MAPA                        │
+├─────────────────────────────────────────────────────────────────┤
+│  MapaUbicacion.tsx     → Componente base reutilizable           │
+│  MapaOperaciones.tsx   → Mapa principal con múltiples markers   │
+│  EvidenceMarker.tsx    → Popup con datos del asesor/actividad   │
+│  MapFilters.tsx        → Filtros de fecha, regional, tipo       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    UBICACIONES DE USO                           │
+├─────────────────────────────────────────────────────────────────┤
+│  /mapa                 → Mapa principal de operaciones          │
+│  ActivityDetailDialog  → Mini-mapa en detalle de actividad      │
+│  ActividadesViewer     → Mapa de evidencias registradas         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### 1. Hook `usePeriodSelector` 
-📁 `src/hooks/usePeriodSelector.ts`
+## Cambios a Implementar
 
-Centraliza la lógica de períodos:
-- `selectedPeriod`: mes/año seleccionado
-- `availablePeriods`: lista de períodos desde `periodos_ventas`
-- `dateRange`: calcula startDate/endDate dinámicamente
-- `isPeriodClosed`: boolean indicando si está cerrado
+### 1. Instalación de Dependencias
+- `leaflet` - Librería principal de mapas
+- `react-leaflet` - Wrapper para React
+- `@types/leaflet` - Tipos TypeScript
 
-### 2. Componente `PeriodSelector`
-📁 `src/components/dashboard/PeriodSelector.tsx`
+### 2. Componentes Nuevos a Crear
 
-Dropdown visual que muestra:
-- Meses en formato "Enero 2026", "Febrero 2026"
-- Indicador de estado: 🔒 cerrado / ✓ activo
+**2.1 `src/components/ui/MapaUbicacion.tsx`**
+Componente base reutilizable para mostrar un punto único:
+- Props: `lat`, `lng`, `zoom?`, `popup?`
+- Usa tiles de OpenStreetMap
+- Estilos responsivos con Tailwind
 
-### 3. Tabla `historial_metas`
-Migración aplicada con:
-- Registro de cada cambio en metas
-- Campos: mes, anio, accion, registros_afectados, monto_total_anterior, monto_total_nuevo
-- RLS: solo admin puede insertar, liderazgo puede ver
+**2.2 `src/components/map/MapaOperaciones.tsx`**
+Mapa principal con múltiples marcadores:
+- Consulta `reportes_diarios` para obtener coordenadas GPS
+- Agrupa marcadores por proximidad (clustering)
+- Colores por estado: verde (evidencia completa), amarillo (parcial), rojo (sin foto)
 
-### 4. Dashboards Actualizados
-- **DashboardLider**: Selector de período + fechas dinámicas
-- **DashboardJefe**: Selector de período + fechas dinámicas  
-- **DashboardAsesor**: Selector de período + fechas dinámicas
+**2.3 `src/components/map/EvidenceMarker.tsx`**
+Popup informativo en cada marcador:
+```text
+┌──────────────────────────────┐
+│ 👤 Juan Pérez                │
+│ 📍 Popayán Centro            │
+│ 🏷️ Correría                  │
+│ 🕐 10:45 AM - 26/01/2026     │
+│ ✅ Evidencia completa        │
+└──────────────────────────────┘
+```
 
-### 5. MetasTab Mejorado
-- Selector de período (solo admin puede cambiar)
-- Advertencia en períodos cerrados
-- Sección colapsible de historial de cambios
-- `importMetasCSV` registra automáticamente en historial
+**2.4 `src/components/map/MapFilters.tsx`**
+Panel de filtros reutilizable:
+- Fecha: Selector de rango con DatePicker
+- Regional: Multi-select (solo coordinador/admin)
+- Jefe de Ventas: Dropdown filtrado por regional
+- Tipo de Actividad: Punto Fijo / Correría / Libre
 
----
+**2.5 `src/hooks/useMapLocations.ts`**
+Hook para obtener y filtrar ubicaciones:
+- Query a `reportes_diarios` con joins a `profiles` y `programacion`
+- Respeta la jerarquía de roles (aislamiento regional)
+- Retorna array de marcadores con metadata
 
-## Uso
+### 3. Páginas a Modificar
 
-### Dashboard
-1. El selector de período aparece en la esquina superior derecha
-2. Todos los roles pueden ver datos históricos
-3. El período actual se muestra como "activo"
+**3.1 `src/pages/Mapa.tsx`**
+- Eliminar placeholder mock
+- Integrar `MapaOperaciones` con filtros completos
+- Panel lateral con lista de ubicaciones activas
+- Centro inicial: Popayán, Colombia (lat: 2.4419, lng: -76.6061)
 
-### Metas (solo Admin)
-1. Ir a Información → Metas
-2. Seleccionar período desde el dropdown
-3. Si es período cerrado, aparece advertencia
-4. Al cargar CSV, las metas se reemplazan
-5. El historial de cambios se registra automáticamente
-6. Ver historial en sección colapsible al final
+**3.2 `src/components/programacion/ActivityDetailDialog.tsx`**
+- Agregar mini-mapa debajo de "Asesores asignados"
+- Mostrar marcadores de evidencia para cada asesor que ya reportó
+- Solo visible si hay al menos un reporte con GPS
 
----
+**3.3 `src/components/actividades/ActividadesViewer.tsx`**
+- Agregar tab "Mapa" junto a la lista existente
+- Mostrar mapa con todas las evidencias filtradas
+- Click en marcador abre detalle de actividad
 
-## Archivos Modificados
+### 4. Estilos CSS Requeridos
+En `src/index.css`:
+```css
+@import 'leaflet/dist/leaflet.css';
 
-### Nuevos:
-- `src/hooks/usePeriodSelector.ts`
-- `src/components/dashboard/PeriodSelector.tsx`
+/* Fix para iconos de Leaflet en Vite */
+.leaflet-default-icon-path {
+  background-image: url('/marker-icon.png');
+}
 
-### Actualizados:
-- `src/components/dashboard/DashboardLider.tsx`
-- `src/components/dashboard/DashboardJefe.tsx`
-- `src/components/dashboard/DashboardAsesor.tsx`
-- `src/components/informacion/MetasTab.tsx`
-- `src/utils/importMetasCSV.ts`
+/* Estilos custom para marcadores de estado */
+.marker-success { ... }
+.marker-warning { ... }
+.marker-danger { ... }
+```
 
-### Migración:
-- Tabla `historial_metas` con RLS
+## Detalles Técnicos
+
+### Estructura de Datos del Marcador
+```typescript
+interface MapMarker {
+  id: string;
+  lat: number;
+  lng: number;
+  user_id: string;
+  user_name: string;
+  fecha: string;
+  hora_registro: string;
+  tipo_actividad: 'punto' | 'correria' | 'libre';
+  municipio: string;
+  has_photo: boolean;
+  has_gps: boolean;
+  regional_id?: string;
+  regional_name?: string;
+}
+```
+
+### Configuración del Mapa
+```typescript
+const mapConfig = {
+  center: [2.4419, -76.6061], // Popayán
+  zoom: 10,
+  minZoom: 6,
+  maxZoom: 18,
+  tileLayer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '© OpenStreetMap contributors'
+};
+```
+
+### Marcadores Personalizados por Estado
+```text
+🟢 Verde  → Evidencia completa (foto + GPS para correría, solo GPS para punto)
+🟡 Amarillo → Evidencia parcial (falta foto o GPS)
+🔴 Rojo → Sin evidencia
+```
+
+## Consideraciones de Seguridad
+- Los filtros respetan la jerarquía de roles existente
+- Asesores solo ven sus propias ubicaciones
+- Jefes ven su equipo
+- Líderes ven su regional
+- Coordinadores/Admin ven todo
+
+## Archivos a Crear
+1. `src/components/ui/MapaUbicacion.tsx`
+2. `src/components/map/MapaOperaciones.tsx`
+3. `src/components/map/EvidenceMarker.tsx`
+4. `src/components/map/MapFilters.tsx`
+5. `src/hooks/useMapLocations.ts`
+
+## Archivos a Modificar
+1. `src/pages/Mapa.tsx` - Reemplazar placeholder
+2. `src/components/programacion/ActivityDetailDialog.tsx` - Agregar mini-mapa
+3. `src/components/actividades/ActividadesViewer.tsx` - Agregar tab de mapa
+4. `src/index.css` - Importar estilos de Leaflet
+5. `package.json` - Agregar dependencias
+
+## Orden de Implementación
+1. Instalar dependencias (leaflet, react-leaflet)
+2. Crear componente base `MapaUbicacion.tsx`
+3. Crear hook `useMapLocations.ts`
+4. Crear `MapaOperaciones.tsx` con filtros
+5. Actualizar página `/mapa`
+6. Integrar mini-mapa en `ActivityDetailDialog`
+7. Agregar tab de mapa en `ActividadesViewer`
+8. Pruebas de responsividad móvil
+
+## Resultado Esperado
+- Mapa interactivo funcional sin necesidad de API keys
+- Visualización en tiempo real de ubicaciones de evidencias
+- Filtros completos por fecha, regional, jefe y tipo
+- Mini-mapas en detalles de actividades
+- Diseño responsive para móvil y escritorio
