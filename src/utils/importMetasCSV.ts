@@ -59,10 +59,21 @@ export async function importMetasCSV(
   const delimiter = ';';
   const headers = parseCSVLine(lines[0], delimiter).map(h => h.toUpperCase().trim());
   
-  // Find column indices
+  // Normalize headers to handle encoding issues (CRÉDITO may come as CR?DITO, etc.)
+  const normalizeHeader = (h: string): string => {
+    return h
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .replace(/[^A-Z0-9]/g, ''); // Remove non-alphanumeric chars
+  };
+  
+  // Find column indices with flexible matching for encoding issues
   const codigoIdx = headers.findIndex(h => h.includes('CODIGO') && h.includes('ASE'));
   const contadoIdx = headers.findIndex(h => h === 'CONTADO');
-  const creditoIdx = headers.findIndex(h => h === 'CREDITO' || h === 'CRÉDITO');
+  // Match CREDITO with various encodings: CRÉDITO, CR?DITO, CR�DITO, etc.
+  const creditoIdx = headers.findIndex(h => {
+    const normalized = normalizeHeader(h);
+    return normalized === 'CREDITO' || h === 'CRÉDITO' || h.includes('DITO') && h.startsWith('CR');
+  });
   const credicontadoIdx = headers.findIndex(h => h === 'CREDICONTADO');
   const aliadosIdx = headers.findIndex(h => h === 'ALIADOS' || h === 'CONVENIO');
 
