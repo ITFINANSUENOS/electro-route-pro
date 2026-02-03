@@ -8,11 +8,28 @@ interface MetaRow {
 
 /**
  * Parse Colombian currency format: " $ 15.000.000 " -> 15000000
+ * Also handles negative values like -55.749 (with decimal point)
+ * and values with decimals like 29.221.444 (thousands separators)
  */
 function parseCurrency(value: string): number {
   if (!value?.trim()) return 0;
+  
+  const trimmed = value.trim();
+  
+  // Check if it's a negative number with decimal (like -55.749)
+  // These have only one dot and are small numbers (typically < 1000)
+  const isNegativeDecimal = trimmed.startsWith('-') && 
+    (trimmed.match(/\./g) || []).length === 1 && 
+    Math.abs(parseFloat(trimmed)) < 1000;
+  
+  if (isNegativeDecimal) {
+    // Parse directly as decimal number
+    const num = parseFloat(trimmed);
+    return isNaN(num) ? 0 : num;
+  }
+  
   // Remove $ symbol, spaces, and dots (thousand separators)
-  const cleaned = value.replace(/[$\s.]/g, '').replace(',', '.');
+  const cleaned = trimmed.replace(/[$\s.]/g, '').replace(',', '.');
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
 }
@@ -118,7 +135,9 @@ export async function importMetasCSV(
     for (const { idx, tipo } of tiposMeta) {
       if (idx === -1) continue;
       const valor = parseCurrency(values[idx]);
-      if (valor > 0) {
+      // Include ALL values (positive, negative, and zero for explicit zeros)
+      // This ensures negative credits (returns/adjustments) are properly recorded
+      if (valor !== 0) {
         metasToInsert.push({
           codigo_asesor: codigoAsesor,
           valor_meta: valor,
