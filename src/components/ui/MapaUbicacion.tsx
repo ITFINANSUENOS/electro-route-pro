@@ -1,19 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { cn } from '@/lib/utils';
 
-// Fix for default marker icons in Vite/webpack
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-
-// @ts-ignore
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
+// Fix for default marker icons in Vite/webpack - use URL strings
+const defaultIcon = L.icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
 });
 
 interface MapaUbicacionProps {
@@ -25,7 +23,7 @@ interface MapaUbicacionProps {
   height?: string;
 }
 
-export function MapaUbicacion({ 
+function MapaUbicacionComponent({ 
   lat, 
   lng, 
   zoom = 15, 
@@ -35,6 +33,7 @@ export function MapaUbicacion({
 }: MapaUbicacionProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const containerIdRef = useRef(`map-${Math.random().toString(36).substr(2, 9)}`);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -55,8 +54,8 @@ export function MapaUbicacion({
       maxZoom: 19,
     }).addTo(map);
 
-    // Add marker
-    const marker = L.marker([lat, lng]).addTo(map);
+    // Add marker with default icon
+    const marker = L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
     
     if (popup) {
       marker.bindPopup(popup).openPopup();
@@ -78,10 +77,12 @@ export function MapaUbicacion({
   return (
     <div 
       ref={containerRef}
+      id={containerIdRef.current}
       className={cn('rounded-lg overflow-hidden border border-border', className)}
       style={{ height, width: '100%' }}
     />
   );
 }
 
+export const MapaUbicacion = memo(MapaUbicacionComponent);
 export default MapaUbicacion;

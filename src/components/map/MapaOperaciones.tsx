@@ -1,23 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { EvidenceMarker } from './EvidenceMarker';
 import { MAP_CONFIG } from './types';
 import type { MapMarker } from './types';
-
-// Fix for default marker icons in Vite/webpack
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
-
-// @ts-ignore
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
-});
 
 interface MapaOperacionesProps {
   markers: MapMarker[];
@@ -44,7 +31,7 @@ function MapBoundsUpdater({ markers }: { markers: MapMarker[] }) {
   return null;
 }
 
-export function MapaOperaciones({ 
+function MapaOperacionesComponent({ 
   markers, 
   height = '600px',
   onMarkerClick,
@@ -78,3 +65,5 @@ export function MapaOperaciones({
     </div>
   );
 }
+
+export const MapaOperaciones = memo(MapaOperacionesComponent);
