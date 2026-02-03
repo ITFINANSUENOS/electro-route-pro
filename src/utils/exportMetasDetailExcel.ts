@@ -30,11 +30,14 @@ const TIPO_VENTA_LABELS: Record<string, string> = {
 export async function exportMetasDetailExcel(
   role: UserRole | null,
   regionalId: string | null,
-  zona: string | null
+  zona: string | null,
+  mes?: number,
+  anio?: number
 ): Promise<{ success: boolean; count: number; error?: string }> {
   try {
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
+    // Use provided period or fallback to current month
+    const currentMonth = mes ?? (new Date().getMonth() + 1);
+    const currentYear = anio ?? new Date().getFullYear();
 
     // Load meta quantity config for calculations
     const config = await loadMetaQuantityConfig();

@@ -267,7 +267,7 @@ export default function MetasTab() {
   const handleDownloadDetail = async () => {
     setIsDownloadingDetail(true);
     try {
-      const result = await exportMetasDetailExcel(role, profile?.regional_id || null, profile?.zona || null);
+      const result = await exportMetasDetailExcel(role, profile?.regional_id || null, profile?.zona || null, currentMonth, currentYear);
       
       if (result.success) {
         toast({
