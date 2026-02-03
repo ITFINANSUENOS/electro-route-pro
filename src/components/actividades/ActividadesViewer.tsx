@@ -10,10 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search, CheckCircle, Navigation } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search, CheckCircle, Navigation, Map as MapIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { MapaOperaciones } from '@/components/map/MapaOperaciones';
+import type { MapMarker } from '@/components/map/types';
+import { ACTIVITY_LABELS } from '@/components/map/types';
 
 interface ReporteDiario {
   id: string;
@@ -76,6 +80,7 @@ export function ActividadesViewer() {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showOnlyWithEvidence, setShowOnlyWithEvidence] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('lista');
 
   // Check if user can see hierarchical filters
   const canViewAllRegionales = role === 'administrador' || role === 'coordinador_comercial';
@@ -363,6 +368,44 @@ export function ActividadesViewer() {
 
   const isLoading = loadingProgramaciones || loadingReportes;
 
+  // Create map markers from reportes with GPS data
+  const mapMarkers: MapMarker[] = useMemo(() => {
+    return reportes
+      .filter(reporte => {
+        if (!reporte.gps_latitud || !reporte.gps_longitud) return false;
+        
+        // Check if this reporte belongs to a filtered activity
+        const hasMatchingActivity = groupedActivities.some(activity => 
+          activity.reportes.some(r => r.id === reporte.id)
+        );
+        
+        return hasMatchingActivity;
+      })
+      .map(reporte => {
+        const userProfile = profilesMap.get(reporte.user_id);
+        const matchingActivity = groupedActivities.find(activity => 
+          activity.reportes.some(r => r.id === reporte.id)
+        );
+
+        return {
+          id: reporte.id,
+          lat: Number(reporte.gps_latitud),
+          lng: Number(reporte.gps_longitud),
+          user_id: reporte.user_id,
+          user_name: userProfile?.nombre_completo || 'Desconocido',
+          fecha: reporte.fecha,
+          hora_registro: reporte.hora_registro,
+          tipo_actividad: (matchingActivity?.tipo_actividad || 'libre') as 'punto' | 'correria' | 'libre',
+          municipio: matchingActivity?.municipio || 'Sin municipio',
+          has_photo: !!reporte.foto_url,
+          has_gps: true,
+          regional_id: userProfile?.regional_id || undefined,
+          regional_name: userProfile?.regional_id ? regionalesMap.get(userProfile.regional_id) : undefined,
+          foto_url: reporte.foto_url,
+        };
+      });
+  }, [reportes, groupedActivities, profilesMap, regionalesMap]);
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -508,10 +551,18 @@ export function ActividadesViewer() {
       </Card>
 
       {/* Results header with toggle */}
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          {groupedActivities.length} actividades encontradas
-        </p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            {groupedActivities.length} actividades encontradas
+          </p>
+          {mapMarkers.length > 0 && (
+            <Badge variant="outline" className="text-primary">
+              <MapPin className="h-3 w-3 mr-1" />
+              {mapMarkers.length} con GPS
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Label htmlFor="evidence-toggle" className="text-sm text-muted-foreground cursor-pointer">
             Solo con evidencia
@@ -521,31 +572,39 @@ export function ActividadesViewer() {
             checked={showOnlyWithEvidence}
             onCheckedChange={setShowOnlyWithEvidence}
           />
-          {showOnlyWithEvidence && (
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" />
-              Con evidencia
-            </Badge>
-          )}
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : groupedActivities.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">No hay actividades</h3>
-            <p className="text-muted-foreground">
-              No se encontraron actividades con los filtros seleccionados
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Tabs for Lista/Mapa */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-xs grid-cols-2">
+          <TabsTrigger value="lista" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Lista
+          </TabsTrigger>
+          <TabsTrigger value="mapa" className="flex items-center gap-2">
+            <MapIcon className="h-4 w-4" />
+            Mapa
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="lista" className="mt-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : groupedActivities.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">No hay actividades</h3>
+                <p className="text-muted-foreground">
+                  No se encontraron actividades con los filtros seleccionados
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {groupedActivities.map((activity) => {
             const userProfile = profilesMap.get(activity.user_id);
             const regionalName = userProfile?.regional_id ? regionalesMap.get(userProfile.regional_id) : null;
@@ -634,10 +693,45 @@ export function ActividadesViewer() {
               </Card>
             );
           })}
-        </div>
-      )}
+            </div>
+          )}
+        </TabsContent>
 
-      {/* Activity Detail Dialog */}
+        <TabsContent value="mapa" className="mt-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : mapMarkers.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Sin ubicaciones GPS</h3>
+                <p className="text-muted-foreground">
+                  No hay evidencias con coordenadas GPS para los filtros seleccionados
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0 overflow-hidden rounded-xl">
+                <MapaOperaciones 
+                  markers={mapMarkers}
+                  height="500px"
+                  onMarkerClick={(marker) => {
+                    const relatedActivity = groupedActivities.find(activity => 
+                      activity.reportes.some(r => r.id === marker.id)
+                    );
+                    if (relatedActivity) {
+                      handleActivityClick(relatedActivity);
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
       <Dialog open={!!selectedActivity} onOpenChange={() => setSelectedActivity(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>

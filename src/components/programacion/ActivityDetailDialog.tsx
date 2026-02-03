@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { format, addDays, isBefore, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MapPin, Clock, Users, Calendar, Tag, Pencil, Trash2, Save, X, CheckCircle, XCircle, Camera, Navigation, ExternalLink } from 'lucide-react';
@@ -14,6 +14,8 @@ import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
 import { useActivityEvidenceStatus, isActivityForToday } from '@/hooks/useActivityEvidenceStatus';
 import { TimeSelect } from './TimeSelect';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { MapaUbicacion } from '@/components/ui/MapaUbicacion';
 import {
   Dialog,
   DialogContent,
@@ -100,6 +102,34 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
     }] : [],
     isOpen && !!activity
   );
+
+  // Fetch GPS coordinates from reportes_diarios for this activity
+  const { data: reportesGPS = [] } = useQuery({
+    queryKey: ['activity-gps', activity?.fecha, activity?.user_ids],
+    queryFn: async () => {
+      if (!activity) return [];
+      const { data, error } = await supabase
+        .from('reportes_diarios')
+        .select('user_id, gps_latitud, gps_longitud, hora_registro')
+        .eq('fecha', activity.fecha)
+        .in('user_id', activity.user_ids)
+        .not('gps_latitud', 'is', null)
+        .not('gps_longitud', 'is', null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isOpen && !!activity,
+  });
+
+  // Get the first available GPS location for the mini-map
+  const gpsLocation = useMemo(() => {
+    if (reportesGPS.length === 0) return null;
+    const first = reportesGPS[0];
+    return {
+      lat: Number(first.gps_latitud),
+      lng: Number(first.gps_longitud),
+    };
+  }, [reportesGPS]);
 
   if (!activity) return null;
 
@@ -410,7 +440,25 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
               </div>
             </div>
 
-            {/* Report button for assigned users on today's activity */}
+            {/* Mini-mapa con ubicaciones GPS */}
+            {gpsLocation && (
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-primary mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium mb-2">Ubicación GPS Registrada</p>
+                  <MapaUbicacion 
+                    lat={gpsLocation.lat}
+                    lng={gpsLocation.lng}
+                    zoom={14}
+                    height="200px"
+                    popup={`${activity.municipio} - ${reportesGPS.length} reporte(s) GPS`}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {reportesGPS.length} asesor(es) con ubicación registrada
+                  </p>
+                </div>
+              </div>
+            )}
             {isUserAssigned && isToday && (
               <div className="pt-4 border-t">
                 <Button 
