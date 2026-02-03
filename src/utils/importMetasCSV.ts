@@ -59,23 +59,36 @@ export async function importMetasCSV(
   const delimiter = ';';
   const headers = parseCSVLine(lines[0], delimiter).map(h => h.toUpperCase().trim());
   
-  // Normalize headers to handle encoding issues (CRÉDITO may come as CR?DITO, etc.)
+  // Normalize headers to handle encoding issues (CRÉDITO may come as CR?DITO, CR�DITO, etc.)
   const normalizeHeader = (h: string): string => {
     return h
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
-      .replace(/[^A-Z0-9]/g, ''); // Remove non-alphanumeric chars
+      .replace(/[^A-Z0-9_]/g, ''); // Remove non-alphanumeric chars (keeps underscores)
   };
+  
+  // Normalize all headers for comparison
+  const normalizedHeaders = headers.map(normalizeHeader);
+  
+  console.log('Original headers:', headers);
+  console.log('Normalized headers:', normalizedHeaders);
   
   // Find column indices with flexible matching for encoding issues
   const codigoIdx = headers.findIndex(h => h.includes('CODIGO') && h.includes('ASE'));
   const contadoIdx = headers.findIndex(h => h === 'CONTADO');
-  // Match CREDITO with various encodings: CRÉDITO, CR?DITO, CR�DITO, etc.
-  const creditoIdx = headers.findIndex(h => {
-    const normalized = normalizeHeader(h);
-    return normalized === 'CREDITO' || h === 'CRÉDITO' || h.includes('DITO') && h.startsWith('CR');
+  
+  // Match CREDITO - exclude CREDICONTADO first, then match anything that starts with CRED and ends with O
+  // but is NOT CREDICONTADO
+  const creditoIdx = normalizedHeaders.findIndex((nh, idx) => {
+    // Skip if it's CREDICONTADO
+    if (nh === 'CREDICONTADO') return false;
+    // Match CREDITO or any corrupted version like CRDITO
+    return nh === 'CREDITO' || (nh.startsWith('CR') && nh.endsWith('DITO') && !nh.includes('CONTADO'));
   });
-  const credicontadoIdx = headers.findIndex(h => h === 'CREDICONTADO');
+  
+  const credicontadoIdx = normalizedHeaders.findIndex(nh => nh === 'CREDICONTADO');
   const aliadosIdx = headers.findIndex(h => h === 'ALIADOS' || h === 'CONVENIO');
+  
+  console.log('Column indices found - codigo:', codigoIdx, 'contado:', contadoIdx, 'credito:', creditoIdx, 'credicontado:', credicontadoIdx, 'aliados:', aliadosIdx);
 
   if (codigoIdx === -1) {
     return { success: false, imported: 0, errors: ['No se encontró la columna CODIGO_ASE'] };
