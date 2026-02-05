@@ -27,6 +27,7 @@
    currentCount: number;
    previousCount: number;
    countVariationPercent: number;
+  comparedDays: number;
  }
  
 // Helper function to fetch all records with pagination
@@ -285,11 +286,20 @@ async function fetchAllSalesWithPagination(
      
      const daily = Array.from(dailyMap.values()).sort((a, b) => a.day - b.day);
      
-     // Calculate KPIs
-     const currentTotal = daily.reduce((sum, d) => sum + d.currentAmount, 0);
-     const previousTotal = daily.reduce((sum, d) => sum + d.previousAmount, 0);
-     const currentCount = daily.reduce((sum, d) => sum + d.currentCount, 0);
-     const previousCount = daily.reduce((sum, d) => sum + d.previousCount, 0);
+      // Find the last day with current month data for fair comparison
+      const lastDayWithCurrentData = daily.reduce((maxDay, d) => {
+        if (d.currentAmount > 0 || d.currentCount > 0) {
+          return Math.max(maxDay, d.day);
+        }
+        return maxDay;
+      }, 0);
+      
+      // Calculate KPIs only up to the last day with current data (fair comparison)
+      const comparableDays = daily.filter(d => d.day <= lastDayWithCurrentData);
+      const currentTotal = comparableDays.reduce((sum, d) => sum + d.currentAmount, 0);
+      const previousTotal = comparableDays.reduce((sum, d) => sum + d.previousAmount, 0);
+      const currentCount = comparableDays.reduce((sum, d) => sum + d.currentCount, 0);
+      const previousCount = comparableDays.reduce((sum, d) => sum + d.previousCount, 0);
      
      const variationPercent = previousTotal !== 0 
        ? ((currentTotal - previousTotal) / Math.abs(previousTotal)) * 100 
@@ -306,6 +316,7 @@ async function fetchAllSalesWithPagination(
        currentCount,
        previousCount,
        countVariationPercent,
+        comparedDays: lastDayWithCurrentData,
      };
      
      return { daily, kpis };

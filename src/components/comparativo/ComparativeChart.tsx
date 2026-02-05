@@ -1,4 +1,5 @@
  import { useMemo } from 'react';
+import { useState, useCallback } from 'react';
  import {
    ComposedChart,
    Bar,
@@ -9,6 +10,8 @@
    Tooltip,
    Legend,
    ResponsiveContainer,
+  Brush,
+  ReferenceArea,
  } from 'recharts';
  import { DailySalesData } from '@/hooks/useComparativeData';
  
@@ -41,6 +44,12 @@ const formatCount = (value: number) => {
    currentMonthLabel,
    previousMonthLabel,
  }: ComparativeChartProps) {
+  const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
+  const [zoomLeft, setZoomLeft] = useState<number | null>(null);
+  const [zoomRight, setZoomRight] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
    const chartData = useMemo(() => {
      return data.map(d => ({
        day: d.day,
@@ -50,6 +59,45 @@ const formatCount = (value: number) => {
       previousCount: d.previousCount,
      }));
   }, [data]);
+
+  const displayData = useMemo(() => {
+    if (zoomLeft !== null && zoomRight !== null) {
+      return chartData.filter(d => d.day >= zoomLeft && d.day <= zoomRight);
+    }
+    return chartData;
+  }, [chartData, zoomLeft, zoomRight]);
+
+  const handleMouseDown = useCallback((e: any) => {
+    if (e && e.activeLabel) {
+      setRefAreaLeft(e.activeLabel);
+      setIsSelecting(true);
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e: any) => {
+    if (isSelecting && e && e.activeLabel) {
+      setRefAreaRight(e.activeLabel);
+    }
+  }, [isSelecting]);
+
+  const handleMouseUp = useCallback(() => {
+    if (refAreaLeft !== null && refAreaRight !== null) {
+      const left = Math.min(refAreaLeft, refAreaRight);
+      const right = Math.max(refAreaLeft, refAreaRight);
+      if (right - left >= 1) {
+        setZoomLeft(left);
+        setZoomRight(right);
+      }
+    }
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+    setIsSelecting(false);
+  }, [refAreaLeft, refAreaRight]);
+
+  const handleResetZoom = useCallback(() => {
+    setZoomLeft(null);
+    setZoomRight(null);
+  }, []);
  
    const CustomTooltip = ({ active, payload, label }: any) => {
      if (!active || !payload || !payload.length) return null;
@@ -81,11 +129,23 @@ const formatCount = (value: number) => {
    };
  
    return (
-     <div className="w-full h-[400px]">
+    <div className="w-full h-[400px] relative">
+      {(zoomLeft !== null && zoomRight !== null) && (
+        <button
+          onClick={handleResetZoom}
+          className="absolute top-0 right-0 z-10 px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+        >
+          Resetear Zoom
+        </button>
+      )}
        <ResponsiveContainer width="100%" height="100%">
          <ComposedChart
-           data={chartData}
+          data={displayData}
            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
          >
            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
            <XAxis
@@ -124,7 +184,7 @@ const formatCount = (value: number) => {
               yAxisId="amount"
               dataKey="currentAmount"
               name={`${currentMonthLabel} ($)`}
-              fill="hsl(var(--primary))"
+              fill="hsl(217, 91%, 60%)"
               radius={[2, 2, 0, 0]}
               maxBarSize={15}
             />
@@ -135,7 +195,7 @@ const formatCount = (value: number) => {
               yAxisId="amount"
               dataKey="previousAmount"
               name={`${previousMonthLabel} ($)`}
-              fill="hsl(var(--primary)/0.4)"
+              fill="hsl(217, 91%, 80%)"
               radius={[2, 2, 0, 0]}
               maxBarSize={15}
             />
@@ -147,10 +207,10 @@ const formatCount = (value: number) => {
               type="monotone"
               dataKey="currentCount"
               name={`${currentMonthLabel} (Q)`}
-              stroke="hsl(var(--secondary))"
+              stroke="hsl(142, 76%, 36%)"
               strokeWidth={2}
-              dot={{ fill: 'hsl(var(--secondary))', strokeWidth: 2, r: 3 }}
-              activeDot={{ r: 5, fill: 'hsl(var(--secondary))' }}
+              dot={{ fill: 'hsl(142, 76%, 36%)', strokeWidth: 2, r: 3 }}
+              activeDot={{ r: 5, fill: 'hsl(142, 76%, 36%)' }}
             />
           )}
           {/* Line for Count - Previous Month */}
@@ -160,13 +220,32 @@ const formatCount = (value: number) => {
               type="monotone"
               dataKey="previousCount"
               name={`${previousMonthLabel} (Q)`}
-              stroke="hsl(var(--accent))"
+              stroke="hsl(142, 76%, 70%)"
               strokeWidth={2}
               strokeDasharray="5 5"
-              dot={{ fill: 'hsl(var(--accent))', strokeWidth: 2, r: 3 }}
-              activeDot={{ r: 5, fill: 'hsl(var(--accent))' }}
+              dot={{ fill: 'hsl(142, 76%, 70%)', strokeWidth: 2, r: 3 }}
+              activeDot={{ r: 5, fill: 'hsl(142, 76%, 70%)' }}
             />
           )}
+          {/* Reference area for zoom selection */}
+          {refAreaLeft !== null && refAreaRight !== null && (
+            <ReferenceArea
+              yAxisId="amount"
+              x1={refAreaLeft}
+              x2={refAreaRight}
+              strokeOpacity={0.3}
+              fill="hsl(var(--primary))"
+              fillOpacity={0.3}
+            />
+          )}
+          {/* Brush for alternative zoom control */}
+          <Brush
+            dataKey="day"
+            height={30}
+            stroke="hsl(var(--primary))"
+            fill="hsl(var(--muted))"
+            travellerWidth={10}
+          />
          </ComposedChart>
        </ResponsiveContainer>
      </div>
