@@ -34,9 +34,16 @@ function MapaUbicacionComponent({
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const containerIdRef = useRef(`map-${Math.random().toString(36).substr(2, 9)}`);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    
+    // Validate coordinates
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.warn('Invalid coordinates provided to MapaUbicacion:', { lat, lng });
+      return;
+    }
 
     // Clean up any existing map
     if (mapRef.current) {
@@ -44,32 +51,50 @@ function MapaUbicacionComponent({
       mapRef.current = null;
     }
 
-    // Create map
-    const map = L.map(containerRef.current).setView([lat, lng], zoom);
-    mapRef.current = map;
+    try {
+      // Create map
+      const map = L.map(containerRef.current, {
+        center: [lat, lng],
+        zoom: zoom,
+        scrollWheelZoom: false,
+      });
+      mapRef.current = map;
+      initializedRef.current = true;
 
-    // Add tile layer (OpenStreetMap)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(map);
+      // Add tile layer (OpenStreetMap)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
 
-    // Add marker with default icon
-    const marker = L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
-    
-    if (popup) {
-      marker.bindPopup(popup).openPopup();
+      // Add marker with default icon
+      const marker = L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
+      
+      if (popup) {
+        marker.bindPopup(popup).openPopup();
+      }
+
+      // Force map to recalculate size after render
+      setTimeout(() => {
+        if (mapRef.current) {
+          mapRef.current.invalidateSize();
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error initializing MapaUbicacion:', error);
     }
-
-    // Force map to recalculate size
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 100);
 
     return () => {
       if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+        try {
+          mapRef.current.remove();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        finally {
+          mapRef.current = null;
+          initializedRef.current = false;
+        }
       }
     };
   }, [lat, lng, zoom, popup]);

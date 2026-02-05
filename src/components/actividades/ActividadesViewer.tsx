@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MapaOperaciones } from '@/components/map/MapaOperaciones';
+import { MapaUbicacion } from '@/components/ui/MapaUbicacion';
 import type { MapMarker } from '@/components/map/types';
 import { ACTIVITY_LABELS } from '@/components/map/types';
 
@@ -830,19 +831,20 @@ export function ActividadesViewer() {
                               </div>
 
                               {reporte.gps_latitud && reporte.gps_longitud && (
-                                <div className="text-sm flex items-center gap-2">
-                                  <MapPin className="h-4 w-4 text-success" />
-                                  <span>
-                                    {reporte.gps_latitud.toFixed(6)}, {reporte.gps_longitud.toFixed(6)}
-                                  </span>
-                                  <a
-                                    href={`https://www.google.com/maps?q=${reporte.gps_latitud},${reporte.gps_longitud}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-primary hover:underline"
-                                  >
-                                    Ver en mapa
-                                  </a>
+                                <div className="space-y-2">
+                                  <div className="text-sm flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-success" />
+                                    <span>
+                                      {reporte.gps_latitud.toFixed(6)}, {reporte.gps_longitud.toFixed(6)}
+                                    </span>
+                                  </div>
+                                  <MapaUbicacion 
+                                    lat={reporte.gps_latitud}
+                                    lng={reporte.gps_longitud}
+                                    zoom={15}
+                                    height="150px"
+                                    popup={`${prof.nombre_completo} - ${format(new Date(reporte.hora_registro), 'HH:mm:ss')}`}
+                                  />
                                 </div>
                               )}
 
