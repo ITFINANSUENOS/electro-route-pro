@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Target, Upload, FileSpreadsheet, ChevronDown, ChevronUp, TrendingUp, Download, Hash, FileDown, AlertTriangle, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,16 @@ import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMeta
 import { importMetasCSV } from '@/utils/importMetasCSV';
 import { usePeriodSelector, formatPeriodLabel } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/dashboard/PeriodSelector';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 interface MetaData {
   id: string;
@@ -61,6 +71,9 @@ export default function MetasTab() {
   const [isDownloadingDetail, setIsDownloadingDetail] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedMetaCategoria, setSelectedMetaCategoria] = useState<'comercial' | 'nacional'>('comercial');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { role, profile } = useAuth();
@@ -179,7 +192,7 @@ export default function MetasTab() {
     );
   };
 
-  const handleUploadMetas = () => {
+  const handleUploadClick = () => {
     // Only admin can upload to closed periods
     if (isPeriodClosed && !isAdmin) {
       toast({
@@ -189,51 +202,59 @@ export default function MetasTab() {
       });
       return;
     }
+    
+    // Open dialog to select meta category first
+    setUploadDialogOpen(true);
+  };
 
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+  const handleConfirmUpload = () => {
+    setUploadDialogOpen(false);
+    fileInputRef.current?.click();
+  };
 
-      setIsUploading(true);
-      toast({
-        title: 'Procesando archivo',
-        description: `Cargando ${file.name}...`,
-      });
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      try {
-        const content = await file.text();
-        const result = await importMetasCSV(content, currentMonth, currentYear);
+    setIsUploading(true);
+    toast({
+      title: 'Procesando archivo',
+      description: `Cargando ${file.name} como Meta ${selectedMetaCategoria === 'comercial' ? 'Comercial' : 'Nacional'}...`,
+    });
 
-        if (result.success) {
-          toast({
-            title: 'Metas cargadas exitosamente',
-            description: `Se importaron ${result.imported} metas para ${periodLabel}`,
-          });
-          // Refresh the metas query
-          queryClient.invalidateQueries({ queryKey: ['metas', currentMonth, currentYear] });
-          queryClient.invalidateQueries({ queryKey: ['historial-metas', currentMonth, currentYear] });
-        } else {
-          toast({
-            title: 'Error al cargar metas',
-            description: result.errors.join(', ') || 'Error desconocido',
-            variant: 'destructive',
-          });
-        }
-      } catch (error) {
-        console.error('Error uploading metas:', error);
+    try {
+      const content = await file.text();
+      const result = await importMetasCSV(content, currentMonth, currentYear, selectedMetaCategoria);
+
+      if (result.success) {
         toast({
-          title: 'Error',
-          description: 'Error al procesar el archivo CSV',
+          title: 'Metas cargadas exitosamente',
+          description: `Se importaron ${result.imported} metas ${selectedMetaCategoria === 'comercial' ? 'comerciales' : 'nacionales'} para ${periodLabel}`,
+        });
+        // Refresh the metas query
+        queryClient.invalidateQueries({ queryKey: ['metas', currentMonth, currentYear] });
+        queryClient.invalidateQueries({ queryKey: ['historial-metas', currentMonth, currentYear] });
+      } else {
+        toast({
+          title: 'Error al cargar metas',
+          description: result.errors.join(', ') || 'Error desconocido',
           variant: 'destructive',
         });
-      } finally {
-        setIsUploading(false);
       }
-    };
-    input.click();
+    } catch (error) {
+      console.error('Error uploading metas:', error);
+      toast({
+        title: 'Error',
+        description: 'Error al procesar el archivo CSV',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleDownloadTemplate = async () => {
@@ -319,6 +340,65 @@ export default function MetasTab() {
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      
+      {/* Upload Meta Category Selection Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              Seleccionar Tipo de Meta
+            </DialogTitle>
+            <DialogDescription>
+              Elige qué tipo de meta estás cargando. La Meta Comercial debe ser siempre mayor o igual a la Meta Nacional.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <RadioGroup
+              value={selectedMetaCategoria}
+              onValueChange={(v) => setSelectedMetaCategoria(v as 'comercial' | 'nacional')}
+              className="space-y-3"
+            >
+              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
+                <RadioGroupItem value="comercial" id="comercial" />
+                <Label htmlFor="comercial" className="flex-1 cursor-pointer">
+                  <div className="font-medium">Meta Comercial</div>
+                  <div className="text-xs text-muted-foreground">
+                    Objetivo interno más alto. Representa la meta a alcanzar.
+                  </div>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer">
+                <RadioGroupItem value="nacional" id="nacional" />
+                <Label htmlFor="nacional" className="flex-1 cursor-pointer">
+                  <div className="font-medium">Meta Nacional</div>
+                  <div className="text-xs text-muted-foreground">
+                    Mínimo requerido. Representa el piso de cumplimiento.
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmUpload} className="btn-brand">
+              <Upload className="mr-2 h-4 w-4" />
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Period Selector for Admin */}
       {isAdmin && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -408,7 +488,7 @@ export default function MetasTab() {
           <FileDown className="mr-2 h-4 w-4" />
           {isDownloadingDetail ? 'Generando...' : 'Descargar Metas ($ y Q)'}
         </Button>
-        <Button onClick={handleUploadMetas} className="btn-brand" disabled={isUploading}>
+        <Button onClick={handleUploadClick} className="btn-brand" disabled={isUploading}>
           <Upload className="mr-2 h-4 w-4" />
           {isUploading ? 'Cargando...' : 'Cargar Metas (.CSV)'}
         </Button>

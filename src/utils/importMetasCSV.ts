@@ -4,6 +4,7 @@ interface MetaRow {
   codigo_asesor: string;
   valor_meta: number;
   tipo_meta: string;
+  tipo_meta_categoria: string;
 }
 
 /**
@@ -63,7 +64,8 @@ function parseCSVLine(line: string, delimiter: string): string[] {
 export async function importMetasCSV(
   csvContent: string,
   mes: number,
-  anio: number
+  anio: number,
+  tipoMetaCategoria: 'comercial' | 'nacional' = 'comercial'
 ): Promise<{ success: boolean; imported: number; errors: string[] }> {
   const errors: string[] = [];
   const metasToInsert: MetaRow[] = [];
@@ -142,6 +144,7 @@ export async function importMetasCSV(
           codigo_asesor: codigoAsesor,
           valor_meta: valor,
           tipo_meta: tipo,
+          tipo_meta_categoria: tipoMetaCategoria,
         });
       }
     }
@@ -164,12 +167,13 @@ export async function importMetasCSV(
   const montoTotalAnterior = existingMetas?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
   const registrosAnteriores = existingMetas?.length || 0;
 
-  // Delete existing metas for this period
+  // Delete existing metas for this period AND tipo_meta_categoria
   const { error: deleteError } = await supabase
     .from('metas')
     .delete()
     .eq('mes', mes)
-    .eq('anio', anio);
+    .eq('anio', anio)
+    .eq('tipo_meta_categoria', tipoMetaCategoria);
 
   if (deleteError) {
     console.error('Error deleting existing metas:', deleteError);
@@ -182,7 +186,10 @@ export async function importMetasCSV(
 
   for (let i = 0; i < metasToInsert.length; i += batchSize) {
     const batch = metasToInsert.slice(i, i + batchSize).map(m => ({
-      ...m,
+      codigo_asesor: m.codigo_asesor,
+      valor_meta: m.valor_meta,
+      tipo_meta: m.tipo_meta,
+      tipo_meta_categoria: m.tipo_meta_categoria,
       mes,
       anio,
       cargado_por: user?.id || null,
@@ -218,8 +225,8 @@ export async function importMetasCSV(
         monto_total_nuevo: montoTotalNuevo,
         modificado_por: user?.id || null,
         notas: registrosAnteriores > 0 
-          ? `Reemplazo de ${registrosAnteriores} metas por ${inserted} nuevas`
-          : `Carga inicial de ${inserted} metas`,
+          ? `Reemplazo de ${registrosAnteriores} metas ${tipoMetaCategoria.toUpperCase()} por ${inserted} nuevas`
+          : `Carga inicial de ${inserted} metas ${tipoMetaCategoria.toUpperCase()}`,
       });
 
     if (historialError) {
