@@ -201,7 +201,8 @@ export default function DashboardJefe() {
         .from('metas')
         .select('*')
         .eq('mes', currentMonth)
-        .eq('anio', currentYear);
+        .eq('anio', currentYear)
+        .eq('tipo_meta_categoria', 'comercial'); // Jefes siempre ven meta comercial
       
       if (error) throw error;
       return data;

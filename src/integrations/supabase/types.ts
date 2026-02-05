@@ -358,6 +358,7 @@ export type Database = {
           id: string
           mes: number
           tipo_meta: string | null
+          tipo_meta_categoria: string
           updated_at: string
           user_id: string | null
           valor_meta: number
@@ -370,6 +371,7 @@ export type Database = {
           id?: string
           mes: number
           tipo_meta?: string | null
+          tipo_meta_categoria?: string
           updated_at?: string
           user_id?: string | null
           valor_meta: number
@@ -382,6 +384,7 @@ export type Database = {
           id?: string
           mes?: number
           tipo_meta?: string | null
+          tipo_meta_categoria?: string
           updated_at?: string
           user_id?: string | null
           valor_meta?: number

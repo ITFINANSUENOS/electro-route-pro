@@ -87,6 +87,12 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
       };
     }
 
+    // Normalize tipo_venta: CONVENIO → ALIADOS
+    const normalizeTipoVenta = (tipo: string | null | undefined): string => {
+      const normalized = (tipo || 'DESCONOCIDO').toUpperCase();
+      return normalized === 'CONVENIO' ? 'ALIADOS' : normalized;
+    };
+
     // Group records by customer and analyze for unique sales
     const customerRecords = new Map<string, SaleRecord[]>();
     
@@ -155,7 +161,8 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         
         // Determine the tipo_venta from the FV00 record if available, otherwise from any record
         const fv00Record = groupRecords.find(r => isSaleDocument(r.mcn_clase));
-        const tipoVenta = fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO';
+        const rawTipoVenta = fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO';
+        const tipoVenta = normalizeTipoVenta(rawTipoVenta);
         const forma1Pago = fv00Record?.forma1_pago || groupRecords[0].forma1_pago || 'DESCONOCIDO';
 
         // Only count as a sale if total value is positive (net sale)
@@ -163,7 +170,7 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
           uniqueSales.push({
             identifica: customerId,
             mcnClase: baseMcnClase,
-            tipoVenta: tipoVenta?.toUpperCase() || 'DESCONOCIDO',
+            tipoVenta: tipoVenta,
             forma1Pago: forma1Pago?.toUpperCase() || 'DESCONOCIDO',
             totalValue,
             records: groupRecords,

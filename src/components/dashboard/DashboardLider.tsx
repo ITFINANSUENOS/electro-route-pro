@@ -40,6 +40,7 @@ import { AdvisorsAtRiskPopup } from './AdvisorsAtRiskPopup';
 import { AdvisorsByTypePopup } from './AdvisorsByTypePopup';
 import { AllAdvisorsPopup } from './AllAdvisorsPopup';
 import { usePeriodSelector } from '@/hooks/usePeriodSelector';
+import { MetaTypeToggle, MetaType } from './MetaTypeToggle';
 import {
   BarChart,
   Bar,
@@ -112,6 +113,7 @@ export default function DashboardLider() {
   const [atRiskPopupOpen, setAtRiskPopupOpen] = useState(false);
   const [allAdvisorsPopupOpen, setAllAdvisorsPopupOpen] = useState(false);
   const [selectedTypePopup, setSelectedTypePopup] = useState<string | null>(null);
+  const [selectedMetaType, setSelectedMetaType] = useState<MetaType>('comercial');
   
   // Activity compliance tracking
   const { advisorSummaries, overallStats: complianceStats, isLoading: loadingCompliance } = useActivityCompliance();
@@ -301,13 +303,14 @@ export default function DashboardLider() {
 
   // Fetch metas - for lider, could filter by their asesores
   const { data: metasData } = useQuery({
-    queryKey: ['dashboard-metas', role, currentMonth, currentYear],
+    queryKey: ['dashboard-metas', role, currentMonth, currentYear, selectedMetaType],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('metas')
         .select('*')
         .eq('mes', currentMonth)
-        .eq('anio', currentYear);
+        .eq('anio', currentYear)
+        .eq('tipo_meta_categoria', selectedMetaType);
       
       if (error) throw error;
       return data;
@@ -1206,6 +1209,22 @@ export default function DashboardLider() {
             <TipoAsesorMultiSelect
               selectedTypes={selectedTiposAsesor}
               onChange={setSelectedTiposAsesor}
+            />
+            
+            {/* Meta Type Toggle - Available for lider_zona, coordinador_comercial, administrador */}
+            <MetaTypeToggle
+              value={selectedMetaType}
+              onChange={setSelectedMetaType}
+            />
+          </div>
+        )}
+        
+        {/* Meta Type Toggle for lider_zona only (when not global role) */}
+        {role === 'lider_zona' && !isGlobalRole && (
+          <div className="flex justify-center">
+            <MetaTypeToggle
+              value={selectedMetaType}
+              onChange={setSelectedMetaType}
             />
           </div>
         )}

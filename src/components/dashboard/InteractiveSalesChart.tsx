@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -119,12 +119,42 @@ export function InteractiveSalesChart({
   const [selectedType, setSelectedType] = useState<TipoVentaKey | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
-  // Enrich salesByType with counts from salesCountByType if available
+  // Normalize CONVENIO → ALIADOS in salesByType and enrich with counts
   const enrichedSalesByType = useMemo(() => {
-    return salesByType.map(type => ({
-      ...type,
-      count: salesCountByType?.[type.key]?.count || 0,
-    }));
+    // First normalize any CONVENIO entries to ALIADOS
+    const normalizedData = salesByType.map(type => {
+      const normalizedKey = type.key === 'CONVENIO' ? 'ALIADOS' : type.key;
+      const normalizedName = type.key === 'CONVENIO' ? 'Aliados' : type.name;
+      return {
+        ...type,
+        key: normalizedKey,
+        name: normalizedName,
+        color: type.key === 'CONVENIO' ? tiposVentaColors.ALIADOS : type.color,
+      };
+    });
+    
+    // Merge duplicate keys (in case CONVENIO and ALIADOS both exist)
+    const mergedMap = new Map<string, typeof normalizedData[0]>();
+    normalizedData.forEach(item => {
+      const existing = mergedMap.get(item.key);
+      if (existing) {
+        existing.value += item.value;
+      } else {
+        mergedMap.set(item.key, { ...item });
+      }
+    });
+    
+    // Filter out items with zero or negative values for pie chart
+    const filtered = Array.from(mergedMap.values()).filter(item => item.value > 0);
+    
+    // Enrich with counts - also check for CONVENIO key in salesCountByType
+    return filtered.map(type => {
+      const countData = salesCountByType?.[type.key] || salesCountByType?.['CONVENIO'];
+      return {
+        ...type,
+        count: countData?.count || 0,
+      };
+    });
   }, [salesByType, salesCountByType]);
 
   // Generate gradient colors for breakdown items based on the selected type
@@ -191,11 +221,11 @@ export function InteractiveSalesChart({
   }, [selectedType, salesData, formasPago]);
 
   // Handle click on pie slice
-  const handlePieClick = (data: { key?: string }, index: number) => {
+  const handlePieClick = useCallback((data: { key?: string }, index: number) => {
     if (data.key && Object.keys(tiposVentaLabels).includes(data.key)) {
       setSelectedType(data.key as TipoVentaKey);
     }
-  };
+  }, []);
 
   // Handle back button
   const handleBack = () => {
@@ -206,12 +236,34 @@ export function InteractiveSalesChart({
   // Get total for selected type
   const selectedTypeTotal = useMemo(() => {
     if (!selectedType) return 0;
-    const typeData = salesByType.find(t => t.key === selectedType);
+    const typeData = enrichedSalesByType.find(t => t.key === selectedType);
     return typeData?.value || 0;
-  }, [selectedType, salesByType]);
+  }, [selectedType, enrichedSalesByType]);
 
   // Overall total
-  const overallTotal = salesByType.reduce((sum, t) => sum + t.value, 0);
+  const overallTotal = enrichedSalesByType.reduce((sum, t) => sum + t.value, 0);
+
+  // Don't render if there's no valid data
+  if (enrichedSalesByType.length === 0 || overallTotal <= 0) {
+    return (
+      <Card className="card-elevated">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-secondary" />
+            <CardTitle className="text-base sm:text-lg">Ventas del Equipo por Tipo</CardTitle>
+          </div>
+          <CardDescription className="text-xs sm:text-sm">
+            Distribución de ventas por tipo
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="h-[280px] sm:h-[320px] flex items-center justify-center text-muted-foreground">
+            No hay datos de ventas positivos para mostrar
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="card-elevated">

@@ -139,7 +139,8 @@ export default function DashboardAsesor() {
         .select('*')
         .eq('codigo_asesor', codigoAsesor)
         .eq('mes', currentMonth)
-        .eq('anio', currentYear);
+        .eq('anio', currentYear)
+        .eq('tipo_meta_categoria', 'comercial'); // Asesores siempre ven meta comercial
       
       if (error) throw error;
       return data;
