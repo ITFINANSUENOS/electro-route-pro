@@ -56,6 +56,13 @@ const allNavItems: NavItem[] = [
     roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
+    id: 'comparativo',
+    title: 'Comparativo', 
+    href: '/comparativo', 
+    icon: BarChart3,
+    roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
+  },
+  { 
     id: 'cargar-ventas',
     title: 'Cargar Ventas', 
     href: '/cargar-ventas', 
