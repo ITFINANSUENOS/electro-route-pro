@@ -7,14 +7,15 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Create custom colored icons
-const createColoredIcon = (color: string) => {
+const createColoredIcon = (color: string, size: number = 24) => {
+  const innerSize = Math.round(size / 3);
   return L.divIcon({
     className: 'custom-marker',
     html: `
       <div style="
         background-color: ${color};
-        width: 24px;
-        height: 24px;
+        width: ${size}px;
+        height: ${size}px;
         border-radius: 50%;
         border: 3px solid white;
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
@@ -23,16 +24,16 @@ const createColoredIcon = (color: string) => {
         justify-content: center;
       ">
         <div style="
-          width: 8px;
-          height: 8px;
+          width: ${innerSize}px;
+          height: ${innerSize}px;
           background-color: white;
           border-radius: 50%;
         "></div>
       </div>
     `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 };
 
@@ -40,6 +41,7 @@ const ICONS = {
   success: createColoredIcon('hsl(142, 71%, 45%)'), // Green
   warning: createColoredIcon('hsl(38, 92%, 50%)'),  // Yellow
   danger: createColoredIcon('hsl(0, 84%, 60%)'),    // Red
+  highlighted: createColoredIcon('hsl(0, 84%, 50%)', 36), // Red larger for highlight
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -110,6 +112,7 @@ interface MapaOperacionesProps {
   height?: string;
   onMarkerClick?: (marker: MapMarker) => void;
   className?: string;
+  highlightedMarkerId?: string;
 }
 
 function MapaOperacionesComponent({ 
@@ -117,10 +120,12 @@ function MapaOperacionesComponent({
   height = '600px',
   onMarkerClick,
   className,
+  highlightedMarkerId,
 }: MapaOperacionesProps) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const markerRefsMap = useRef<Map<string, L.Marker>>(new Map());
 
   // Initialize map
   useEffect(() => {
@@ -177,12 +182,14 @@ function MapaOperacionesComponent({
 
     // Clear existing markers
     markersLayerRef.current.clearLayers();
+    markerRefsMap.current.clear();
 
     if (markers.length > 0) {
       // Add new markers
       markers.forEach((marker) => {
+        const isHighlighted = highlightedMarkerId === marker.id;
         const status = getMarkerStatus(marker);
-        const icon = ICONS[status];
+        const icon = isHighlighted ? ICONS.highlighted : ICONS[status];
         
         const leafletMarker = L.marker([marker.lat, marker.lng], { icon })
           .bindPopup(createPopupContent(marker));
@@ -192,6 +199,12 @@ function MapaOperacionesComponent({
         }
         
         markersLayerRef.current?.addLayer(leafletMarker);
+        markerRefsMap.current.set(marker.id, leafletMarker);
+        
+        // Open popup if highlighted
+        if (isHighlighted) {
+          leafletMarker.openPopup();
+        }
       });
 
       // Fit bounds to show all markers
@@ -206,7 +219,19 @@ function MapaOperacionesComponent({
         console.warn('Error fitting map bounds:', error);
       }
     }
-  }, [markers, onMarkerClick]);
+  }, [markers, onMarkerClick, highlightedMarkerId]);
+
+  // Pan to highlighted marker when it changes
+  useEffect(() => {
+    if (!mapRef.current || !highlightedMarkerId) return;
+    
+    const leafletMarker = markerRefsMap.current.get(highlightedMarkerId);
+    if (leafletMarker) {
+      const latLng = leafletMarker.getLatLng();
+      mapRef.current.setView(latLng, 14, { animate: true });
+      leafletMarker.openPopup();
+    }
+  }, [highlightedMarkerId]);
 
   // Don't render map if no markers - show placeholder instead
   if (markers.length === 0) {
