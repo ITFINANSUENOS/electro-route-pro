@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Users, Loader2 } from 'lucide-react';
+import { MapPin, Users, Loader2, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { MapaOperaciones } from '@/components/map/MapaOperaciones';
@@ -10,6 +10,7 @@ import type { MapFiltersState, MapMarker } from '@/components/map/types';
 import { ACTIVITY_LABELS } from '@/components/map/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 const initialFilters: MapFiltersState = {
   dateFrom: '',
@@ -22,6 +23,7 @@ const initialFilters: MapFiltersState = {
 export default function Mapa() {
   const [filters, setFilters] = useState<MapFiltersState>(initialFilters);
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+  const [highlightedMarkerId, setHighlightedMarkerId] = useState<string | null>(null);
 
   const { markers, isLoading } = useMapLocations({ filters });
 
@@ -31,6 +33,12 @@ export default function Mapa() {
 
   const handleMarkerClick = (marker: MapMarker) => {
     setSelectedMarker(marker);
+    setHighlightedMarkerId(marker.id);
+  };
+
+  const handleLocationItemClick = (marker: MapMarker) => {
+    setSelectedMarker(marker);
+    setHighlightedMarkerId(marker.id);
   };
 
   // Group markers by location for the sidebar
@@ -108,6 +116,7 @@ export default function Mapa() {
                 markers={markers}
                 height="600px"
                 onMarkerClick={handleMarkerClick}
+                highlightedMarkerId={highlightedMarkerId || undefined}
               />
             )}
           </CardContent>
@@ -127,31 +136,83 @@ export default function Mapa() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-[450px] overflow-y-auto">
-              {Object.entries(locationGroups).map(([municipio, locationMarkers]) => (
-                <div
-                  key={municipio}
-                  className="p-3 rounded-lg border bg-card hover:shadow-sm transition-shadow cursor-pointer"
-                  onClick={() => locationMarkers[0] && handleMarkerClick(locationMarkers[0])}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm truncate">{municipio}</span>
-                    <StatusBadge
-                      status={getLocationStatus(locationMarkers)}
-                      size="sm"
-                      label={
-                        getLocationStatus(locationMarkers) === 'success' ? 'OK' :
-                        getLocationStatus(locationMarkers) === 'warning' ? 'Parcial' : 'Pendiente'
-                      }
-                    />
+              {Object.entries(locationGroups).map(([municipio, locationMarkers]) => {
+                const isAnyHighlighted = locationMarkers.some(m => m.id === highlightedMarkerId);
+                
+                return (
+                  <div key={municipio} className="space-y-1">
+                    {/* Municipio Header */}
+                    <div className="p-2 rounded-lg bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm truncate">{municipio}</span>
+                        <StatusBadge
+                          status={getLocationStatus(locationMarkers)}
+                          size="sm"
+                          label={
+                            getLocationStatus(locationMarkers) === 'success' ? 'OK' :
+                            getLocationStatus(locationMarkers) === 'warning' ? 'Parcial' : 'Pendiente'
+                          }
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Individual Location Items */}
+                    {locationMarkers.map((marker) => {
+                      const isHighlighted = marker.id === highlightedMarkerId;
+                      const markerStatus = (() => {
+                        const isCorreria = marker.tipo_actividad === 'correria';
+                        const hasComplete = isCorreria ? marker.has_photo && marker.has_gps : marker.has_gps;
+                        return hasComplete ? 'success' : marker.has_photo || marker.has_gps ? 'warning' : 'danger';
+                      })();
+                      
+                      return (
+                        <div
+                          key={marker.id}
+                          onClick={() => handleLocationItemClick(marker)}
+                          className={cn(
+                            "p-2 pl-4 rounded-lg border cursor-pointer transition-all",
+                            isHighlighted 
+                              ? "bg-destructive/10 border-destructive shadow-sm" 
+                              : "bg-card hover:shadow-sm hover:border-primary/30"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className={cn(
+                                "text-sm font-medium truncate",
+                                isHighlighted && "text-destructive"
+                              )}>
+                                {marker.user_name}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {ACTIVITY_LABELS[marker.tipo_actividad]} • {
+                                  (() => {
+                                    try {
+                                      return format(new Date(marker.hora_registro), 'h:mm a');
+                                    } catch { return marker.hora_registro; }
+                                  })()
+                                }
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "h-2.5 w-2.5 rounded-full",
+                                markerStatus === 'success' && "bg-success",
+                                markerStatus === 'warning' && "bg-warning",
+                                markerStatus === 'danger' && "bg-danger"
+                              )} />
+                              <ChevronRight className={cn(
+                                "h-4 w-4",
+                                isHighlighted ? "text-destructive" : "text-muted-foreground"
+                              )} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {locationMarkers.length} {locationMarkers.length === 1 ? 'reporte' : 'reportes'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {Object.keys(locationGroups).length === 0 && !isLoading && (
                 <p className="text-sm text-muted-foreground text-center py-4">
