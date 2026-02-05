@@ -86,12 +86,12 @@ export const rolePermissions: Record<UserRole, string[]> = {
 
 // Orden de menú por rol (consolidado sin reportes separado)
 export const menuOrderByRole: Record<UserRole, string[]> = {
-  asesor_comercial: ['dashboard', 'programacion', 'actividades'],
-  jefe_ventas: ['dashboard', 'programacion', 'actividades'],
-  lider_zona: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios'],
-  coordinador_comercial: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios'],
+  asesor_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo'],
+  jefe_ventas: ['dashboard', 'programacion', 'actividades', 'comparativo'],
+  lider_zona: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
+  coordinador_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
   administrativo: ['dashboard', 'cargar-ventas'],
-  administrador: ['dashboard', 'programacion', 'actividades', 'mapa', 'informacion', 'usuarios', 'configuracion'],
+  administrador: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios', 'configuracion'],
 };
 
 // Helper function to get zona based on regional name
