@@ -11,12 +11,11 @@
    ResponsiveContainer,
  } from 'recharts';
  import { DailySalesData } from '@/hooks/useComparativeData';
- import { format } from 'date-fns';
- import { es } from 'date-fns/locale';
  
  interface ComparativeChartProps {
    data: DailySalesData[];
-   metric: 'amount' | 'count';
+  showAmount: boolean;
+  showCount: boolean;
    currentMonthLabel: string;
    previousMonthLabel: string;
  }
@@ -31,26 +30,26 @@
    return `$${value.toLocaleString('es-CO')}`;
  };
  
- const formatTooltipValue = (value: number, metric: 'amount' | 'count') => {
-   if (metric === 'amount') {
-     return `$${value.toLocaleString('es-CO')}`;
-   }
-   return `${value} ventas`;
+const formatCount = (value: number) => {
+  return value.toString();
  };
  
  export function ComparativeChart({
    data,
-   metric,
+  showAmount,
+  showCount,
    currentMonthLabel,
    previousMonthLabel,
  }: ComparativeChartProps) {
    const chartData = useMemo(() => {
      return data.map(d => ({
        day: d.day,
-       current: metric === 'amount' ? d.currentAmount : d.currentCount,
-       previous: metric === 'amount' ? d.previousAmount : d.previousCount,
+      currentAmount: d.currentAmount,
+      previousAmount: d.previousAmount,
+      currentCount: d.currentCount,
+      previousCount: d.previousCount,
      }));
-   }, [data, metric]);
+  }, [data]);
  
    const CustomTooltip = ({ active, payload, label }: any) => {
      if (!active || !payload || !payload.length) return null;
@@ -58,18 +57,25 @@
      return (
        <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
          <p className="font-medium text-foreground mb-2">Día {label}</p>
-         {payload.map((entry: any, index: number) => (
-           <div key={index} className="flex items-center gap-2 text-sm">
-             <div
-               className="w-3 h-3 rounded-full"
-               style={{ backgroundColor: entry.color }}
-             />
-             <span className="text-muted-foreground">{entry.name}:</span>
-             <span className="font-medium text-foreground">
-               {formatTooltipValue(entry.value, metric)}
-             </span>
-           </div>
-         ))}
+        {payload.map((entry: any, index: number) => {
+          const isAmount = entry.dataKey.includes('Amount');
+          const formattedValue = isAmount 
+            ? `$${entry.value.toLocaleString('es-CO')}`
+            : `${entry.value} ventas`;
+          
+          return (
+            <div key={index} className="flex items-center gap-2 text-sm">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-muted-foreground">{entry.name}:</span>
+              <span className="font-medium text-foreground">
+                {formattedValue}
+              </span>
+            </div>
+          );
+        })}
        </div>
      );
    };
@@ -87,10 +93,23 @@
              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
              tickLine={{ stroke: 'hsl(var(--border))' }}
            />
+          {/* Left Y-Axis for Amount (Bars) */}
            <YAxis
+            yAxisId="amount"
+            orientation="left"
              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
              tickLine={{ stroke: 'hsl(var(--border))' }}
-             tickFormatter={metric === 'amount' ? formatCurrency : (v) => v.toString()}
+            tickFormatter={formatCurrency}
+            hide={!showAmount}
+          />
+          {/* Right Y-Axis for Count (Lines) */}
+          <YAxis
+            yAxisId="count"
+            orientation="right"
+            tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+            tickLine={{ stroke: 'hsl(var(--border))' }}
+            tickFormatter={formatCount}
+            hide={!showCount}
            />
            <Tooltip content={<CustomTooltip />} />
            <Legend
@@ -99,22 +118,55 @@
                <span className="text-foreground text-sm">{value}</span>
              )}
            />
-           <Bar
-             dataKey="current"
-             name={currentMonthLabel}
-             fill="hsl(var(--primary))"
-             radius={[4, 4, 0, 0]}
-             maxBarSize={30}
-           />
-           <Line
-             type="monotone"
-             dataKey="previous"
-             name={previousMonthLabel}
-             stroke="hsl(var(--secondary))"
-             strokeWidth={2}
-             dot={{ fill: 'hsl(var(--secondary))', strokeWidth: 2, r: 3 }}
-             activeDot={{ r: 5, fill: 'hsl(var(--secondary))' }}
-           />
+          {/* Bars for Amount - Current Month */}
+          {showAmount && (
+            <Bar
+              yAxisId="amount"
+              dataKey="currentAmount"
+              name={`${currentMonthLabel} ($)`}
+              fill="hsl(var(--primary))"
+              radius={[2, 2, 0, 0]}
+              maxBarSize={15}
+            />
+          )}
+          {/* Bars for Amount - Previous Month */}
+          {showAmount && (
+            <Bar
+              yAxisId="amount"
+              dataKey="previousAmount"
+              name={`${previousMonthLabel} ($)`}
+              fill="hsl(var(--primary)/0.4)"
+              radius={[2, 2, 0, 0]}
+              maxBarSize={15}
+            />
+          )}
+          {/* Line for Count - Current Month */}
+          {showCount && (
+            <Line
+              yAxisId="count"
+              type="monotone"
+              dataKey="currentCount"
+              name={`${currentMonthLabel} (Q)`}
+              stroke="hsl(var(--secondary))"
+              strokeWidth={2}
+              dot={{ fill: 'hsl(var(--secondary))', strokeWidth: 2, r: 3 }}
+              activeDot={{ r: 5, fill: 'hsl(var(--secondary))' }}
+            />
+          )}
+          {/* Line for Count - Previous Month */}
+          {showCount && (
+            <Line
+              yAxisId="count"
+              type="monotone"
+              dataKey="previousCount"
+              name={`${previousMonthLabel} (Q)`}
+              stroke="hsl(var(--accent))"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={{ fill: 'hsl(var(--accent))', strokeWidth: 2, r: 3 }}
+              activeDot={{ r: 5, fill: 'hsl(var(--accent))' }}
+            />
+          )}
          </ComposedChart>
        </ResponsiveContainer>
      </div>
