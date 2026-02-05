@@ -1,11 +1,12 @@
  import { useState, useMemo } from 'react';
  import { motion } from 'framer-motion';
- import { BarChart3, TrendingUp, DollarSign, Hash } from 'lucide-react';
+import { BarChart3, TrendingUp } from 'lucide-react';
  import { format, subMonths } from 'date-fns';
  import { es } from 'date-fns/locale';
  import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
- import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
  import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
  import { PeriodSelector } from '@/components/dashboard/PeriodSelector';
  import { usePeriodSelector } from '@/hooks/usePeriodSelector';
  import { useComparativeData, ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
@@ -24,7 +25,8 @@
     availablePeriods, 
     isLoading: periodsLoading 
   } = usePeriodSelector();
-   const [metric, setMetric] = useState<'amount' | 'count'>('amount');
+  const [showAmount, setShowAmount] = useState(true);
+  const [showCount, setShowCount] = useState(true);
    const [filters, setFilters] = useState<FiltersType>({
      tipoAsesor: [],
      tipoVenta: [],
@@ -99,18 +101,28 @@
              <TrendingUp className="h-5 w-5 text-secondary" />
              Comparativo Día a Día
            </CardTitle>
-           <Tabs value={metric} onValueChange={(v) => setMetric(v as 'amount' | 'count')}>
-             <TabsList className="h-8">
-               <TabsTrigger value="amount" className="text-xs gap-1 px-3">
-                 <DollarSign className="h-3 w-3" />
-                 Monto
-               </TabsTrigger>
-               <TabsTrigger value="count" className="text-xs gap-1 px-3">
-                 <Hash className="h-3 w-3" />
-                 Cantidad
-               </TabsTrigger>
-             </TabsList>
-           </Tabs>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-amount"
+                checked={showAmount}
+                onCheckedChange={setShowAmount}
+              />
+              <Label htmlFor="show-amount" className="text-xs font-medium">
+                Monto ($)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-count"
+                checked={showCount}
+                onCheckedChange={setShowCount}
+              />
+              <Label htmlFor="show-count" className="text-xs font-medium">
+                Cantidad (Q)
+              </Label>
+            </div>
+          </div>
          </CardHeader>
          <CardContent>
            {isLoading ? (
@@ -118,7 +130,8 @@
            ) : (
              <ComparativeChart
                data={dailyData}
-               metric={metric}
+              showAmount={showAmount}
+              showCount={showCount}
                currentMonthLabel={currentMonthLabel}
                previousMonthLabel={previousMonthLabel}
              />

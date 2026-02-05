@@ -29,6 +29,38 @@
    countVariationPercent: number;
  }
  
+// Helper function to fetch all records with pagination
+async function fetchAllSalesWithPagination(
+  baseQuery: any,
+  prevStart: string,
+  currentEnd: string
+): Promise<any[]> {
+  const pageSize = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await baseQuery
+      .gte('fecha', prevStart)
+      .lte('fecha', currentEnd)
+      .neq('tipo_venta', 'OTROS')
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allData;
+}
+
  export function useComparativeData(
    selectedMonth: number,
    selectedYear: number,
@@ -54,14 +86,11 @@
    const { data: salesData, isLoading } = useQuery({
      queryKey: ['comparative-sales', selectedMonth, selectedYear, filters, profile?.codigo_asesor, profile?.codigo_jefe, profile?.regional_id, role],
      queryFn: async () => {
-       // Build query for both periods
-       const currentStart = format(currentPeriod.start, 'yyyy-MM-dd');
-       const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');
        const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
-       const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
-       
-       // Fetch all sales for both periods
-       let query = supabase
+        const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');
+
+        // Build base query
+        let baseQuery = supabase
          .from('ventas')
          .select(`
            fecha,
@@ -70,40 +99,90 @@
            tipo_venta,
            codigo_jefe,
            cliente_identificacion
-         `)
-         .gte('fecha', prevStart)
-         .lte('fecha', currentEnd)
-         .neq('tipo_venta', 'OTROS');
-       
+          `);
+
        // Apply role-based filters
        if (role === 'asesor_comercial' && profile?.codigo_asesor) {
-         query = query.eq('codigo_asesor', profile.codigo_asesor);
+          baseQuery = baseQuery.eq('codigo_asesor', profile.codigo_asesor);
        } else if (role === 'jefe_ventas' && profile?.codigo_jefe) {
-         query = query.eq('codigo_jefe', profile.codigo_jefe);
+          baseQuery = baseQuery.eq('codigo_jefe', profile.codigo_jefe);
        }
-       
+
        // Apply user filters
        if (filters.codigosAsesor.length > 0) {
-         query = query.in('codigo_asesor', filters.codigosAsesor);
+          baseQuery = baseQuery.in('codigo_asesor', filters.codigosAsesor);
        }
-       
+
        if (filters.codigoJefe) {
-         query = query.eq('codigo_jefe', filters.codigoJefe);
+          baseQuery = baseQuery.eq('codigo_jefe', filters.codigoJefe);
        }
-       
+
        if (filters.tipoVenta.length > 0) {
-         // Normalize CONVENIO to ALIADOS in filter
          const normalizedTypes = filters.tipoVenta.map(t => 
            t === 'ALIADOS' ? 'CONVENIO' : t
          );
-         query = query.in('tipo_venta', [...filters.tipoVenta, ...normalizedTypes]);
+          baseQuery = baseQuery.in('tipo_venta', [...new Set([...filters.tipoVenta, ...normalizedTypes])]);
        }
-       
-       const { data, error } = await query;
-       
-       if (error) throw error;
-       
-       return data || [];
+
+        // Fetch all data with pagination
+        const pageSize = 1000;
+        let allData: any[] = [];
+        let page = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          let pageQuery = supabase
+            .from('ventas')
+            .select(`
+              fecha,
+              vtas_ant_i,
+              codigo_asesor,
+              tipo_venta,
+              codigo_jefe,
+              cliente_identificacion
+            `)
+            .gte('fecha', prevStart)
+            .lte('fecha', currentEnd)
+            .neq('tipo_venta', 'OTROS')
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+          // Apply role-based filters
+          if (role === 'asesor_comercial' && profile?.codigo_asesor) {
+            pageQuery = pageQuery.eq('codigo_asesor', profile.codigo_asesor);
+          } else if (role === 'jefe_ventas' && profile?.codigo_jefe) {
+            pageQuery = pageQuery.eq('codigo_jefe', profile.codigo_jefe);
+          }
+
+          // Apply user filters
+          if (filters.codigosAsesor.length > 0) {
+            pageQuery = pageQuery.in('codigo_asesor', filters.codigosAsesor);
+          }
+
+          if (filters.codigoJefe) {
+            pageQuery = pageQuery.eq('codigo_jefe', filters.codigoJefe);
+          }
+
+          if (filters.tipoVenta.length > 0) {
+            const normalizedTypes = filters.tipoVenta.map(t => 
+              t === 'ALIADOS' ? 'CONVENIO' : t
+            );
+            pageQuery = pageQuery.in('tipo_venta', [...new Set([...filters.tipoVenta, ...normalizedTypes])]);
+          }
+
+          const { data, error } = await pageQuery;
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            hasMore = data.length === pageSize;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
      },
      enabled: !!profile,
    });
