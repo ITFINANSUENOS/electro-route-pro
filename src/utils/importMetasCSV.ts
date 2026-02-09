@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 interface MetaRow {
   codigo_asesor: string;
@@ -155,25 +155,25 @@ export async function importMetasCSV(
   }
 
   // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await dataService.auth.getUser();
 
   // Get existing metas total before deletion (for history)
-  const { data: existingMetas } = await supabase
+  const { data: existingMetas } = await (dataService
     .from('metas')
     .select('valor_meta')
     .eq('mes', mes)
-    .eq('anio', anio);
+    .eq('anio', anio) as any);
 
   const montoTotalAnterior = existingMetas?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
   const registrosAnteriores = existingMetas?.length || 0;
 
   // Delete existing metas for this period AND tipo_meta_categoria
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await (dataService
     .from('metas')
     .delete()
     .eq('mes', mes)
     .eq('anio', anio)
-    .eq('tipo_meta_categoria', tipoMetaCategoria);
+    .eq('tipo_meta_categoria', tipoMetaCategoria) as any);
 
   if (deleteError) {
     console.error('Error deleting existing metas:', deleteError);
@@ -192,12 +192,12 @@ export async function importMetasCSV(
       tipo_meta_categoria: m.tipo_meta_categoria,
       mes,
       anio,
-      cargado_por: user?.id || null,
+      cargado_por: (user as any)?.id || null,
     }));
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await (dataService
       .from('metas')
-      .insert(batch);
+      .insert(batch) as any);
 
     if (insertError) {
       console.error('Insert error:', insertError);
@@ -214,7 +214,7 @@ export async function importMetasCSV(
   if (inserted > 0) {
     const accion = registrosAnteriores > 0 ? 'correccion' : 'carga_masiva';
     
-    const { error: historialError } = await supabase
+    const { error: historialError } = await (dataService
       .from('historial_metas')
       .insert({
         mes,
@@ -223,11 +223,11 @@ export async function importMetasCSV(
         registros_afectados: inserted,
         monto_total_anterior: montoTotalAnterior,
         monto_total_nuevo: montoTotalNuevo,
-        modificado_por: user?.id || null,
+        modificado_por: (user as any)?.id || null,
         notas: registrosAnteriores > 0 
           ? `Reemplazo de ${registrosAnteriores} metas ${tipoMetaCategoria.toUpperCase()} por ${inserted} nuevas`
           : `Carga inicial de ${inserted} metas ${tipoMetaCategoria.toUpperCase()}`,
-      });
+      }) as any);
 
     if (historialError) {
       console.error('Error recording historial:', historialError);

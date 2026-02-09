@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import {
   Dialog,
   DialogContent,
@@ -105,11 +105,11 @@ export default function Programacion() {
       const endDate = format(monthEnd, 'yyyy-MM-dd');
       
       // Base query - RLS handles visibility per role
-      const { data: scheduleData, error } = await supabase
+      const { data: scheduleData, error } = await (dataService
         .from('programacion')
         .select('*')
         .gte('fecha', startDate)
-        .lte('fecha', endDate);
+        .lte('fecha', endDate) as any);
 
       if (error) throw error;
       if (!scheduleData || scheduleData.length === 0) return [];
@@ -123,10 +123,10 @@ export default function Programacion() {
       // For jefe_ventas: their own + their team's schedules (asesores with same codigo_jefe)
       const jefeCode = (profile as any)?.codigo_jefe;
       if (role === 'jefe_ventas' && jefeCode) {
-        const { data: teamProfiles } = await supabase
+        const { data: teamProfiles } = await (dataService
           .from('profiles')
           .select('user_id')
-          .eq('codigo_jefe', jefeCode);
+          .eq('codigo_jefe', jefeCode) as any);
         
         const teamUserIds = new Set([user?.id, ...(teamProfiles?.map(p => p.user_id) || [])]);
         return scheduleData.filter(s => teamUserIds.has(s.user_id));
@@ -134,10 +134,10 @@ export default function Programacion() {
 
       // For lider_zona: their regional's schedules
       if (role === 'lider_zona' && profile?.regional_id) {
-        const { data: regionalProfiles } = await supabase
+        const { data: regionalProfiles } = await (dataService
           .from('profiles')
           .select('user_id')
-          .eq('regional_id', profile.regional_id);
+          .eq('regional_id', profile.regional_id) as any);
         
         const regionalUserIds = new Set(regionalProfiles?.map(p => p.user_id) || []);
         return scheduleData.filter(s => regionalUserIds.has(s.user_id));
@@ -152,9 +152,9 @@ export default function Programacion() {
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-programacion'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
-        .select('*, regionales(nombre)');
+        .select('*, regionales(nombre)') as any);
       if (error) throw error;
       return data || [];
     },
@@ -164,10 +164,10 @@ export default function Programacion() {
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales-programacion'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('*')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
       return data || [];
     },
@@ -180,7 +180,7 @@ export default function Programacion() {
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['jefes-ventas-dialog', filterRegional, profile?.regional_id, role],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('jefes_ventas')
         .select('*, regionales(nombre)')
         .eq('activo', true)
@@ -193,9 +193,9 @@ export default function Programacion() {
         query = query.eq('regional_id', profile.regional_id);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await (query as any);
       if (error) throw error;
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: canEdit,
   });
@@ -315,7 +315,7 @@ export default function Programacion() {
         }))
       );
 
-      const { error } = await supabase.from('programacion').insert(insertData);
+      const { error } = await (dataService.from('programacion').insert(insertData) as any);
 
       if (error) throw error;
 

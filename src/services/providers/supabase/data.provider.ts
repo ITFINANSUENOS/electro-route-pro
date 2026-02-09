@@ -18,6 +18,15 @@ export class SupabaseDataProvider implements IDataService {
     return (supabase.from as any)(table) as IQueryBuilder<T>;
   }
 
+  async rpc(fn: string, params?: Record<string, unknown>): Promise<{ data: unknown; error: Error | null }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (supabase.rpc as any)(fn, params);
+    return {
+      data: result.data,
+      error: result.error ? new Error(result.error.message) : null,
+    };
+  }
+
   functions = {
     async invoke<T = unknown>(
       functionName: string,

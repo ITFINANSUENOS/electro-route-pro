@@ -13,7 +13,7 @@ import { KpiCard } from '@/components/ui/kpi-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useActivityCompliance } from '@/hooks/useActivityCompliance';
@@ -111,16 +111,16 @@ export default function DashboardAsesor() {
   // Fetch own sales data using multi-key matching
   const { data: salesData } = useQuery({
     queryKey: ['asesor-sales', codigoAsesor, cedulaAsesor, nombreAsesor, startDateStr],
-    queryFn: async () => {
+    queryFn: async (): Promise<any[]> => {
       // Need at least one identifier
       if (!codigoAsesor && !cedulaAsesor && !nombreAsesor) return [];
       
       // RLS policy handles the multi-key matching, just fetch all accessible sales
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('ventas')
         .select('*')
         .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
+        .lte('fecha', endDateStr) as any);
       
       if (error) throw error;
       return data || [];
@@ -131,16 +131,16 @@ export default function DashboardAsesor() {
   // Fetch own meta (metas use codigo_asesor as primary key)
   const { data: metaData } = useQuery({
     queryKey: ['asesor-meta', codigoAsesor, currentMonth],
-    queryFn: async () => {
+    queryFn: async (): Promise<any[] | null> => {
       if (!codigoAsesor) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('metas')
         .select('*')
         .eq('codigo_asesor', codigoAsesor)
         .eq('mes', currentMonth)
         .eq('anio', currentYear)
-        .eq('tipo_meta_categoria', 'comercial'); // Asesores siempre ven meta comercial
+        .eq('tipo_meta_categoria', 'comercial') as any);
       
       if (error) throw error;
       return data;
@@ -151,15 +151,15 @@ export default function DashboardAsesor() {
   // Fetch daily reports for consultas/solicitudes
   const { data: reportesData } = useQuery({
     queryKey: ['asesor-reportes', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<any[]> => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .eq('user_id', user.id)
         .gte('fecha', '2026-01-01')
-        .lte('fecha', '2026-01-31');
+        .lte('fecha', '2026-01-31') as any);
       
       if (error) throw error;
       return data;
@@ -180,11 +180,11 @@ export default function DashboardAsesor() {
     queryKey: ['regional-advisor-count', regionalId],
     queryFn: async () => {
       if (!regionalId) return 0;
-      const { data, error } = await supabase.rpc('count_regional_advisors', {
+      const { data, error } = await dataService.rpc('count_regional_advisors', {
         p_regional_id: regionalId
       });
       if (error) throw error;
-      return data || 0;
+      return (data as number) || 0;
     },
     enabled: !!regionalId,
   });
@@ -194,13 +194,13 @@ export default function DashboardAsesor() {
     queryKey: ['top-regional-sales', regionalId, startDateStr, endDateStr],
     queryFn: async () => {
       if (!regionalId) return 0;
-      const { data, error } = await supabase.rpc('get_top_regional_sales', {
+      const { data, error } = await dataService.rpc('get_top_regional_sales', {
         p_regional_id: regionalId,
         p_start_date: startDateStr,
         p_end_date: endDateStr
       });
       if (error) throw error;
-      return data || 0;
+      return (data as number) || 0;
     },
     enabled: !!regionalId,
   });
@@ -210,14 +210,14 @@ export default function DashboardAsesor() {
     queryKey: ['advisor-regional-position', codigoAsesor, regionalId, startDateStr, endDateStr],
     queryFn: async () => {
       if (!regionalId || !codigoAsesor) return 0;
-      const { data, error } = await supabase.rpc('get_advisor_regional_position', {
+      const { data, error } = await dataService.rpc('get_advisor_regional_position', {
         p_codigo_asesor: codigoAsesor,
         p_regional_id: regionalId,
         p_start_date: startDateStr,
         p_end_date: endDateStr
       });
       if (error) throw error;
-      return data || 0;
+      return (data as number) || 0;
     },
     enabled: !!regionalId && !!codigoAsesor,
   });
@@ -227,11 +227,11 @@ export default function DashboardAsesor() {
     queryKey: ['group-advisor-count', codigoJefe],
     queryFn: async () => {
       if (!codigoJefe) return 0;
-      const { data, error } = await supabase.rpc('count_group_advisors', {
+      const { data, error } = await dataService.rpc('count_group_advisors', {
         p_codigo_jefe: codigoJefe
       });
       if (error) throw error;
-      return data || 0;
+      return (data as number) || 0;
     },
     enabled: !!codigoJefe,
   });
@@ -241,14 +241,14 @@ export default function DashboardAsesor() {
     queryKey: ['advisor-group-position', codigoAsesor, codigoJefe, startDateStr, endDateStr],
     queryFn: async () => {
       if (!codigoJefe || !codigoAsesor) return 0;
-      const { data, error } = await supabase.rpc('get_advisor_group_position', {
+      const { data, error } = await dataService.rpc('get_advisor_group_position', {
         p_codigo_asesor: codigoAsesor,
         p_codigo_jefe: codigoJefe,
         p_start_date: startDateStr,
         p_end_date: endDateStr
       });
       if (error) throw error;
-      return data || 0;
+      return (data as number) || 0;
     },
     enabled: !!codigoJefe && !!codigoAsesor,
   });
@@ -265,7 +265,7 @@ export default function DashboardAsesor() {
   const salesCount = useSalesCount(salesForCounting);
 
   // Calculate metrics
-  const metrics = useMemo(() => {
+  const metrics = useMemo((): { total: number; byType: any[]; totalMeta: number } => {
     if (!salesData) return { total: 0, byType: [], totalMeta: 0 };
 
     // Exclude "OTROS" from sales totals (REBATE, ARRENDAMIENTO, etc.)
@@ -273,13 +273,13 @@ export default function DashboardAsesor() {
 
     // Group by tipo_venta - use NET values (sum) to correctly handle returns/refunds
     const byTypeRaw = filteredSales.reduce((acc, sale) => {
-      const type = sale.tipo_venta || 'OTRO';
-      acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
+      const type = (sale as any).tipo_venta || 'OTRO';
+      acc[type] = (acc[type] || 0) + ((sale as any).vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, number>);
 
     // Calculate total using net values (allows negative to subtract)
-    const total = Object.values(byTypeRaw).reduce((sum, val) => sum + val, 0);
+    const total = Object.values(byTypeRaw).reduce((sum: number, val: number) => sum + val, 0);
 
     // For display, show actual net values (can be negative for returns-heavy categories)
     const byType = Object.entries(byTypeRaw)
@@ -291,7 +291,7 @@ export default function DashboardAsesor() {
         color: tiposVentaColors[name as keyof typeof tiposVentaColors] || 'hsl(var(--muted))',
       }));
 
-    const totalMeta = metaData?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
+    const totalMeta = (metaData as any)?.reduce((sum: number, m: any) => sum + m.valor_meta, 0) || 0;
 
     return {
       total, // Net total correctly subtracting returns

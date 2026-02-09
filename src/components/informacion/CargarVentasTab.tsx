@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSalesPeriod, getMonthName, isClosingDay } from '@/hooks/useSalesPeriod';
@@ -141,12 +141,12 @@ export default function CargarVentasTab() {
   const { data: uploadHistory, refetch } = useQuery({
     queryKey: ['upload-history-ventas'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(10) as any);
       
       if (error) throw error;
       return data as UploadHistory[];
@@ -415,11 +415,11 @@ export default function CargarVentasTab() {
       await getOrCreatePeriod(targetPeriod.month, targetPeriod.year);
 
       // Create upload record
-      const { data: cargaRecord, error: cargaError } = await supabase
+      const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
         .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
         .select()
-        .single();
+        .single() as any);
 
       if (cargaError) throw cargaError;
       cargaId = cargaRecord.id;
@@ -446,9 +446,9 @@ export default function CargarVentasTab() {
     } catch (error) {
       console.error('Upload error:', error);
       if (cargaId) {
-        await supabase.from('carga_archivos')
+        await (dataService.from('carga_archivos')
           .update({ estado: 'error', mensaje_error: (error as Error).message })
-          .eq('id', cargaId);
+          .eq('id', cargaId) as any);
       }
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
       refetch();
@@ -474,11 +474,11 @@ export default function CargarVentasTab() {
 
       // DELETE existing data for this month BEFORE inserting new data
       // This ensures we REPLACE data instead of adding to it
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await (dataService
         .from('ventas')
         .delete()
         .gte('fecha', monthStart)
-        .lte('fecha', monthEnd);
+        .lte('fecha', monthEnd) as any);
 
       if (deleteError) {
         console.error('Delete error:', deleteError);
@@ -496,7 +496,7 @@ export default function CargarVentasTab() {
 
       for (let i = 0; i < ventas.length; i += batchSize) {
         const batch = ventas.slice(i, i + batchSize);
-        const { error } = await supabase.from('ventas').insert(batch as never[]);
+        const { error } = await (dataService.from('ventas').insert(batch as never[]) as any);
         
         if (error) {
           console.error('Batch error:', error);
@@ -509,9 +509,9 @@ export default function CargarVentasTab() {
       }
 
       // Mark complete
-      await supabase.from('carga_archivos')
+      await (dataService.from('carga_archivos')
         .update({ estado: 'completado', registros_procesados: inserted })
-        .eq('id', cargaId);
+        .eq('id', cargaId) as any);
 
       setUploadProgress(100);
       setUploadStatus('¡Completado!');
