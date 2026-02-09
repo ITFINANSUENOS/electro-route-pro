@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { authService } from '@/services';
+import type { ServiceUser, ServiceSession } from '@/services/types';
 import { UserRole, UserProfile } from '@/types/auth';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: ServiceUser | null;
+  session: ServiceSession | null;
   profile: UserProfile | null;
   role: UserRole | null;
   loading: boolean;
@@ -18,171 +18,67 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<ServiceUser | null>(null);
+  const [session, setSession] = useState<ServiceSession | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Defer profile fetch to avoid blocking
-          setTimeout(async () => {
-            await fetchUserProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setRole(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { unsubscribe } = authService.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        setTimeout(async () => {
+          await loadProfile(session.user.id);
+        }, 0);
+      } else {
+        setProfile(null);
+        setRole(null);
+        setLoading(false);
+      }
+    });
+
+    authService.getSession().then(({ session, user }) => {
+      setSession(session);
+      setUser(user);
+      if (user) {
+        loadProfile(user.id);
       } else {
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
+  const loadProfile = async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-      }
-
-      // Fetch role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (roleError) {
-        console.error('Error fetching role:', roleError);
-      }
-
-      if (profileData) {
-        setProfile({
-          id: profileData.id,
-          user_id: profileData.user_id,
-          cedula: profileData.cedula,
-          nombre_completo: profileData.nombre_completo,
-          telefono: profileData.telefono,
-          zona: profileData.zona,
-          regional_id: profileData.regional_id,
-          codigo_asesor: profileData.codigo_asesor,
-          codigo_jefe: profileData.codigo_jefe,
-          activo: profileData.activo,
-          created_at: profileData.created_at,
-          updated_at: profileData.updated_at,
-        });
-      } else {
-        // Fallback profile from user metadata
-        const user = (await supabase.auth.getUser()).data.user;
-        setProfile({
-          id: userId,
-          user_id: userId,
-          cedula: user?.user_metadata?.cedula || '',
-          nombre_completo: user?.user_metadata?.nombre_completo || user?.email || 'Usuario',
-          activo: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      }
-
-      if (roleData) {
-        setRole(roleData.role as UserRole);
-      } else {
-        setRole('asesor_comercial'); // Default role
-      }
+      const { profile, role } = await authService.fetchUserProfile(userId);
+      setProfile(profile);
+      setRole(role);
     } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
+      console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const signIn = async (identifier: string, password: string) => {
-    try {
-      let email = identifier;
-      
-      // Check if identifier is a cedula (only numbers) - look up email
-      const isCedula = /^\d+$/.test(identifier.trim());
-      if (isCedula) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('correo, user_id')
-          .eq('cedula', identifier.trim())
-          .maybeSingle();
-        
-        if (profileData?.correo) {
-          email = profileData.correo;
-        } else {
-          // Fallback: try cedula@electrocreditos.com
-          email = `${identifier.trim()}@electrocreditos.com`;
-        }
-      }
-      
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      return { error };
-    } catch (error) {
-      return { error: error as Error };
-    }
+    return authService.signIn(identifier, password);
   };
 
   const signUp = async (
-    email: string, 
-    password: string, 
+    email: string,
+    password: string,
     profileData: { cedula: string; nombre_completo: string; telefono?: string }
   ) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            cedula: profileData.cedula,
-            nombre_completo: profileData.nombre_completo,
-          }
-        }
-      });
-
-      if (error) return { error };
-
-      // Profile will be created by admin or trigger
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
+    return authService.signUp(email, password, profileData);
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await authService.signOut();
     setProfile(null);
     setRole(null);
   };
@@ -193,13 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * - Row Level Security (RLS) policies on database tables
    * - Edge function role checks using has_role() function
    * - SECURITY DEFINER functions that verify user_roles
-   * 
-   * Do NOT rely on this function for authorization - always implement server-side checks.
    */
   const hasPermission = (permission: string): boolean => {
     if (!role) return false;
     if (role === 'administrador') return true;
-    
+
     const rolePerms: Record<UserRole, string[]> = {
       asesor_comercial: ['view_own_dashboard', 'register_activity', 'view_schedule'],
       jefe_ventas: ['view_team_dashboard', 'view_schedule', 'view_reports'],
@@ -208,23 +102,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       administrativo: ['view_admin_dashboard', 'upload_sales', 'view_reports', 'export_reports'],
       administrador: ['full_access'],
     };
-    
+
     return rolePerms[role]?.includes(permission) ?? false;
   };
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        session,
-        profile,
-        role,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        hasPermission,
-      }}
+      value={{ user, session, profile, role, loading, signIn, signUp, signOut, hasPermission }}
     >
       {children}
     </AuthContext.Provider>
