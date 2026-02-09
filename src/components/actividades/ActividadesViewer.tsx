@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -91,13 +91,13 @@ export function ActividadesViewer() {
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales-actividades'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('*')
         .eq('activo', true)
-        .order('nombre');
+        .order('nombre') as any);
       if (error) throw error;
-      return data || [];
+      return (data || []) as { id: string; nombre: string; activo: boolean }[];
     },
     enabled: canViewAllRegionales,
   });
@@ -106,7 +106,7 @@ export function ActividadesViewer() {
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['jefes-ventas-actividades', selectedRegional, profile?.regional_id, role],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('jefes_ventas')
         .select('*')
         .eq('activo', true)
@@ -121,7 +121,7 @@ export function ActividadesViewer() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as { id: string; codigo: string; nombre: string; regional_id: string | null }[];
     },
     enabled: canViewJefes,
   });
@@ -130,12 +130,12 @@ export function ActividadesViewer() {
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-actividades'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
         .select('id, user_id, nombre_completo, codigo_asesor, codigo_jefe, regional_id, tipo_asesor')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
-      return data || [];
+      return (data || []) as Profile[];
     },
   });
 
@@ -143,13 +143,13 @@ export function ActividadesViewer() {
   const { data: programaciones = [], isLoading: loadingProgramaciones } = useQuery({
     queryKey: ['programaciones-actividades', selectedRegional, selectedJefe, selectedTipo, searchDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('programacion')
         .select('*')
         .order('fecha', { ascending: false })
-        .limit(200);
+        .limit(200) as any);
       if (error) throw error;
-      return data || [];
+      return (data || []) as Programacion[];
     },
   });
 
@@ -157,13 +157,13 @@ export function ActividadesViewer() {
   const { data: reportes = [], isLoading: loadingReportes } = useQuery({
     queryKey: ['reportes-diarios-viewer'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(500);
+        .limit(500) as any);
       if (error) throw error;
-      return data || [];
+      return (data || []) as ReporteDiario[];
     },
   });
 

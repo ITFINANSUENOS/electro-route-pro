@@ -5,13 +5,16 @@ import type { IAuthService } from './auth.service';
 import type { IDataService } from './data.service';
 import { SupabaseAuthProvider } from './providers/supabase/auth.provider';
 import { SupabaseDataProvider } from './providers/supabase/data.provider';
+import { AwsAuthProvider } from './providers/aws/auth.provider';
+import { AwsDataProvider } from './providers/aws/data.provider';
 
 const provider = import.meta.env.VITE_BACKEND_PROVIDER || 'supabase';
 
 function createAuthService(): IAuthService {
   switch (provider) {
+    case 'aws':
+      return new AwsAuthProvider();
     case 'supabase':
-      return new SupabaseAuthProvider();
     default:
       return new SupabaseAuthProvider();
   }
@@ -19,8 +22,9 @@ function createAuthService(): IAuthService {
 
 function createDataService(): IDataService {
   switch (provider) {
+    case 'aws':
+      return new AwsDataProvider();
     case 'supabase':
-      return new SupabaseDataProvider();
     default:
       return new SupabaseDataProvider();
   }
