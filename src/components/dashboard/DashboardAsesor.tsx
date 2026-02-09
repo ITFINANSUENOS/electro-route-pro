@@ -279,7 +279,7 @@ export default function DashboardAsesor() {
     }, {} as Record<string, number>);
 
     // Calculate total using net values (allows negative to subtract)
-    const total = Object.values(byTypeRaw).reduce((sum: number, val: number) => sum + val, 0);
+    const total: number = Object.values(byTypeRaw).reduce<number>((sum, val) => sum + (val as number), 0);
 
     // For display, show actual net values (can be negative for returns-heavy categories)
     const byType = Object.entries(byTypeRaw)
