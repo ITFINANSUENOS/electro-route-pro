@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 /**
  * Mapeo de tipo de asesor a campo de porcentaje
@@ -13,8 +13,8 @@ const TIPO_ASESOR_TO_PORCENTAJE_FIELD: Record<string, 'porcentaje_aumento_1' | '
 };
 
 export interface MetaQuantityConfig {
-  promedios: Map<string, number>; // key: `${regionalId}_${tipoAsesor}_${tipoVenta}`
-  porcentajes: Map<string, { aumento1: number; aumento2: number; aumento3: number }>; // key: regionalId
+  promedios: Map<string, number>;
+  porcentajes: Map<string, { aumento1: number; aumento2: number; aumento3: number }>;
 }
 
 export interface MetaQuantityResult {
@@ -25,7 +25,7 @@ export interface MetaQuantityResult {
   valorConAumento: number;
   valorPromedio: number;
   cantidadCalculada: number;
-  cantidadFinal: number; // Redondeado hacia arriba
+  cantidadFinal: number;
 }
 
 /**
@@ -50,7 +50,6 @@ export function calculateMetaQuantity(
   regionalId: string,
   config: MetaQuantityConfig
 ): MetaQuantityResult {
-  // Obtener el porcentaje de aumento según el tipo de asesor
   const porcentajesRegional = config.porcentajes.get(regionalId);
   let porcentajeAumento = 0;
   
@@ -65,14 +64,10 @@ export function calculateMetaQuantity(
     }
   }
 
-  // Obtener el valor promedio del ticket
   const promedioKey = `${regionalId}_${tipoAsesor.toUpperCase()}_${tipoVenta.toUpperCase()}`;
   const valorPromedio = config.promedios.get(promedioKey) || 0;
-
-  // Calcular el valor con aumento
   const valorConAumento = valorMeta * (1 + porcentajeAumento / 100);
 
-  // Calcular la cantidad
   let cantidadCalculada = 0;
   let cantidadFinal = 0;
 
@@ -133,25 +128,23 @@ export async function loadMetaQuantityConfig(): Promise<MetaQuantityConfig> {
   const promedios = new Map<string, number>();
   const porcentajes = new Map<string, { aumento1: number; aumento2: number; aumento3: number }>();
 
-  // Cargar promedios
-  const { data: promediosData, error: promediosError } = await supabase
+  const { data: promediosData, error: promediosError } = await (dataService
     .from('config_metas_promedio')
-    .select('regional_id, tipo_asesor, tipo_venta, valor_promedio');
+    .select('regional_id, tipo_asesor, tipo_venta, valor_promedio') as any);
 
   if (!promediosError && promediosData) {
-    promediosData.forEach(p => {
+    promediosData.forEach((p: any) => {
       const key = `${p.regional_id}_${p.tipo_asesor.toUpperCase()}_${p.tipo_venta.toUpperCase()}`;
       promedios.set(key, p.valor_promedio);
     });
   }
 
-  // Cargar porcentajes
-  const { data: porcentajesData, error: porcentajesError } = await supabase
+  const { data: porcentajesData, error: porcentajesError } = await (dataService
     .from('config_metas_porcentajes')
-    .select('regional_id, porcentaje_aumento_1, porcentaje_aumento_2, porcentaje_aumento_3');
+    .select('regional_id, porcentaje_aumento_1, porcentaje_aumento_2, porcentaje_aumento_3') as any);
 
   if (!porcentajesError && porcentajesData) {
-    porcentajesData.forEach(p => {
+    porcentajesData.forEach((p: any) => {
       porcentajes.set(p.regional_id, {
         aumento1: p.porcentaje_aumento_1,
         aumento2: p.porcentaje_aumento_2,

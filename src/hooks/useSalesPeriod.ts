@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SalesPeriod {
@@ -60,11 +60,11 @@ export function useSalesPeriod() {
   const { data: periods, isLoading, refetch } = useQuery({
     queryKey: ['sales-periods'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('periodos_ventas')
         .select('*')
         .order('anio', { ascending: false })
-        .order('mes', { ascending: false });
+        .order('mes', { ascending: false }) as any);
       
       if (error) throw error;
       return data as SalesPeriod[];
@@ -73,22 +73,22 @@ export function useSalesPeriod() {
 
   // Get or create a period for a specific month
   const getOrCreatePeriod = async (month: number, year: number): Promise<SalesPeriod> => {
-    const { data: existing, error: fetchError } = await supabase
+    const { data: existing, error: fetchError } = await (dataService
       .from('periodos_ventas')
       .select('*')
       .eq('anio', year)
       .eq('mes', month)
-      .maybeSingle();
+      .maybeSingle() as any);
 
     if (fetchError) throw fetchError;
     if (existing) return existing as SalesPeriod;
 
     // Create new period
-    const { data: newPeriod, error: insertError } = await supabase
+    const { data: newPeriod, error: insertError } = await (dataService
       .from('periodos_ventas')
       .insert({ anio: year, mes: month, estado: 'abierto' })
       .select()
-      .single();
+      .single() as any);
 
     if (insertError) throw insertError;
     return newPeriod as SalesPeriod;
@@ -102,7 +102,7 @@ export function useSalesPeriod() {
       totalRecords: number; 
       totalAmount: number 
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('periodos_ventas')
         .update({
           estado: 'cerrado',
@@ -114,7 +114,7 @@ export function useSalesPeriod() {
         .eq('anio', year)
         .eq('mes', month)
         .select()
-        .single();
+        .single() as any);
 
       if (error) throw error;
       return data;

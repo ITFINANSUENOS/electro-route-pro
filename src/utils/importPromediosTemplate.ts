@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 const TIPOS_VENTA_MAP: Record<string, string> = {
   'Contado': 'CONTADO',
@@ -12,7 +12,7 @@ const TIPOS_VENTA_MAP: Record<string, string> = {
   'CREDITO': 'CREDITO',
   'Aliados': 'ALIADOS',
   'ALIADOS': 'ALIADOS',
-  'Convenio': 'ALIADOS', // Map legacy Convenio to Aliados
+  'Convenio': 'ALIADOS',
   'CONVENIO': 'ALIADOS',
 };
 
@@ -48,16 +48,13 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(arrayBuffer);
         
-        // Find the Promedios sheet
         let worksheet = workbook.getWorksheet('Promedios');
         if (!worksheet) {
-          // Try to find by partial name match
           worksheet = workbook.worksheets.find(ws => 
             ws.name.toLowerCase().includes('promedio')
           );
         }
         if (!worksheet) {
-          // Fall back to first non-instructions sheet
           worksheet = workbook.worksheets.find(ws => 
             !ws.name.toLowerCase().includes('instruc')
           ) || workbook.worksheets[0];
@@ -68,14 +65,12 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
           return;
         }
 
-        // Get headers from first row
         const headerRow = worksheet.getRow(1);
         const headers: Record<number, string> = {};
         headerRow.eachCell((cell, colNumber) => {
           headers[colNumber] = cell.value?.toString() || '';
         });
 
-        // Find required column indices
         let regionalIdCol = 0;
         let tipoAsesorCol = 0;
         const tipoVentaCols: { colNumber: number; tipoVenta: string }[] = [];
@@ -115,12 +110,11 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
           return;
         }
 
-        // Process rows
         const promediosToInsert: PromedioRow[] = [];
         const errors: string[] = [];
 
         worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) return; // Skip header
+          if (rowNumber === 1) return;
 
           const regionalId = row.getCell(regionalIdCol).value?.toString().trim();
           const tipoAsesorRaw = row.getCell(tipoAsesorCol).value?.toString().trim();
@@ -138,7 +132,6 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
             return;
           }
 
-          // Process each tipo venta column
           for (const { colNumber, tipoVenta } of tipoVentaCols) {
             const cellValue = row.getCell(colNumber).value;
             let valor = 0;
@@ -150,7 +143,6 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
                 const cleaned = cellValue.replace(/[$.,\s]/g, '');
                 valor = parseInt(cleaned, 10) || 0;
               } else if (typeof cellValue === 'object' && 'result' in cellValue) {
-                // Handle formula results
                 valor = Number(cellValue.result) || 0;
               }
             }
@@ -175,10 +167,9 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
           return;
         }
 
-        // Upsert to database
         let importedCount = 0;
         for (const promedio of promediosToInsert) {
-          const { error } = await supabase
+          const { error } = await (dataService
             .from('config_metas_promedio')
             .upsert({
               regional_id: promedio.regional_id,
@@ -187,7 +178,7 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
               valor_promedio: promedio.valor_promedio,
             }, {
               onConflict: 'regional_id,tipo_asesor,tipo_venta',
-            });
+            }) as any);
 
           if (error) {
             errors.push(`Error al guardar ${promedio.tipo_asesor}/${promedio.tipo_venta}: ${error.message}`);

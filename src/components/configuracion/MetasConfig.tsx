@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -89,11 +89,11 @@ export function MetasConfig() {
   const { data: regionales = [], isLoading: loadingRegionales } = useQuery({
     queryKey: ['regionales-metas-config'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('*')
         .eq('activo', true)
-        .order('nombre');
+        .order('nombre') as any);
       if (error) throw error;
       return data || [];
     },
@@ -103,9 +103,9 @@ export function MetasConfig() {
   const { data: promediosData = [], isLoading: loadingPromedios } = useQuery({
     queryKey: ['config-metas-promedio'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('config_metas_promedio')
-        .select('*');
+        .select('*') as any);
       if (error) throw error;
       return data || [];
     },
@@ -115,9 +115,9 @@ export function MetasConfig() {
   const { data: porcentajesData = [], isLoading: loadingPorcentajes } = useQuery({
     queryKey: ['config-metas-porcentajes'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('config_metas_porcentajes')
-        .select('*');
+        .select('*') as any);
       if (error) throw error;
       return data || [];
     },
@@ -251,7 +251,7 @@ export function MetasConfig() {
   const savePromediosMutation = useMutation({
     mutationFn: async (promedios: PromedioConfig[]) => {
       for (const p of promedios) {
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('config_metas_promedio')
           .upsert({
             regional_id: p.regional_id,
@@ -260,7 +260,7 @@ export function MetasConfig() {
             valor_promedio: p.valor_promedio,
           }, {
             onConflict: 'regional_id,tipo_asesor,tipo_venta',
-          });
+          }) as any);
         if (error) throw error;
       }
     },
@@ -273,7 +273,7 @@ export function MetasConfig() {
   const savePorcentajesMutation = useMutation({
     mutationFn: async (porcentajes: PorcentajeConfig[]) => {
       for (const p of porcentajes) {
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('config_metas_porcentajes')
           .upsert({
             regional_id: p.regional_id,
@@ -282,7 +282,7 @@ export function MetasConfig() {
             porcentaje_aumento_3: p.porcentaje_aumento_3,
           }, {
             onConflict: 'regional_id',
-          });
+          }) as any);
         if (error) throw error;
       }
     },

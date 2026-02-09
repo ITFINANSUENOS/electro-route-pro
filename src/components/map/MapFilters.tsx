@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -25,11 +25,11 @@ export function MapFilters({ filters, onChange, onClear }: MapFiltersProps) {
   const { data: regionales = [] } = useQuery({
     queryKey: ['map-filter-regionales'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('*')
         .eq('activo', true)
-        .order('nombre');
+        .order('nombre') as any);
       if (error) throw error;
       return data || [];
     },
@@ -40,7 +40,7 @@ export function MapFilters({ filters, onChange, onClear }: MapFiltersProps) {
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['map-filter-jefes', filters.regionalId, profile?.regional_id, role],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('jefes_ventas')
         .select('*')
         .eq('activo', true)
@@ -52,7 +52,7 @@ export function MapFilters({ filters, onChange, onClear }: MapFiltersProps) {
         query = query.eq('regional_id', filters.regionalId);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await (query as any);
       if (error) throw error;
       return data || [];
     },

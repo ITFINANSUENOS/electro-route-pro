@@ -23,7 +23,7 @@ import { TipoAsesorMultiSelect } from './TipoAsesorMultiSelect';
 import { PeriodSelector } from './PeriodSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useQuery } from '@tanstack/react-query';
 import { exportRankingToExcel, RankingAdvisor } from '@/utils/exportRankingExcel';
 import { exportAdvisorsToExcel, AdvisorExportData } from '@/utils/exportAdvisorsExcel';
@@ -145,11 +145,11 @@ export default function DashboardLider() {
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales-dashboard'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('*')
         .eq('activo', true)
-        .order('nombre');
+        .order('nombre') as any);
       if (error) throw error;
       return data || [];
     },
@@ -211,10 +211,10 @@ export default function DashboardLider() {
   const { data: formasPago = [] } = useQuery({
     queryKey: ['formas-pago-dashboard'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('formas_pago')
         .select('*')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
       return data || [];
     },
@@ -225,11 +225,11 @@ export default function DashboardLider() {
     queryKey: ['leader-regional', profile?.regional_id],
     queryFn: async () => {
       if (!profile?.regional_id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('codigo, nombre')
         .eq('id', profile.regional_id)
-        .maybeSingle();
+        .maybeSingle() as any);
       if (error) throw error;
       return data;
     },
@@ -271,7 +271,7 @@ export default function DashboardLider() {
       let hasMore = true;
       
       while (hasMore) {
-        let query = supabase
+        let query = dataService
           .from('ventas')
           .select('*')
           .gte('fecha', startDateStr)
@@ -284,7 +284,7 @@ export default function DashboardLider() {
           query = query.in('cod_region', regionalCodesToFilter);
         }
         
-        const { data, error } = await query;
+        const { data, error } = await (query as any);
         if (error) throw error;
         
         if (data && data.length > 0) {
@@ -305,12 +305,12 @@ export default function DashboardLider() {
   const { data: metasData } = useQuery({
     queryKey: ['dashboard-metas', role, currentMonth, currentYear, selectedMetaType],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('metas')
         .select('*')
         .eq('mes', currentMonth)
         .eq('anio', currentYear)
-        .eq('tipo_meta_categoria', selectedMetaType);
+        .eq('tipo_meta_categoria', selectedMetaType) as any);
       
       if (error) throw error;
       return data;
@@ -321,9 +321,9 @@ export default function DashboardLider() {
   const { data: profiles } = useQuery({
     queryKey: ['dashboard-profiles'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
-        .select('*');
+        .select('*') as any);
       
       if (error) throw error;
       return data;
@@ -334,11 +334,11 @@ export default function DashboardLider() {
   const { data: reportesDiarios = [] } = useQuery({
     queryKey: ['reportes-diarios-dashboard', startDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
+        .lte('fecha', endDateStr) as any);
       if (error) throw error;
       return data || [];
     },

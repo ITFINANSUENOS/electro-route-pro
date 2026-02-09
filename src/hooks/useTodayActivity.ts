@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -32,7 +32,6 @@ export interface TodayReport {
 
 // Get today's date in local timezone for Colombia
 function getTodayLocal(): string {
-  // Use local date formatting to avoid timezone issues
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -45,10 +44,8 @@ export function useTodayActivity() {
   const queryClient = useQueryClient();
   const today = getTodayLocal();
 
-  // Only asesores comerciales need to register consultas/solicitudes
   const isAsesorComercial = role === 'asesor_comercial';
 
-  // Fetch today's assignment
   const { data: todayAssignment, isLoading: loadingAssignment, error: assignmentError } = useQuery({
     queryKey: ['today-assignment', user?.id, today],
     queryFn: async () => {
@@ -56,12 +53,12 @@ export function useTodayActivity() {
       
       console.log('Fetching assignment for user:', user.id, 'date:', today);
       
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('programacion')
         .select('*')
         .eq('user_id', user.id)
         .eq('fecha', today)
-        .maybeSingle();
+        .maybeSingle() as any);
 
       if (error) {
         console.error('Error fetching assignment:', error);
@@ -74,18 +71,17 @@ export function useTodayActivity() {
     enabled: !!user?.id,
   });
 
-  // Fetch today's report
   const { data: todayReport, isLoading: loadingReport, refetch: refetchReport } = useQuery({
     queryKey: ['today-report', user?.id, today],
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .eq('user_id', user.id)
         .eq('fecha', today)
-        .maybeSingle();
+        .maybeSingle() as any);
 
       if (error) throw error;
       return data as TodayReport | null;
@@ -93,18 +89,12 @@ export function useTodayActivity() {
     enabled: !!user?.id,
   });
 
-  // Check if evidence was already submitted
   const hasEvidenceSubmitted = todayReport?.evidencia_completa === true;
-  
-  // Check if consultas/solicitudes were submitted today (only relevant for asesores)
   const hasConsultasSubmitted = isAsesorComercial && !!todayReport && 
     (todayReport.consultas !== null || todayReport.solicitudes !== null);
-
-  // Determine user status
-  const isFreeUser = !todayAssignment; // No activity assigned = "libre"
+  const isFreeUser = !todayAssignment;
   const hasScheduledActivity = !!todayAssignment;
 
-  // Submit evidence mutation
   const submitEvidence = useMutation({
     mutationFn: async (data: {
       photoUrl: string;
@@ -115,8 +105,7 @@ export function useTodayActivity() {
       if (!user?.id) throw new Error('No user');
 
       if (todayReport) {
-        // Update existing report with evidence
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('reportes_diarios')
           .update({
             foto_url: data.photoUrl,
@@ -126,12 +115,11 @@ export function useTodayActivity() {
             evidencia_completa: true,
             estado_evidencia: 'completa',
           })
-          .eq('id', todayReport.id);
+          .eq('id', todayReport.id) as any);
 
         if (error) throw error;
       } else {
-        // Create new report with evidence
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('reportes_diarios')
           .insert({
             user_id: user.id,
@@ -143,7 +131,7 @@ export function useTodayActivity() {
             notas: data.notas,
             evidencia_completa: true,
             estado_evidencia: 'completa',
-          });
+          }) as any);
 
         if (error) throw error;
       }
@@ -158,7 +146,6 @@ export function useTodayActivity() {
     },
   });
 
-  // Submit/Update consultas mutation
   const submitConsultas = useMutation({
     mutationFn: async (data: {
       consultas: number;
@@ -167,19 +154,17 @@ export function useTodayActivity() {
       if (!user?.id) throw new Error('No user');
 
       if (todayReport) {
-        // Update existing report
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('reportes_diarios')
           .update({
             consultas: data.consultas,
             solicitudes: data.solicitudes,
           })
-          .eq('id', todayReport.id);
+          .eq('id', todayReport.id) as any);
 
         if (error) throw error;
       } else {
-        // Create new report (for free users or first submission)
-        const { error } = await supabase
+        const { error } = await (dataService
           .from('reportes_diarios')
           .insert({
             user_id: user.id,
@@ -189,7 +174,7 @@ export function useTodayActivity() {
             solicitudes: data.solicitudes,
             evidencia_completa: false,
             estado_evidencia: isFreeUser ? 'libre' : 'pendiente',
-          });
+          }) as any);
 
         if (error) throw error;
       }

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 export interface EvidenceStatus {
   user_id: string;
@@ -31,7 +31,6 @@ export function useActivityEvidenceStatus(
   }>,
   enabled = true
 ) {
-  // Get unique dates to query
   const dates = [...new Set(activities.map(a => a.fecha))];
   const allUserIds = [...new Set(activities.flatMap(a => a.user_ids))];
 
@@ -40,11 +39,11 @@ export function useActivityEvidenceStatus(
     queryFn: async () => {
       if (dates.length === 0 || allUserIds.length === 0) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('user_id, fecha, evidencia_completa, foto_url, gps_latitud, gps_longitud, consultas, solicitudes')
         .in('fecha', dates)
-        .in('user_id', allUserIds);
+        .in('user_id', allUserIds) as any);
 
       if (error) throw error;
       return data || [];
@@ -58,14 +57,11 @@ export function useActivityEvidenceStatus(
   activities.forEach(activity => {
     const evidenceByUser: EvidenceStatus[] = activity.user_ids.map((userId, idx) => {
       const report = evidenceData.find(
-        r => r.user_id === userId && r.fecha === activity.fecha
+        (r: any) => r.user_id === userId && r.fecha === activity.fecha
       );
 
       const hasPhoto = !!report?.foto_url;
       const hasGps = report?.gps_latitud != null && report?.gps_longitud != null;
-      
-      // For correria: need both photo and GPS
-      // For punto: only need GPS
       const hasEvidence = activity.tipo_actividad === 'correria'
         ? hasPhoto && hasGps
         : hasGps;
@@ -100,7 +96,6 @@ export function useActivityEvidenceStatus(
   };
 }
 
-// Helper to check if an activity is for today (using local timezone)
 export function isActivityForToday(fecha: string): boolean {
   const now = new Date();
   const year = now.getFullYear();
