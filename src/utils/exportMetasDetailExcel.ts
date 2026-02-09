@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { UserRole } from '@/types/auth';
 import { loadMetaQuantityConfig, calculateMetaQuantity, MetaQuantityConfig } from './calculateMetaQuantity';
 
@@ -43,11 +43,11 @@ export async function exportMetasDetailExcel(
     const config = await loadMetaQuantityConfig();
 
     // Fetch metas for current month
-    const { data: metas, error: metasError } = await supabase
+    const { data: metas, error: metasError } = await (dataService
       .from('metas')
       .select('codigo_asesor, valor_meta, tipo_meta')
       .eq('mes', currentMonth)
-      .eq('anio', currentYear);
+      .eq('anio', currentYear) as any);
 
     if (metasError) {
       console.error('Error fetching metas:', metasError);
@@ -59,7 +59,7 @@ export async function exportMetasDetailExcel(
     }
 
     // Build advisors query based on role
-    let advisorsQuery = supabase
+    let advisorsQuery = dataService
       .from('profiles')
       .select(`
         codigo_asesor,
@@ -76,11 +76,11 @@ export async function exportMetasDetailExcel(
 
     // Apply hierarchical filters
     if (role === 'coordinador_comercial' && zona) {
-      const { data: zonalRegionales } = await supabase
+      const { data: zonalRegionales } = await (dataService
         .from('regionales')
         .select('id')
         .eq('zona', zona)
-        .eq('activo', true);
+        .eq('activo', true) as any);
       
       if (zonalRegionales && zonalRegionales.length > 0) {
         const regionalIds = zonalRegionales.map(r => r.id);

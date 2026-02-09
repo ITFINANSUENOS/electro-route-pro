@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface TeamMember {
@@ -163,12 +163,12 @@ export default function CargarEquipoTab() {
         throw new Error('No se encontraron datos válidos en el archivo');
       }
 
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
+      const { data: session } = await dataService.auth.getSession();
+      if (!session?.session) {
         throw new Error('No hay sesión activa');
       }
 
-      const response = await supabase.functions.invoke('sync-users', {
+      const response = await dataService.functions.invoke('sync-users', {
         body: { data },
       });
 
@@ -176,12 +176,13 @@ export default function CargarEquipoTab() {
         throw new Error(response.error.message);
       }
 
-      setResult(response.data);
+      const responseData = response.data as any;
+      setResult(responseData);
       
       toast({
-        title: response.data.success ? 'Importación exitosa' : 'Error en importación',
-        description: response.data.message || response.data.error,
-        variant: response.data.success ? 'default' : 'destructive',
+        title: responseData?.success ? 'Importación exitosa' : 'Error en importación',
+        description: responseData?.message || responseData?.error,
+        variant: responseData?.success ? 'default' : 'destructive',
       });
 
     } catch (error) {

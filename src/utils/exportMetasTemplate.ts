@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { UserRole } from '@/types/auth';
 
 export async function exportMetasTemplate(
@@ -9,7 +9,7 @@ export async function exportMetasTemplate(
 ): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     // Build query based on role hierarchy
-    let query = supabase
+    let query = dataService
       .from('profiles')
       .select(`
         nombre_completo,
@@ -30,11 +30,11 @@ export async function exportMetasTemplate(
       // Admin sees all 156 active advisors - no additional filter
     } else if (role === 'coordinador_comercial' && zona) {
       // Coordinator sees advisors in their zone (norte/sur)
-      const { data: zonalRegionales } = await supabase
+      const { data: zonalRegionales } = await (dataService
         .from('regionales')
         .select('id')
         .eq('zona', zona)
-        .eq('activo', true);
+        .eq('activo', true) as any);
       
       if (zonalRegionales && zonalRegionales.length > 0) {
         const regionalIds = zonalRegionales.map(r => r.id);

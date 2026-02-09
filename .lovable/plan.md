@@ -21,26 +21,18 @@
   - `src/pages/Usuarios.tsx`
   - `src/components/programacion/ProgramacionFilters.tsx`
 
-## Resultado actual
-- **0 archivos** fuera de `src/services/providers/` y `src/integrations/` importan supabase directamente
+## ✅ Resultado actual - MIGRACIÓN COMPLETADA
+- **0 archivos** fuera de `src/services/providers/` y `src/integrations/` importan o usan supabase directamente
+- **Arquitectura hexagonal completa** - todos los componentes usan `dataService` y `authService`
+- **Pasos 3-4 completados** - migración masiva de ~20 hooks, utilities, y componentes
 - La app funciona idéntica en Lovable
-- Base lista para agregar `providers/aws/` en fases futuras
+- Base lista para agregar `providers/aws/` (Paso 5) en el futuro
 
-## Estructura de servicios
+## ✅ Paso 3: Servicios de dominio (COMPLETADO)
+- Expandido `IDataService` con métodos avanzados: `gte`, `lte`, `not`, `is`, `rpc`, `upsert`, `range`
+- Migradas todas las utilities de negocio: `calculateMetaQuantity`, `importMetasCSV`, `exportMetasDetailExcel`
 
-```text
-src/services/
-  types.ts                              (tipos abstractos)
-  auth.service.ts                       (interfaz IAuthService)
-  data.service.ts                       (interfaz IDataService)
-  index.ts                              (factory + barrel)
-  providers/
-    supabase/
-      auth.provider.ts                  (impl auth)
-      data.provider.ts                  (impl data/CRUD)
-```
-
-## Próximos pasos posibles
-- Paso 3: Crear servicios de dominio específicos (VentasService, MetasService, etc.)
-- Paso 4: Migrar hooks que usan lógica de negocio compleja
-- Paso 5: Preparar providers AWS (Cognito + DynamoDB)
+## ✅ Paso 4: Migración de hooks y lógica de negocio (COMPLETADO)
+- Migrados TODOS los hooks: `useSalesPeriod`, `useActivityCompliance`, `useSchedulingConfig`, etc.
+- Migrados dashboards complejos: `DashboardLider`, `DashboardJefe`, `DashboardAsesor`
+- Migradas páginas principales: `Programacion.tsx`, `Actividades.tsx`, `MetasConfig.tsx`

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Calendar, Info, Clock, Camera, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -39,10 +39,10 @@ export default function ProgramacionConfig() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('permisos_roles')
         .select('*')
-        .eq('categoria', 'programacion_config');
+        .eq('categoria', 'programacion_config') as any);
 
       if (error) throw error;
 
@@ -99,38 +99,38 @@ export default function ProgramacionConfig() {
       ];
 
       for (const setting of settingsToSave) {
-        const { data: existing } = await supabase
+        const { data: existing } = await (dataService
           .from('permisos_roles')
           .select('id')
           .eq('categoria', 'programacion_config')
           .eq('permiso', setting.permiso)
-          .maybeSingle();
+          .maybeSingle() as any);
 
         if (existing) {
-          await supabase
+          await (dataService
             .from('permisos_roles')
             .update({ rol: setting.valor, updated_at: new Date().toISOString() })
-            .eq('id', existing.id);
+            .eq('id', existing.id) as any);
         } else {
-          await supabase
+          await (dataService
             .from('permisos_roles')
             .insert({
               categoria: 'programacion_config',
               permiso: setting.permiso,
               rol: setting.valor,
               habilitado: true,
-            });
+            }) as any);
         }
       }
 
       // Log the change
-      await supabase.from('historial_ediciones').insert({
+      await (dataService.from('historial_ediciones').insert({
         tabla: 'permisos_roles',
         registro_id: '00000000-0000-0000-0000-000000000000',
         campo_editado: 'programacion_config',
         valor_anterior: null,
         valor_nuevo: JSON.stringify(settings),
-      });
+      }) as any);
 
       toast({
         title: 'Configuración guardada',
