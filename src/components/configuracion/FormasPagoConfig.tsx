@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,14 +72,14 @@ export function FormasPagoConfig() {
   const fetchFormasPago = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('formas_pago')
         .select('*')
         .order('tipo_venta')
         .order('codigo');
 
       if (error) throw error;
-      setFormasPago(data || []);
+      setFormasPago((data || []) as FormaPago[]);
     } catch (error) {
       console.error('Error fetching formas de pago:', error);
       toast.error('Error cargando formas de pago');
@@ -139,7 +139,7 @@ export function FormasPagoConfig() {
     valorNuevo: string | null
   ) => {
     try {
-      await supabase.from('historial_ediciones').insert({
+      await dataService.from('historial_ediciones').insert({
         tabla: 'formas_pago',
         registro_id: registroId,
         campo_editado: campo,
@@ -164,7 +164,7 @@ export function FormasPagoConfig() {
     try {
       if (editingForma) {
         // Update existing
-        const { error } = await supabase
+        const { error } = await dataService
           .from('formas_pago')
           .update({
             codigo: formData.codigo,
@@ -193,7 +193,7 @@ export function FormasPagoConfig() {
         toast.success('Forma de pago actualizada');
       } else {
         // Create new
-        const { data, error } = await supabase
+        const { data, error } = await dataService
           .from('formas_pago')
           .insert({
             codigo: formData.codigo,
@@ -207,7 +207,7 @@ export function FormasPagoConfig() {
         if (error) throw error;
 
         // Log creation
-        await logChange(data.id, 'creacion', null, `Forma de pago ${formData.codigo} creada`);
+        await logChange((data as unknown as FormaPago).id, 'creacion', null, `Forma de pago ${formData.codigo} creada`);
 
         toast.success('Forma de pago creada');
       }

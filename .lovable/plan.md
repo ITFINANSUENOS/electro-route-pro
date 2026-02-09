@@ -1,72 +1,46 @@
 
+# Plan de Migración - Arquitectura Hexagonal (Service Layer)
 
-# Paso 1: Service Layer - Auth Service + Refactorizacion AuthContext
+## ✅ Paso 1: Auth Service (COMPLETADO)
+- Creado `src/services/types.ts` - tipos abstractos (ServiceUser, ServiceSession)
+- Creado `src/services/auth.service.ts` - interfaz IAuthService
+- Creado `src/services/providers/supabase/auth.provider.ts` - implementación Supabase
+- Creado `src/services/index.ts` - factory/barrel export
+- Refactorizado `src/contexts/AuthContext.tsx` - usa authService, cero imports de Supabase
 
-## Objetivo
-Crear la estructura base de la Service Layer con arquitectura hexagonal. Al finalizar, `AuthContext.tsx` no importara nada de Supabase directamente.
+## ✅ Paso 2: Data Service (COMPLETADO)
+- Creado `src/services/data.service.ts` - interfaz IDataService con IQueryBuilder genérico
+- Creado `src/services/providers/supabase/data.provider.ts` - implementación Supabase
+- Exportado `dataService` desde `src/services/index.ts`
+- Migrados 7 archivos que importaban supabase directamente:
+  - `src/components/configuracion/RegionalesConfig.tsx`
+  - `src/components/configuracion/FormasPagoConfig.tsx`
+  - `src/components/configuracion/HistorialCambios.tsx`
+  - `src/components/configuracion/PermisosConfig.tsx`
+  - `src/components/usuarios/UserEditDialog.tsx`
+  - `src/pages/Usuarios.tsx`
+  - `src/components/programacion/ProgramacionFilters.tsx`
 
----
+## Resultado actual
+- **0 archivos** fuera de `src/services/providers/` y `src/integrations/` importan supabase directamente
+- La app funciona idéntica en Lovable
+- Base lista para agregar `providers/aws/` en fases futuras
 
-## Archivos a crear (4 nuevos)
-
-### 1. `src/services/types.ts`
-Tipos propios de la Service Layer que abstraen los tipos de Supabase:
-- `ServiceUser` (id, email, user_metadata) - reemplaza `User` de Supabase
-- `ServiceSession` (access_token, user) - reemplaza `Session` de Supabase
-- `AuthStateChangeCallback` - tipo para el listener de sesion
-- `AuthSignUpProfileData` - datos de perfil para registro
-- Re-exportacion de `UserRole` y `UserProfile` desde `src/types/auth.ts`
-
-### 2. `src/services/auth.service.ts`
-Interfaz `IAuthService` con los metodos:
-- `signIn(identifier, password)` - login por cedula o email
-- `signUp(email, password, profileData)` - registro
-- `signOut()` - cierre de sesion
-- `getSession()` - sesion actual
-- `fetchUserProfile(userId)` - obtener perfil + rol
-- `onAuthStateChange(callback)` - listener de estado de auth
-
-### 3. `src/services/providers/supabase/auth.provider.ts`
-Implementacion concreta de `IAuthService` usando el cliente Supabase. Este archivo:
-- Es el UNICO que importa `supabase` de `@/integrations/supabase/client`
-- Contiene toda la logica de auth que hoy vive en AuthContext (lookup cedula, fetch profile, fetch role, fallback de metadata)
-- Encapsula las llamadas a `supabase.auth.*` y `supabase.from('profiles')` / `supabase.from('user_roles')`
-
-### 4. `src/services/index.ts`
-Barrel export que instancia el provider activo:
-- Lee `VITE_BACKEND_PROVIDER` (default: `'supabase'`)
-- Exporta `authService` como singleton
-- En el futuro se agregara el case `'aws'` para el provider de Cognito
-
----
-
-## Archivo a refactorizar (1 existente)
-
-### 5. `src/contexts/AuthContext.tsx`
-- **Eliminar**: imports de `supabase` client y tipos `User`/`Session` de `@supabase/supabase-js`
-- **Agregar**: import de `authService` desde `@/services` y tipos `ServiceUser`/`ServiceSession` desde `@/services/types`
-- **Delegar**: toda la logica de `signIn`, `signUp`, `signOut`, `fetchUserProfile`, `onAuthStateChange`, `getSession` al `authService`
-- **Mantener**: `hasPermission()` sin cambios (es logica de UI pura)
-- Los tipos de estado internos cambian de `User` a `ServiceUser` y de `Session` a `ServiceSession`
-
----
-
-## Resultado
+## Estructura de servicios
 
 ```text
 src/services/
-  types.ts                              (nuevo)
-  auth.service.ts                       (nuevo - interfaz)
-  index.ts                              (nuevo - factory)
+  types.ts                              (tipos abstractos)
+  auth.service.ts                       (interfaz IAuthService)
+  data.service.ts                       (interfaz IDataService)
+  index.ts                              (factory + barrel)
   providers/
     supabase/
-      auth.provider.ts                  (nuevo - implementacion)
-
-src/contexts/
-  AuthContext.tsx                        (refactorizado)
+      auth.provider.ts                  (impl auth)
+      data.provider.ts                  (impl data/CRUD)
 ```
 
-- La app sigue funcionando identica en Lovable y en el link publicado
-- AuthContext ya no conoce Supabase, solo conoce IAuthService
-- Base lista para agregar providers/aws/auth.provider.ts en fases futuras
-
+## Próximos pasos posibles
+- Paso 3: Crear servicios de dominio específicos (VentasService, MetasService, etc.)
+- Paso 4: Migrar hooks que usan lógica de negocio compleja
+- Paso 5: Preparar providers AWS (Cognito + DynamoDB)

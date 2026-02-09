@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { roleLabels, UserRole, getZonaByRegional } from "@/types/auth";
@@ -108,7 +108,7 @@ export function UserEditDialog({
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['jefes-ventas-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('jefes_ventas')
         .select('id, codigo, nombre, regional_id')
         .order('nombre');
@@ -152,7 +152,7 @@ export function UserEditDialog({
     if (!user) return;
     
     try {
-      await supabase.from('historial_ediciones').insert({
+      await dataService.from('historial_ediciones').insert({
         tabla: 'profiles',
         registro_id: user.id,
         campo_editado: campo,
@@ -193,7 +193,7 @@ export function UserEditDialog({
       }
 
       // Update profile
-      const { error: profileError } = await supabase
+      const { error: profileError } = await dataService
         .from('profiles')
         .update(updateData)
         .eq('id', user.id);
@@ -236,13 +236,13 @@ export function UserEditDialog({
       // Update role if changed (only for full edit)
       if (!limitedEdit && formData.role && formData.role !== user.role) {
         // First delete existing role
-        await supabase
+        await dataService
           .from('user_roles')
           .delete()
           .eq('user_id', user.user_id);
 
         // Then insert new role
-        const { error: roleError } = await supabase
+        const { error: roleError } = await dataService
           .from('user_roles')
           .insert({
             user_id: user.user_id,

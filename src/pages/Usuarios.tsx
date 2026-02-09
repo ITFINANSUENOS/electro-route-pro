@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -126,7 +126,7 @@ export default function Usuarios() {
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['jefes-ventas-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('jefes_ventas')
         .select('id, codigo, nombre, regional_id')
         .order('nombre');
@@ -183,7 +183,7 @@ export default function Usuarios() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('profiles_with_roles')
         .select('*')
         .order('nombre_completo');
@@ -200,14 +200,14 @@ export default function Usuarios() {
 
   const fetchRegionales = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('regionales')
         .select('id, nombre, codigo')
         .eq('activo', true)
         .order('nombre');
 
       if (error) throw error;
-      setRegionales(data || []);
+      setRegionales((data || []) as Regional[]);
     } catch (error) {
       console.error('Error fetching regionales:', error);
     }
@@ -245,13 +245,13 @@ export default function Usuarios() {
 
     setCreating(true);
     try {
-      const { data: session } = await supabase.auth.getSession();
+      const { data: session } = await dataService.auth.getSession();
       if (!session.session) {
         toast.error('Sesión expirada');
         return;
       }
 
-      const response = await supabase.functions.invoke('create-user', {
+      const response = await dataService.functions.invoke<{ error?: string; user?: { id: string } }>('create-user', {
         body: {
           email: formData.email,
           password: formData.password,
@@ -273,7 +273,7 @@ export default function Usuarios() {
 
       // Update profile with additional fields if needed
       if (formData.regional_id || formData.codigo_asesor || formData.codigo_jefe) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await dataService
           .from('profiles')
           .update({
             regional_id: formData.regional_id || null,
@@ -281,7 +281,7 @@ export default function Usuarios() {
             codigo_jefe: formData.codigo_jefe || null,
             correo: formData.email,
           })
-          .eq('user_id', response.data.user.id);
+          .eq('user_id', response.data!.user!.id);
 
         if (updateError) {
           console.error('Error updating profile:', updateError);
@@ -427,13 +427,13 @@ export default function Usuarios() {
         
         toast.info(`Sincronizando ${users.length} usuarios...`);
         
-        const { data: session } = await supabase.auth.getSession();
+        const { data: session } = await dataService.auth.getSession();
         if (!session.session) {
           toast.error('Sesión expirada');
           return;
         }
         
-        const response = await supabase.functions.invoke('sync-passwords', {
+        const response = await dataService.functions.invoke<{ error?: string; stats?: { created?: number; updated?: number; errors?: string[] } }>('sync-passwords', {
           body: { users },
         });
         
