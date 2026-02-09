@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
@@ -108,13 +108,13 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
     queryKey: ['activity-gps', activity?.fecha, activity?.user_ids],
     queryFn: async () => {
       if (!activity) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('user_id, gps_latitud, gps_longitud, hora_registro')
         .eq('fecha', activity.fecha)
         .in('user_id', activity.user_ids)
         .not('gps_latitud', 'is', null)
-        .not('gps_longitud', 'is', null);
+        .not('gps_longitud', 'is', null) as any);
       if (error) throw error;
       return data || [];
     },
@@ -174,7 +174,7 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
     setIsSaving(true);
     try {
       // Update all records that belong to this grouped activity
-      const { error } = await supabase
+      const { error } = await (dataService
         .from('programacion')
         .update({
           tipo_actividad: editData.tipo_actividad,
@@ -189,7 +189,7 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
         .eq('tipo_actividad', activity.tipo_actividad)
         .eq('hora_inicio', activity.hora_inicio)
         .eq('hora_fin', activity.hora_fin)
-        .in('user_id', activity.user_ids);
+        .in('user_id', activity.user_ids) as any);
 
       if (error) throw error;
 
@@ -209,7 +209,7 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
     setIsDeleting(true);
     try {
       // Delete all records that belong to this grouped activity
-      const { error } = await supabase
+      const { error } = await (dataService
         .from('programacion')
         .delete()
         .eq('fecha', activity.fecha)
@@ -217,7 +217,7 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
         .eq('tipo_actividad', activity.tipo_actividad)
         .eq('hora_inicio', activity.hora_inicio)
         .eq('hora_fin', activity.hora_fin)
-        .in('user_id', activity.user_ids);
+        .in('user_id', activity.user_ids) as any);
 
       if (error) throw error;
 
