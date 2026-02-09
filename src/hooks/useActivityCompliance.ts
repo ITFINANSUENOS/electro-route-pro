@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
@@ -41,29 +41,29 @@ export function useActivityCompliance(month?: Date) {
     queryKey: ['activity-compliance', role, profile?.regional_id, (profile as any)?.codigo_jefe, monthStart],
     queryFn: async () => {
       // Fetch all programmed activities for the month
-      const { data: programacion, error: progError } = await supabase
+      const { data: programacion, error: progError } = await (dataService
         .from('programacion')
         .select('*')
         .gte('fecha', monthStart)
         .lte('fecha', monthEnd)
-        .lte('fecha', format(new Date(), 'yyyy-MM-dd')); // Only past or today
+        .lte('fecha', format(new Date(), 'yyyy-MM-dd')) as any);
 
       if (progError) throw progError;
 
       // Fetch all reports for the month
-      const { data: reportes, error: repError } = await supabase
+      const { data: reportes, error: repError } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .gte('fecha', monthStart)
-        .lte('fecha', monthEnd);
+        .lte('fecha', monthEnd) as any);
 
       if (repError) throw repError;
 
       // Fetch profiles for names
-      const { data: profiles, error: profError } = await supabase
+      const { data: profiles, error: profError } = await (dataService
         .from('profiles')
         .select('user_id, nombre_completo, regional_id, codigo_jefe')
-        .eq('activo', true);
+        .eq('activo', true) as any);
 
       if (profError) throw profError;
 
@@ -89,9 +89,9 @@ export function useActivityCompliance(month?: Date) {
       }
 
       // Create lookup maps
-      const profilesMap = new Map(profiles?.map(p => [p.user_id, p.nombre_completo]) || []);
+      const profilesMap = new Map((profiles as any[])?.map((p: any) => [p.user_id, p.nombre_completo]) || []);
       const reportesMap = new Map(
-        (reportes || []).map(r => [`${r.user_id}-${r.fecha}`, r])
+        ((reportes || []) as any[]).map((r: any) => [`${r.user_id}-${r.fecha}`, r])
       );
 
       // Analyze compliance issues
@@ -102,10 +102,10 @@ export function useActivityCompliance(month?: Date) {
         issues: AdvisorComplianceIssue[];
       }>();
 
-      for (const prog of filteredProgramacion) {
+      for (const prog of filteredProgramacion as any[]) {
         const key = `${prog.user_id}-${prog.fecha}`;
-        const report = reportesMap.get(key);
-        const userName = profilesMap.get(prog.user_id) || 'Desconocido';
+        const report = reportesMap.get(key) as any;
+        const userName = profilesMap.get(prog.user_id) as string || 'Desconocido';
         const isCorreria = prog.tipo_actividad === 'correria';
 
         // Initialize advisor stats
@@ -128,36 +128,36 @@ export function useActivityCompliance(month?: Date) {
 
           if (!report) {
             issueList.push({
-              user_id: prog.user_id,
-              user_name: userName,
-              fecha: prog.fecha,
-              activity_name: prog.nombre,
-              tipo_actividad: prog.tipo_actividad,
-              municipio: prog.municipio,
+              user_id: prog.user_id as string,
+              user_name: userName as string,
+              fecha: prog.fecha as string,
+              activity_name: prog.nombre as string | null,
+              tipo_actividad: prog.tipo_actividad as string,
+              municipio: prog.municipio as string,
               issue_type: 'missing_evidence',
               issue_label: 'Sin reporte',
             });
           } else {
             if (isCorreria && !hasPhoto) {
               issueList.push({
-                user_id: prog.user_id,
-                user_name: userName,
-                fecha: prog.fecha,
-                activity_name: prog.nombre,
-                tipo_actividad: prog.tipo_actividad,
-                municipio: prog.municipio,
+                user_id: prog.user_id as string,
+                user_name: userName as string,
+                fecha: prog.fecha as string,
+                activity_name: prog.nombre as string | null,
+                tipo_actividad: prog.tipo_actividad as string,
+                municipio: prog.municipio as string,
                 issue_type: 'missing_photo',
                 issue_label: 'Falta foto',
               });
             }
             if (!hasGps) {
               issueList.push({
-                user_id: prog.user_id,
-                user_name: userName,
-                fecha: prog.fecha,
-                activity_name: prog.nombre,
-                tipo_actividad: prog.tipo_actividad,
-                municipio: prog.municipio,
+                user_id: prog.user_id as string,
+                user_name: userName as string,
+                fecha: prog.fecha as string,
+                activity_name: prog.nombre as string | null,
+                tipo_actividad: prog.tipo_actividad as string,
+                municipio: prog.municipio as string,
                 issue_type: 'missing_gps',
                 issue_label: 'Falta ubicación',
               });
@@ -176,8 +176,8 @@ export function useActivityCompliance(month?: Date) {
       for (const [userId, stats] of advisorStats) {
         if (stats.issues.length > 0) {
           advisorSummaries.push({
-            user_id: userId,
-            user_name: profilesMap.get(userId) || 'Desconocido',
+            user_id: userId as string,
+            user_name: (profilesMap.get(userId) as string) || 'Desconocido',
             total_activities: stats.total,
             completed_activities: stats.completed,
             missing_activities: stats.total - stats.completed,
@@ -191,10 +191,10 @@ export function useActivityCompliance(month?: Date) {
       advisorSummaries.sort((a, b) => b.missing_activities - a.missing_activities);
 
       // Overall stats
-      const totalScheduled = filteredProgramacion.length;
-      const withEvidence = filteredProgramacion.reduce((count, prog) => {
+      const totalScheduled = (filteredProgramacion as any[]).length;
+      const withEvidence = (filteredProgramacion as any[]).reduce((count: number, prog: any) => {
         const key = `${prog.user_id}-${prog.fecha}`;
-        const report = reportesMap.get(key);
+        const report = reportesMap.get(key) as any;
         const isCorreria = prog.tipo_actividad === 'correria';
         const hasPhoto = !!report?.foto_url;
         const hasGps = report?.gps_latitud != null && report?.gps_longitud != null;

@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { format } from 'date-fns';
 import { ActividadesViewer } from '@/components/actividades/ActividadesViewer';
 import { TodayAssignmentCard } from '@/components/actividades/TodayAssignmentCard';
@@ -49,12 +49,12 @@ export default function Actividades() {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('id')
         .eq('user_id', user.id)
         .gte('fecha', format(startOfMonth, 'yyyy-MM-dd'))
-        .lte('fecha', format(endOfMonth, 'yyyy-MM-dd'));
+        .lte('fecha', format(endOfMonth, 'yyyy-MM-dd')) as any);
 
       if (error) throw error;
       

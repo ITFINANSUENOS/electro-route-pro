@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 interface SchedulingConfig {
   diasBloqueoMinimo: number;
@@ -11,10 +11,10 @@ export function useSchedulingConfig(): SchedulingConfig {
   const { data, isLoading } = useQuery({
     queryKey: ['scheduling-config'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('permisos_roles')
         .select('permiso, rol')
-        .eq('categoria', 'programacion_config');
+        .eq('categoria', 'programacion_config') as any);
 
       if (error) throw error;
 

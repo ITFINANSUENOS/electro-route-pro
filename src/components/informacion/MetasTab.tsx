@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -98,11 +98,11 @@ export default function MetasTab() {
   const { data: metas, isLoading } = useQuery({
     queryKey: ['metas', currentMonth, currentYear],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('metas')
         .select('*')
         .eq('mes', currentMonth)
-        .eq('anio', currentYear);
+        .eq('anio', currentYear) as any);
       
       if (error) throw error;
       return data as MetaData[];
@@ -113,9 +113,9 @@ export default function MetasTab() {
   const { data: profiles } = useQuery({
     queryKey: ['profiles-for-metas'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
-        .select('codigo_asesor, nombre_completo, tipo_asesor, regional_id');
+        .select('codigo_asesor, nombre_completo, tipo_asesor, regional_id') as any);
       
       if (error) throw error;
       return data as ProfileWithRegional[];
@@ -126,12 +126,12 @@ export default function MetasTab() {
   const { data: historialMetas } = useQuery({
     queryKey: ['historial-metas', currentMonth, currentYear],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('historial_metas')
         .select('*')
         .eq('mes', currentMonth)
         .eq('anio', currentYear)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any);
       
       if (error) throw error;
       return data;
@@ -143,9 +143,9 @@ export default function MetasTab() {
   const { data: historialUsers } = useQuery({
     queryKey: ['historial-users'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
-        .select('user_id, nombre_completo');
+        .select('user_id, nombre_completo') as any);
       if (error) throw error;
       return data;
     },

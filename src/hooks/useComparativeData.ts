@@ -1,6 +1,6 @@
  import { useState, useMemo } from 'react';
  import { useQuery } from '@tanstack/react-query';
- import { supabase } from '@/integrations/supabase/client';
+ import { dataService } from '@/services';
  import { useAuth } from '@/contexts/AuthContext';
  import { startOfMonth, endOfMonth, subMonths, format, getDaysInMonth } from 'date-fns';
  
@@ -91,7 +91,7 @@ async function fetchAllSalesWithPagination(
         const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');
 
         // Build base query
-        let baseQuery = supabase
+        let baseQuery = dataService
          .from('ventas')
          .select(`
            fecha,
@@ -132,7 +132,7 @@ async function fetchAllSalesWithPagination(
         let hasMore = true;
 
         while (hasMore) {
-          let pageQuery = supabase
+          let pageQuery = dataService
             .from('ventas')
             .select(`
               fecha,
@@ -170,7 +170,7 @@ async function fetchAllSalesWithPagination(
             pageQuery = pageQuery.in('tipo_venta', [...new Set([...filters.tipoVenta, ...normalizedTypes])]);
           }
 
-          const { data, error } = await pageQuery;
+          const { data, error } = await (pageQuery as any);
 
           if (error) throw error;
 
@@ -192,7 +192,7 @@ async function fetchAllSalesWithPagination(
    const { data: profilesData } = useQuery({
      queryKey: ['comparative-profiles', filters.tipoAsesor, filters.regionalIds, role, profile?.regional_id],
      queryFn: async () => {
-       let query = supabase
+       let query = dataService
          .from('profiles')
          .select('codigo_asesor, tipo_asesor, regional_id')
          .eq('activo', true)
@@ -209,7 +209,7 @@ async function fetchAllSalesWithPagination(
          query = query.in('tipo_asesor', filters.tipoAsesor);
        }
        
-       const { data, error } = await query;
+       const { data, error } = await (query as any);
        if (error) throw error;
        return data || [];
      },

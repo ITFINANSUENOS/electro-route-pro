@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
 const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
@@ -33,13 +33,12 @@ interface PromedioData {
 
 export async function exportPromediosTemplate(): Promise<{ success: boolean; count: number; error?: string }> {
   try {
-    // Fetch active regionales (excluding 106 Puerto Tejada which merges with 103 Santander)
-    const { data: regionales, error: regError } = await supabase
+    const { data: regionales, error: regError } = await (dataService
       .from('regionales')
       .select('id, nombre, codigo, zona')
       .eq('activo', true)
-      .neq('codigo', 106) // Exclude Puerto Tejada (merges with Santander)
-      .order('codigo');
+      .neq('codigo', 106)
+      .order('codigo') as any);
 
     if (regError) {
       console.error('Error fetching regionales:', regError);
@@ -50,16 +49,14 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       return { success: false, count: 0, error: 'No se encontraron regionales activas' };
     }
 
-    // Fetch existing promedio values
-    const { data: promedios, error: promError } = await supabase
+    const { data: promedios, error: promError } = await (dataService
       .from('config_metas_promedio')
-      .select('*');
+      .select('*') as any);
 
     if (promError) {
       console.error('Error fetching promedios:', promError);
     }
 
-    // Create lookup for existing values
     const promedioLookup: Record<string, number> = {};
     promedios?.forEach((p: PromedioData) => {
       const key = `${p.regional_id}-${p.tipo_asesor}-${p.tipo_venta}`;

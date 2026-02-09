@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import type { MapMarker, MapFiltersState } from '@/components/map/types';
 
@@ -16,7 +16,7 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
   const { data: reportes = [], isLoading: loadingReportes } = useQuery({
     queryKey: ['map-reportes', filters.dateFrom, filters.dateTo],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('reportes_diarios')
         .select('*')
         .not('gps_latitud', 'is', null)
@@ -31,7 +31,7 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
         query = query.lte('fecha', filters.dateTo);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await (query as any);
       if (error) throw error;
       return data || [];
     },
@@ -42,10 +42,10 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
   const { data: profiles = [], isLoading: loadingProfiles } = useQuery({
     queryKey: ['map-profiles'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
         .select('user_id, nombre_completo, codigo_jefe, regional_id, tipo_asesor')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
       return data || [];
     },
@@ -56,7 +56,7 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
   const { data: programaciones = [], isLoading: loadingProgramaciones } = useQuery({
     queryKey: ['map-programaciones', filters.dateFrom, filters.dateTo, filters.tipoActividad],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('programacion')
         .select('user_id, fecha, tipo_actividad, municipio, nombre')
         .order('fecha', { ascending: false })
@@ -72,7 +72,7 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
         query = query.eq('tipo_actividad', filters.tipoActividad as 'punto' | 'correria' | 'libre');
       }
 
-      const { data, error } = await query;
+      const { data, error } = await (query as any);
       if (error) throw error;
       return data || [];
     },
@@ -83,10 +83,10 @@ export function useMapLocations({ filters = {}, enabled = true }: UseMapLocation
   const { data: regionales = [] } = useQuery({
     queryKey: ['map-regionales'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('id, nombre')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
       return data || [];
     },

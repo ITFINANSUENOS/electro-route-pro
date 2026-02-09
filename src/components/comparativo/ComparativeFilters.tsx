@@ -1,6 +1,6 @@
  import { useState, useEffect } from 'react';
  import { useQuery } from '@tanstack/react-query';
- import { supabase } from '@/integrations/supabase/client';
+ import { dataService } from '@/services';
  import { useAuth } from '@/contexts/AuthContext';
  import { TipoAsesorMultiSelect } from '@/components/dashboard/TipoAsesorMultiSelect';
  import { Button } from '@/components/ui/button';
@@ -42,11 +42,11 @@ import { Check, ChevronDown, X, Filter, Building2 } from 'lucide-react';
   const { data: regionales } = useQuery({
     queryKey: ['regionales-filter'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('id, codigo, nombre')
         .eq('activo', true)
-        .order('nombre');
+        .order('nombre') as any);
       if (error) throw error;
       return data || [];
     },
@@ -57,7 +57,7 @@ import { Check, ChevronDown, X, Filter, Building2 } from 'lucide-react';
    const { data: jefes } = useQuery({
      queryKey: ['jefes-ventas-filter', profile?.regional_id, isLeader],
      queryFn: async () => {
-       let query = supabase
+       let query = dataService
          .from('jefes_ventas')
          .select('codigo, nombre, regional_id')
          .eq('activo', true)
@@ -67,7 +67,7 @@ import { Check, ChevronDown, X, Filter, Building2 } from 'lucide-react';
          query = query.eq('regional_id', profile.regional_id);
        }
  
-       const { data, error } = await query;
+       const { data, error } = await (query as any);
        if (error) throw error;
        return data || [];
      },
@@ -78,7 +78,7 @@ import { Check, ChevronDown, X, Filter, Building2 } from 'lucide-react';
    const { data: asesores } = useQuery({
      queryKey: ['asesores-filter', filters.codigoJefe, profile?.regional_id, profile?.codigo_jefe, role],
      queryFn: async () => {
-       let query = supabase
+       let query = dataService
          .from('profiles')
          .select('codigo_asesor, nombre_completo, codigo_jefe')
          .eq('activo', true)
@@ -96,7 +96,7 @@ import { Check, ChevronDown, X, Filter, Building2 } from 'lucide-react';
          query = query.eq('codigo_jefe', filters.codigoJefe);
        }
  
-       const { data, error } = await query;
+       const { data, error } = await (query as any);
        if (error) throw error;
        return data || [];
      },

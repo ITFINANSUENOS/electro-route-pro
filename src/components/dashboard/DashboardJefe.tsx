@@ -18,7 +18,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { roleLabels } from '@/types/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService } from '@/services';
 import { useQuery } from '@tanstack/react-query';
 import { RankingTable, TipoVentaKey, tiposVentaLabels } from './RankingTable';
 import { InteractiveSalesChart } from './InteractiveSalesChart';
@@ -110,11 +110,11 @@ export default function DashboardJefe() {
     queryKey: ['jefe-regional', regionalId],
     queryFn: async () => {
       if (!regionalId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('regionales')
         .select('codigo, nombre')
         .eq('id', regionalId)
-        .maybeSingle();
+        .maybeSingle() as any);
       if (error) throw error;
       return data;
     },
@@ -126,12 +126,12 @@ export default function DashboardJefe() {
     queryKey: ['jefe-team-profiles', codigoJefe],
     queryFn: async () => {
       if (!codigoJefe) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('profiles')
         .select('codigo_asesor, nombre_completo, tipo_asesor, cedula')
         .eq('codigo_jefe', codigoJefe)
         .eq('activo', true)
-        .not('codigo_asesor', 'is', null);
+        .not('codigo_asesor', 'is', null) as any);
       if (error) throw error;
       return data || [];
     },
@@ -169,13 +169,13 @@ export default function DashboardJefe() {
       let hasMore = true;
       
       while (hasMore) {
-        const { data, error } = await supabase
+        const { data, error } = await (dataService
           .from('ventas')
           .select('*')
           .eq('codigo_jefe', normalizedJefe)
           .gte('fecha', startDateStr)
           .lte('fecha', endDateStr)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .range(page * pageSize, (page + 1) * pageSize - 1) as any);
         
         if (error) throw error;
         
@@ -197,12 +197,12 @@ export default function DashboardJefe() {
   const { data: metasData } = useQuery({
     queryKey: ['jefe-team-metas', currentMonth, currentYear],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('metas')
         .select('*')
         .eq('mes', currentMonth)
         .eq('anio', currentYear)
-        .eq('tipo_meta_categoria', 'comercial'); // Jefes siempre ven meta comercial
+        .eq('tipo_meta_categoria', 'comercial') as any);
       
       if (error) throw error;
       return data;
@@ -213,10 +213,10 @@ export default function DashboardJefe() {
   const { data: formasPago = [] } = useQuery({
     queryKey: ['formas-pago-jefe'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('formas_pago')
         .select('*')
-        .eq('activo', true);
+        .eq('activo', true) as any);
       if (error) throw error;
       return data || [];
     },
@@ -226,11 +226,11 @@ export default function DashboardJefe() {
   const { data: reportesData } = useQuery({
     queryKey: ['jefe-team-reportes', startDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (dataService
         .from('reportes_diarios')
         .select('*')
         .gte('fecha', startDateStr)
-        .lte('fecha', endDateStr);
+        .lte('fecha', endDateStr) as any);
       
       if (error) throw error;
       return data;
