@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -264,9 +264,15 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { profile, role, signOut } = useAuth();
   const isMobile = useIsMobile();
   const { showNotification: showActivityNotification } = useActivityNotification();
+
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    navigate('/login', { replace: true });
+  }, [signOut, navigate]);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -317,7 +323,7 @@ export function AppSidebar() {
                 location={location}
                 profile={profile}
                 role={role}
-                signOut={signOut}
+                signOut={handleSignOut}
                 onNavClick={() => setMobileOpen(false)}
                 showActivityNotification={showActivityNotification}
               />
@@ -365,7 +371,7 @@ export function AppSidebar() {
         location={location}
         profile={profile}
         role={role}
-        signOut={signOut}
+        signOut={handleSignOut}
         showActivityNotification={showActivityNotification}
       />
     </motion.aside>
