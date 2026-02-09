@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -55,25 +55,25 @@ export function HistorialCambios() {
   const fetchHistorial = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('historial_ediciones')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
       if (error) throw error;
-      setHistorial(data || []);
+      setHistorial((data || []) as HistorialEdicion[]);
 
       // Fetch profile names for modificado_por
-      const userIds = [...new Set(data?.map(h => h.modificado_por).filter(Boolean) as string[])];
+      const userIds = [...new Set((data as HistorialEdicion[])?.map(h => h.modificado_por).filter(Boolean) as string[])];
       if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
+        const { data: profilesData } = await dataService
           .from('profiles')
           .select('user_id, nombre_completo')
           .in('user_id', userIds);
 
         const profileMap: ProfileInfo = {};
-        profilesData?.forEach(p => {
+        (profilesData as { user_id: string; nombre_completo: string }[])?.forEach(p => {
           profileMap[p.user_id] = p.nombre_completo;
         });
         setProfiles(profileMap);

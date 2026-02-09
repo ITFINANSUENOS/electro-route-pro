@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,13 +62,13 @@ export function RegionalesConfig() {
   const fetchRegionales = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('regionales')
         .select('*')
         .order('codigo');
 
       if (error) throw error;
-      setRegionales(data || []);
+      setRegionales((data || []) as Regional[]);
     } catch (error) {
       console.error('Error fetching regionales:', error);
       toast.error('Error cargando regionales');
@@ -114,7 +114,7 @@ export function RegionalesConfig() {
     valorNuevo: string | null
   ) => {
     try {
-      await supabase.from('historial_ediciones').insert({
+      await dataService.from('historial_ediciones').insert({
         tabla: 'regionales',
         registro_id: registroId,
         campo_editado: campo,
@@ -139,7 +139,7 @@ export function RegionalesConfig() {
     try {
       if (editingRegional) {
         // Update existing
-        const { error } = await supabase
+        const { error } = await dataService
           .from('regionales')
           .update({
             nombre: formData.nombre,
@@ -168,7 +168,7 @@ export function RegionalesConfig() {
         toast.success('Regional actualizada');
       } else {
         // Create new
-        const { data, error } = await supabase
+        const { data, error } = await dataService
           .from('regionales')
           .insert({
             nombre: formData.nombre,
@@ -182,7 +182,7 @@ export function RegionalesConfig() {
         if (error) throw error;
 
         // Log creation
-        await logChange(data.id, 'creacion', null, `Regional ${formData.nombre} creada`);
+        await logChange((data as unknown as Regional).id, 'creacion', null, `Regional ${formData.nombre} creada`);
 
         toast.success('Regional creada');
       }

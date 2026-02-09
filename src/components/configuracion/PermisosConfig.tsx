@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,7 +93,7 @@ export function PermisosConfig() {
   const fetchPermisos = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('permisos_roles')
         .select('*')
         .order('rol')
@@ -101,7 +101,7 @@ export function PermisosConfig() {
         .order('permiso');
 
       if (error) throw error;
-      setPermisos(data || []);
+      setPermisos((data || []) as PermisoRol[]);
     } catch (error) {
       console.error('Error fetching permisos:', error);
       toast.error('Error cargando permisos');
@@ -118,7 +118,7 @@ export function PermisosConfig() {
     setSaving(permiso.id);
     try {
       const newValue = !permiso.habilitado;
-      const { error } = await supabase
+      const { error } = await dataService
         .from('permisos_roles')
         .update({ habilitado: newValue, updated_at: new Date().toISOString() })
         .eq('id', permiso.id);
@@ -126,7 +126,7 @@ export function PermisosConfig() {
       if (error) throw error;
 
       // Log the change
-      await supabase.from('historial_ediciones').insert({
+      await dataService.from('historial_ediciones').insert({
         tabla: 'permisos_roles',
         registro_id: permiso.id,
         campo_editado: 'habilitado',

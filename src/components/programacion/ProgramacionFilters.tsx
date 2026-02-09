@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { dataService } from "@/services";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,13 +26,13 @@ export function ProgramacionFilters({
   const { data: regionales = [] } = useQuery({
     queryKey: ['regionales-programacion'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await dataService
         .from('regionales')
         .select('*')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
-      return data || [];
+      return (data || []) as { id: string; nombre: string; activo: boolean }[];
     },
     enabled: isGlobalRole,
   });
@@ -41,7 +41,7 @@ export function ProgramacionFilters({
   const { data: jefesVentas = [] } = useQuery({
     queryKey: ['jefes-ventas-programacion', selectedRegional, profile?.regional_id],
     queryFn: async () => {
-      let query = supabase
+      let query = dataService
         .from('jefes_ventas')
         .select('*, regionales(nombre)')
         .eq('activo', true)
@@ -56,7 +56,7 @@ export function ProgramacionFilters({
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as { id: string; codigo: string; nombre: string; regional_id: string | null; regionales: { nombre: string } | null }[];
     },
     enabled: isGlobalRole || isLider,
   });
