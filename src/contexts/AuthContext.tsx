@@ -78,9 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await authService.signOut();
+    // Immediately clear all state to trigger redirect
+    setUser(null);
+    setSession(null);
     setProfile(null);
     setRole(null);
+    // Then sign out from the backend
+    await authService.signOut();
   };
 
   /**

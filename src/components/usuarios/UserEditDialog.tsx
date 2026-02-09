@@ -193,12 +193,15 @@ export function UserEditDialog({
       }
 
       // Update profile
-      const { error: profileError } = await dataService
+      const { error: profileError, data: updateResult } = await dataService
         .from('profiles')
         .update(updateData)
         .eq('id', user.id);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        throw profileError;
+      }
 
       // Log changes to historial
       if (originalData.telefono !== formData.telefono) {

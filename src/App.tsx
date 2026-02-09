@@ -17,7 +17,14 @@ import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 import Comparativo from "./pages/Comparativo";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
