@@ -354,7 +354,9 @@ serve(async (req) => {
       : detectTargetPeriod(parsedDates);
 
     const monthStart = `${period.year}-${String(period.month).padStart(2, '0')}-01`;
-    const monthEnd = `${period.year}-${String(period.month).padStart(2, '0')}-31`;
+    // Calculate the actual last day of the month
+    const lastDay = new Date(period.year, period.month, 0).getDate();
+    const monthEnd = `${period.year}-${String(period.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     console.log(`Target period: ${monthStart} to ${monthEnd}`);
 
