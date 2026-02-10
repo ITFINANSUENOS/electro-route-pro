@@ -144,8 +144,8 @@ export function InteractiveSalesChart({
       }
     });
     
-    // Filter out items with zero or negative values for pie chart
-    const filtered = Array.from(mergedMap.values()).filter(item => item.value > 0);
+    // Filter out items with zero values for pie chart, keep negatives to show in legend
+    const filtered = Array.from(mergedMap.values()).filter(item => item.value !== 0);
     
     // Enrich with counts - also check for CONVENIO key in salesCountByType
     return filtered.map(type => {
@@ -240,11 +240,15 @@ export function InteractiveSalesChart({
     return typeData?.value || 0;
   }, [selectedType, enrichedSalesByType]);
 
-  // Overall total
+  // Separate positive (for pie) and negative (for legend only) items
+  const positiveItems = enrichedSalesByType.filter(t => t.value > 0);
+  const negativeItems = enrichedSalesByType.filter(t => t.value < 0);
+
+  // Overall total (net, including negatives)
   const overallTotal = enrichedSalesByType.reduce((sum, t) => sum + t.value, 0);
 
   // Don't render if there's no valid data
-  if (enrichedSalesByType.length === 0 || overallTotal <= 0) {
+  if (enrichedSalesByType.length === 0) {
     return (
       <Card className="card-elevated">
         <CardHeader className="pb-2">
@@ -319,7 +323,7 @@ export function InteractiveSalesChart({
               <ResponsiveContainer width="100%" height="60%" className="sm:!w-[55%] sm:!h-full">
                 <PieChart>
                   <Pie
-                    data={enrichedSalesByType}
+                    data={positiveItems}
                     cx="50%"
                     cy="50%"
                     innerRadius={45}
@@ -330,10 +334,15 @@ export function InteractiveSalesChart({
                     activeShape={renderActiveShape}
                     onMouseEnter={(_, index) => setActiveIndex(index)}
                     onMouseLeave={() => setActiveIndex(undefined)}
-                    onClick={handlePieClick}
+                    onClick={(data, index) => {
+                      // Map positive items index back to enrichedSalesByType
+                      if (data.key && Object.keys(tiposVentaLabels).includes(data.key)) {
+                        setSelectedType(data.key as TipoVentaKey);
+                      }
+                    }}
                     style={{ cursor: 'pointer' }}
                   >
-                    {enrichedSalesByType.map((entry, index) => (
+                    {positiveItems.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={entry.color}
@@ -385,7 +394,7 @@ export function InteractiveSalesChart({
                         </span>
                       )}
                     </div>
-                    <span className="text-xs sm:text-sm font-semibold text-foreground">
+                    <span className={`text-xs sm:text-sm font-semibold ${type.value < 0 ? 'text-red-500' : 'text-foreground'}`}>
                       {formatCurrency(type.value)}
                     </span>
                   </motion.div>

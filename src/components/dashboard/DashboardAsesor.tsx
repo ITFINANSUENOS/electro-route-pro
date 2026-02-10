@@ -376,11 +376,9 @@ export default function DashboardAsesor() {
       const presupuesto = meta?.valor_meta || 0;
       
       // Calculate executed from sales
-      const ejecutado = Math.abs(
-        salesData
+      const ejecutado = salesData
           .filter(s => s.tipo_venta === tipo)
-          .reduce((sum, s) => sum + (s.vtas_ant_i || 0), 0)
-      );
+          .reduce((sum, s) => sum + (s.vtas_ant_i || 0), 0);
 
       return {
         name: tiposVentaLabels[tipo] || tipo,
@@ -712,7 +710,11 @@ export default function DashboardAsesor() {
                     />
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
                     <Bar dataKey="presupuesto" name="Presupuesto" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="ejecutado" name="Ejecutado" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="ejecutado" name="Ejecutado" radius={[0, 4, 4, 0]}>
+                      {budgetVsExecuted.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.ejecutado < 0 ? 'hsl(var(--danger))' : 'hsl(var(--primary))'} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
