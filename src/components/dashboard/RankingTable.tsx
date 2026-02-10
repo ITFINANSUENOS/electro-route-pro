@@ -78,10 +78,17 @@ const formatCurrency = (value: number) => {
 
 // Format in thousands with K suffix for better visibility
 const formatCurrencyThousands = (value: number) => {
-  if (Math.abs(value) >= 1000) {
-    return `$${(value / 1000).toLocaleString('es-CO', { maximumFractionDigits: 0 })}K`;
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  if (absValue >= 1_000_000) {
+    const millions = absValue / 1_000_000;
+    return `${sign}$${millions.toFixed(millions >= 100 ? 0 : millions >= 10 ? 1 : 1)}M`;
   }
-  return `$${value.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+  if (absValue >= 1000) {
+    const thousands = Math.round(absValue / 1000);
+    return `${sign}$${thousands.toLocaleString('es-CO')} mil`;
+  }
+  return `${sign}$${absValue.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 };
 
 type SortColumn = TipoVentaKey | 'total' | 'compliance' | null;
