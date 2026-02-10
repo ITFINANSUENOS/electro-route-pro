@@ -9,16 +9,13 @@ const corsHeaders = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Generic error messages - avoid exposing internal details
 const GENERIC_ERRORS = {
   VALIDATION: 'Datos de entrada inválidos',
   SERVER: 'Error procesando la solicitud',
 };
 
-// Maximum rows to prevent DoS
 const MAX_CSV_ROWS = 15000;
 
-// Maximum field lengths
 const MAX_LENGTHS = {
   nombre: 200,
   direccion: 500,
@@ -26,7 +23,6 @@ const MAX_LENGTHS = {
   telefono: 20,
 };
 
-// Sanitize field to prevent CSV injection
 function sanitizeCSVField(value: string | null | undefined): string {
   if (!value) return '';
   const trimmed = value.trim();
@@ -36,14 +32,12 @@ function sanitizeCSVField(value: string | null | undefined): string {
   return trimmed;
 }
 
-// Truncate string to max length
 function truncateField(value: string | null | undefined, maxLength: number): string {
   if (!value) return '';
   const sanitized = sanitizeCSVField(value);
   return sanitized.slice(0, maxLength);
 }
 
-// Mapping from CSV headers to DB fields
 const HEADER_MAP: Record<string, string> = {
   'tipo': 'tipo_docum',
   'cod_region': 'cod_region',
@@ -121,7 +115,6 @@ function parseDate(value: string): string | null {
     } else {
       dateStr = `${third.length === 2 ? '20' + third : third}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
     }
-    // Validate the parsed date
     const parsed = new Date(dateStr);
     if (!isNaN(parsed.getTime())) {
       return dateStr;
@@ -158,7 +151,6 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return result;
 }
 
-// Build a lookup map from formas_pago table: codigo -> tipo_venta
 // deno-lint-ignore no-explicit-any
 async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string>> {
   const { data, error } = await supabase
@@ -175,38 +167,60 @@ async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string
   if (data && Array.isArray(data)) {
     for (const fp of data) {
       if (fp.codigo && fp.tipo_venta) {
-        const normalizedCodigo = String(fp.codigo).toUpperCase().trim();
-        lookup.set(normalizedCodigo, String(fp.tipo_venta));
+        lookup.set(String(fp.codigo).toUpperCase().trim(), String(fp.tipo_venta));
       }
     }
   }
-  
-  console.log("Payment type lookup built with", lookup.size, "entries");
   return lookup;
 }
 
-// Derive tipo_venta from FORMA1PAGO using the database lookup
 function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<string, string>): string | null {
   const forma1 = (forma1Pago || '').toUpperCase().trim();
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  if (lookup.has(forma1)) {
-    return lookup.get(forma1)!;
-  }
+  if (lookup.has(forma1)) return lookup.get(forma1)!;
   
   for (const [codigo, tipoVenta] of lookup.entries()) {
-    if (forma1.includes(codigo) || codigo.includes(forma1)) {
-      return tipoVenta;
-    }
+    if (forma1.includes(codigo) || codigo.includes(forma1)) return tipoVenta;
   }
   
   if (formaGeneral === 'CONTADO') return 'CONTADO';
   if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
   if (formaGeneral === 'CREDITO') return 'CREDITO';
-  if (formaGeneral === 'CONVENIO') return 'ALIADOS'; // Legacy mapping
+  if (formaGeneral === 'CONVENIO') return 'ALIADOS';
   if (formaGeneral === 'ALIADOS') return 'ALIADOS';
   
   return null;
+}
+
+/**
+ * Detect the target month/year from parsed dates in the CSV.
+ * Returns the month/year that has the most records.
+ */
+function detectTargetPeriod(dates: string[]): { month: number; year: number } {
+  const counts = new Map<string, number>();
+  for (const d of dates) {
+    if (!d) continue;
+    const key = d.substring(0, 7); // YYYY-MM
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  
+  let maxKey = '';
+  let maxCount = 0;
+  for (const [key, count] of counts) {
+    if (count > maxCount) {
+      maxCount = count;
+      maxKey = key;
+    }
+  }
+  
+  if (!maxKey) {
+    const now = new Date();
+    return { month: now.getMonth() + 1, year: now.getFullYear() };
+  }
+  
+  const [yearStr, monthStr] = maxKey.split('-');
+  return { month: parseInt(monthStr), year: parseInt(yearStr) };
 }
 
 serve(async (req) => {
@@ -215,27 +229,19 @@ serve(async (req) => {
   }
 
   try {
+    // Use service role key to bypass RLS for reliable delete + insert
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
 
     console.log("Loading sales data...");
 
-    const paymentTypeLookup = await buildPaymentTypeLookup(supabase);
-
-    // First delete all existing records for this period to avoid duplicates
-    const { error: deleteError } = await supabase
-      .from('ventas')
-      .delete()
-      .gte('fecha', '2026-01-01')
-      .lte('fecha', '2026-01-31');
-    
-    if (deleteError) {
-      console.log("Delete error (might be empty):", deleteError.message);
-    }
-
     const body = await req.json().catch(() => ({}));
     const csvContent = body.csvContent;
+    const targetMonth = body.targetMonth as number | undefined;
+    const targetYear = body.targetYear as number | undefined;
+    const cargaId = body.cargaId as string | undefined;
+    const cargadoPor = body.cargadoPor as string | undefined;
     
     if (!csvContent) {
       return new Response(
@@ -244,7 +250,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("CSV length:", csvContent.length);
+    const paymentTypeLookup = await buildPaymentTypeLookup(supabase);
 
     const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
     if (lines.length < 2) {
@@ -254,7 +260,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate row count
     if (lines.length > MAX_CSV_ROWS) {
       return new Response(
         JSON.stringify({ error: `El archivo excede el máximo de ${MAX_CSV_ROWS} registros` }),
@@ -275,6 +280,7 @@ serve(async (req) => {
     console.log("Mapped columns:", Object.keys(columnMapping).length);
 
     const ventas: Record<string, unknown>[] = [];
+    const parsedDates: string[] = [];
     const dataRows = lines.slice(1);
     let invalidRows = 0;
 
@@ -297,20 +303,19 @@ serve(async (req) => {
             const parsedDate = parseDate(val);
             if (parsedDate) {
               venta[field] = parsedDate;
+              parsedDates.push(parsedDate);
             }
           } else {
-            // Apply length limits and sanitization for text fields
             const maxLen = TEXT_FIELDS_WITH_LIMITS[field] || 500;
             venta[field] = truncateField(val, maxLen);
           }
         }
       });
 
-      // Validate required fields
       if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || 'UNKNOWN';
       if (!venta.fecha) {
         invalidRows++;
-        continue; // Skip rows with invalid dates
+        continue;
       }
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
@@ -327,6 +332,10 @@ serve(async (req) => {
         continue;
       }
 
+      // Add carga metadata
+      if (cargaId) venta.carga_id = cargaId;
+      if (cargadoPor) venta.cargado_por = cargadoPor;
+
       ventas.push(venta);
     }
 
@@ -339,6 +348,42 @@ serve(async (req) => {
       );
     }
 
+    // Detect target period from data or use provided values
+    const period = (targetMonth && targetYear)
+      ? { month: targetMonth, year: targetYear }
+      : detectTargetPeriod(parsedDates);
+
+    const monthStart = `${period.year}-${String(period.month).padStart(2, '0')}-01`;
+    const monthEnd = `${period.year}-${String(period.month).padStart(2, '0')}-31`;
+
+    console.log(`Target period: ${monthStart} to ${monthEnd}`);
+
+    // Check previous record count for this period before deleting
+    const { count: previousCount } = await supabase
+      .from('ventas')
+      .select('*', { count: 'exact', head: true })
+      .gte('fecha', monthStart)
+      .lte('fecha', monthEnd);
+
+    console.log(`Previous records in period: ${previousCount}, New records: ${ventas.length}`);
+
+    // DELETE existing records for this month using service role (bypasses RLS)
+    const { error: deleteError, count: deletedCount } = await supabase
+      .from('ventas')
+      .delete({ count: 'exact' })
+      .gte('fecha', monthStart)
+      .lte('fecha', monthEnd);
+    
+    if (deleteError) {
+      console.error("Delete error:", deleteError.message);
+      return new Response(
+        JSON.stringify({ error: `Error eliminando datos anteriores: ${deleteError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Deleted ${deletedCount} existing records for period`);
+
     // Insert in batches
     const batchSize = 500;
     let inserted = 0;
@@ -349,7 +394,6 @@ serve(async (req) => {
       
       if (error) {
         console.error("Batch error at", i, ":", error.message);
-        // Return generic error to client, log details server-side
         return new Response(
           JSON.stringify({ error: GENERIC_ERRORS.SERVER }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -360,19 +404,23 @@ serve(async (req) => {
       console.log(`Inserted ${inserted} of ${ventas.length}`);
     }
 
-    const { count } = await supabase
+    // Verify final count
+    const { count: finalCount } = await supabase
       .from('ventas')
       .select('*', { count: 'exact', head: true })
-      .gte('fecha', '2026-01-01')
-      .lte('fecha', '2026-01-31');
+      .gte('fecha', monthStart)
+      .lte('fecha', monthEnd);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         inserted,
-        total_in_db: count,
+        deleted: deletedCount || 0,
+        previous_count: previousCount || 0,
+        total_in_db: finalCount,
         invalid_rows: invalidRows,
-        message: `Cargados ${inserted} registros de ventas exitosamente` 
+        period: { month: period.month, year: period.year },
+        message: `Cargados ${inserted} registros de ventas exitosamente (${deletedCount || 0} anteriores eliminados)` 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

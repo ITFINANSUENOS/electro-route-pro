@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2, CalendarCheck, Lock } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2, CalendarCheck, Lock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { dataService } from '@/services';
@@ -23,19 +24,13 @@ interface UploadHistory {
 
 // Mapeo completo de nombres de columna CSV a campos de la tabla ventas
 const HEADER_MAP: Record<string, string> = {
-  // Tipo documento
   'tipo': 'tipo_docum',
-  // Región
   'cod_region': 'cod_region',
   'codregion': 'cod_region',
-  // Sede
   'sede': 'sede',
-  // Centro de costo
   'codigo_cco': 'codigo_cco',
   'cod_cco': 'codigo_cco',
-  // Nombre centro costo
   'nombre_cco': 'nombre_cco',
-  // Cliente
   'identifica': 'cliente_identificacion',
   'identificacion': 'cliente_identificacion',
   'cli_identificacion': 'cliente_identificacion',
@@ -49,35 +44,28 @@ const HEADER_MAP: Record<string, string> = {
   'correoe': 'cliente_email',
   'email': 'cliente_email',
   'cli_email': 'cliente_email',
-  // Documento
   'tipo_docum': 'tipo_documento',
   'numero_doc': 'numero_doc',
   'nro_doc': 'numero_doc',
   'fecha_fact': 'fecha',
   'fecha': 'fecha',
-  // Destino
   'destino': 'destino',
   'dnonombre': 'destino_nombre',
-  // Forma pago
   'cod_forma_': 'cod_forma_pago',
   'forma1pago': 'forma1_pago',
   'formapago': 'forma_pago',
-  // Regional/Zona
   'regional': 'regional',
   'zona': 'zona',
-  // Asesor
   'cedula_ase': 'cedula_asesor',
   'cedula': 'cedula_asesor',
   'codigo_ase': 'codigo_asesor',
   'cod_asesor': 'codigo_asesor',
   'asesor': 'asesor_nombre',
   'nombre_asesor': 'asesor_nombre',
-  // Jefe
   'codigo_jef': 'codigo_jefe',
   'cod_jefe': 'codigo_jefe',
   'jefe_venta': 'jefe_ventas',
   'jefe': 'jefe_ventas',
-  // Producto
   'codigo_ean': 'codigo_ean',
   'ean': 'codigo_ean',
   'nombre_pro': 'producto',
@@ -95,7 +83,6 @@ const HEADER_MAP: Record<string, string> = {
   'serial2': 'serial',
   'serial': 'serial',
   'mcnclase': 'mcn_clase',
-  // Valores numéricos
   'cantidad': 'cantidad',
   'subtcontad': 'subtotal',
   'subtotal': 'subtotal',
@@ -106,10 +93,8 @@ const HEADER_MAP: Record<string, string> = {
   'total': 'total',
   'vtas_ant_i': 'vtas_ant_i',
   'vtasanti': 'vtas_ant_i',
-  // Otros
   'motivodev': 'motivo_dev',
   'tipo_venta': 'tipo_venta',
-  // ccostopadr se ignora - no existe en tabla ventas
 };
 
 const NUMERIC_FIELDS = ['cantidad', 'subtotal', 'iva', 'total', 'vtas_ant_i', 'cod_region'];
@@ -121,12 +106,13 @@ export default function CargarVentasTab() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
   const [showCloseDialog, setShowCloseDialog] = useState(false);
-  const [pendingUploadData, setPendingUploadData] = useState<{ ventas: Record<string, unknown>[]; cargaId: string } | null>(null);
+  const [showFewerRecordsDialog, setShowFewerRecordsDialog] = useState(false);
+  const [fewerRecordsInfo, setFewerRecordsInfo] = useState<{ previous: number; current: number } | null>(null);
+  const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
-  // Sales period management
   const { 
     getCurrentTargetPeriod, 
     closePeriod, 
@@ -188,12 +174,6 @@ export default function CargarVentasTab() {
     setFile(file);
   };
 
-  const detectDelimiter = (line: string): string => {
-    const semicolons = (line.match(/;/g) || []).length;
-    const commas = (line.match(/,/g) || []).length;
-    return semicolons > commas ? ';' : ',';
-  };
-
   const parseCSVLine = (line: string, delimiter: string): string[] => {
     const result: string[] = [];
     let current = '';
@@ -222,21 +202,10 @@ export default function CargarVentasTab() {
       .replace(/_+/g, '_').replace(/^_|_$/g, '');
   };
 
-  const parseNumber = (value: string): number => {
-    if (!value?.trim()) return 0;
-    const cleaned = value.replace(/\./g, '').replace(',', '.').trim();
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? 0 : num;
-  };
-
   const parseDate = (value: string): string => {
     if (!value?.trim()) return new Date().toISOString().split('T')[0];
     const clean = value.trim();
-    
-    // YYYY-MM-DD
     if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
-    
-    // DD/MM/YYYY or DD-MM-YYYY
     const parts = clean.split(/[\/\-]/);
     if (parts.length === 3) {
       const [first, second, third] = parts;
@@ -246,37 +215,45 @@ export default function CargarVentasTab() {
     return new Date().toISOString().split('T')[0];
   };
 
-  // Validate that >50% of dates are within the target month
-  const validateDatesInMonth = (ventas: Record<string, unknown>[], targetMonth: number, targetYear: number): { valid: boolean; inMonth: number; outOfMonth: number } => {
-    let inMonth = 0;
-    let outOfMonth = 0;
+  /** Count how many rows in the CSV correspond to the target month */
+  const countRowsInMonth = (csvContent: string, month: number, year: number): { total: number; inMonth: number } => {
+    const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { total: 0, inMonth: 0 };
 
-    for (const venta of ventas) {
-      const fecha = venta.fecha as string;
-      if (fecha) {
-        const date = new Date(fecha);
-        const month = date.getMonth() + 1;
-        const year = date.getFullYear();
-        if (month === targetMonth && year === targetYear) {
-          inMonth++;
-        } else {
-          outOfMonth++;
-        }
+    const delimiter = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const headers = parseCSVLine(lines[0], delimiter);
+    
+    const fechaIdx = headers.findIndex(h => {
+      const n = normalizeHeader(h);
+      return n === 'fecha_fact' || n === 'fecha';
+    });
+
+    if (fechaIdx === -1) return { total: lines.length - 1, inMonth: 0 };
+
+    let inMonth = 0;
+    let total = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      total++;
+      const values = parseCSVLine(lines[i], delimiter);
+      const dateStr = parseDate(values[fechaIdx] || '');
+      const d = new Date(dateStr);
+      if (d.getMonth() + 1 === month && d.getFullYear() === year) {
+        inMonth++;
       }
     }
 
-    const total = inMonth + outOfMonth;
-    return { valid: inMonth >= (total / 2), inMonth, outOfMonth };
+    return { total, inMonth };
   };
 
   const handleUpload = async () => {
     if (!file || !user) return;
 
-    // Check if target period is closed
     if (periodClosed) {
       toast({ 
         title: 'Período cerrado', 
-        description: `El período de ${getMonthName(targetPeriod.month)} ${targetPeriod.year} ya fue cerrado y no acepta más cargas.`, 
+        description: `El período de ${getMonthName(targetPeriod.month)} ${targetPeriod.year} ya fue cerrado.`, 
         variant: 'destructive' 
       });
       return;
@@ -289,132 +266,81 @@ export default function CargarVentasTab() {
     let cargaId: string | null = null;
 
     try {
-      const text = await file.text();
+      const csvContent = await file.text();
       setUploadProgress(10);
+      setUploadStatus('Validando contenido...');
 
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) throw new Error('El archivo CSV está vacío');
-
-      const delimiter = detectDelimiter(lines[0]);
-      const headers = parseCSVLine(lines[0], delimiter);
+      // Quick validation: count rows
+      const rowCount = countRowsInMonth(csvContent, targetPeriod.month, targetPeriod.year);
       
-      // Build column mapping
-      const columnMapping: Record<number, string> = {};
-      headers.forEach((h, i) => {
-        const normalized = normalizeHeader(h);
-        const dbField = HEADER_MAP[normalized];
-        if (dbField) columnMapping[i] = dbField;
-      });
-
-      console.log('Mapped columns:', Object.keys(columnMapping).length, 'of', headers.length);
-
-      setUploadProgress(15);
-      setUploadStatus('Validando fechas...');
-
-      // Process all data rows at once
-      const dataRows = lines.slice(1);
-      const ventas: Record<string, unknown>[] = [];
-
-      for (const line of dataRows) {
-        if (!line.trim()) continue;
-        const values = parseCSVLine(line, delimiter);
-        if (values.length < 5) continue;
-
-        const venta: Record<string, unknown> = {};
-
-        values.forEach((val, idx) => {
-          const field = columnMapping[idx];
-          if (field && val.trim()) {
-            if (NUMERIC_FIELDS.includes(field)) {
-              venta[field] = parseNumber(val);
-            } else if (field === 'fecha') {
-              venta[field] = parseDate(val);
-            } else {
-              venta[field] = val.trim();
-            }
-          }
-        });
-
-        // Required fields
-        if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || '';
-        if (!venta.fecha) venta.fecha = new Date().toISOString().split('T')[0];
-        if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
-        
-        // Derive tipo_venta from FORMA1PAGO based on reference table
-        if (venta.forma1_pago) {
-          const forma1 = (venta.forma1_pago as string).toUpperCase();
-          
-          // NO APLICA - excluded from sales reports
-          if (forma1.includes('REBATE') || 
-              forma1.includes('ARRENDAMIENTO') || 
-              forma1.includes('ACTIVOS FIJOS')) {
-            venta.tipo_venta = 'OTROS';
-          }
-          // ALIADOS: ADDI, BRILLA, SISTECREDITO (third-party financing)
-          else if (forma1.includes('ADDI') || 
-                   forma1.includes('BRILLA') || 
-                   forma1.includes('SISTECREDITO') || 
-                   forma1.includes('SISTEMCREDITO')) {
-            venta.tipo_venta = 'ALIADOS';
-          } 
-          // CREDITO: FINANSUEDOS, ARPESOD, RETANQUEO (internal long-term)
-          else if (forma1.includes('FINANSUE') || 
-                   forma1.includes('ARPESOD') || 
-                   forma1.includes('RETANQUEO')) {
-            venta.tipo_venta = 'CREDITO';
-          } 
-          // CREDICONTADO: CUOTAS, INCREMENTO, OBSEQUIOS (short-term installments)
-          else if (forma1.includes('CUOTAS') || 
-                   forma1.includes('INCREMENTO') ||
-                   forma1.includes('OBSEQUIOS')) {
-            venta.tipo_venta = 'CREDICONTADO';
-          } 
-          // CONTADO: CONTADO variants + CREDITO ENTIDADES
-          else if (forma1.includes('CONTADO') || forma1.includes('CREDITO ENTIDADES')) {
-            venta.tipo_venta = 'CONTADO';
-          }
-        }
-        
-        // Fallback to forma_pago if tipo_venta not set
-        if (!venta.tipo_venta && venta.forma_pago) {
-          const formaPago = (venta.forma_pago as string).toUpperCase();
-          if (['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS', 'CONVENIO'].includes(formaPago)) {
-            venta.tipo_venta = formaPago === 'CONVENIO' ? 'ALIADOS' : formaPago;
-          }
-        }
-        
-        // Skip records without codigo_asesor
-        if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
-          console.log('Skipping record without codigo_asesor');
-          continue;
-        }
-
-        ventas.push(venta);
-      }
-
-      if (ventas.length === 0) throw new Error('No se encontraron registros válidos');
-
-      // Validate dates are in target month
-      const dateValidation = validateDatesInMonth(ventas, targetPeriod.month, targetPeriod.year);
-      if (!dateValidation.valid) {
+      if (rowCount.total === 0) throw new Error('El archivo CSV está vacío');
+      if (rowCount.inMonth < rowCount.total / 2) {
         setUploading(false);
         setUploadProgress(0);
         setUploadStatus('');
         toast({ 
           title: 'Fechas fuera de rango', 
-          description: `El archivo tiene ${dateValidation.outOfMonth} registros (${Math.round(dateValidation.outOfMonth / (dateValidation.inMonth + dateValidation.outOfMonth) * 100)}%) con fechas fuera de ${getMonthName(targetPeriod.month)} ${targetPeriod.year}. La mayoría de los registros deben corresponder al mes en curso.`,
+          description: `Menos del 50% de los registros corresponden a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`,
           variant: 'destructive' 
         });
+        return;
+      }
+
+      setUploadProgress(15);
+      setUploadStatus('Verificando cargas anteriores...');
+
+      // Check previous record count for this period
+      const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
+      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
+
+      // We'll check previous count from carga_archivos history instead
+
+      // Get previous count from the response headers or use a count query
+      const { data: prevCountResult } = await (dataService.rpc('', {}) as any).catch(() => ({ data: null }));
+      
+      // Simpler approach: just query count
+      let previousRecordCount = 0;
+      try {
+        const { data: prevRecords } = await (dataService
+          .from('carga_archivos')
+          .select('registros_procesados')
+          .eq('tipo', 'ventas')
+          .eq('estado', 'completado')
+          .order('created_at', { ascending: false })
+          .limit(1) as any);
+        
+        if (prevRecords?.[0]?.registros_procesados) {
+          previousRecordCount = prevRecords[0].registros_procesados;
+        }
+      } catch {
+        // Ignore error
+      }
+
+      // Show warning if new file has fewer records than previous load
+      if (previousRecordCount > 0 && rowCount.total < previousRecordCount) {
+        setFewerRecordsInfo({ previous: previousRecordCount, current: rowCount.total });
+        
+        // Create upload record first
+        const { data: cargaRecord, error: cargaError } = await (dataService
+          .from('carga_archivos')
+          .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+          .select()
+          .single() as any);
+
+        if (cargaError) throw cargaError;
+        cargaId = cargaRecord.id;
+
+        setPendingUploadData({ csvContent, cargaId });
+        setShowFewerRecordsDialog(true);
+        // Don't reset uploading - the dialog will handle it
         return;
       }
 
       setUploadProgress(20);
       setUploadStatus('Registrando carga...');
 
-      // Ensure period exists
       await getOrCreatePeriod(targetPeriod.month, targetPeriod.year);
 
-      // Create upload record
       const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
         .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
@@ -424,24 +350,8 @@ export default function CargarVentasTab() {
       if (cargaError) throw cargaError;
       cargaId = cargaRecord.id;
 
-      // Add carga_id and cargado_por to all records
-      ventas.forEach(v => {
-        v.carga_id = cargaId;
-        v.cargado_por = user.id;
-      });
-
-      setUploadProgress(30);
-      setUploadStatus('Procesando filas...');
-
-      // If it's closing day, show the dialog instead of inserting immediately
-      if (targetPeriod.isClosingDay) {
-        setPendingUploadData({ ventas, cargaId });
-        setShowCloseDialog(true);
-        return;
-      }
-
-      // Insert data
-      await insertSalesData(ventas, cargaId);
+      // Send to edge function for reliable processing
+      await processUploadViaEdgeFunction(csvContent, cargaId);
 
     } catch (error) {
       console.error('Upload error:', error);
@@ -458,71 +368,60 @@ export default function CargarVentasTab() {
     }
   };
 
-  const insertSalesData = async (ventas: Record<string, unknown>[], cargaId: string) => {
+  /** Process upload via edge function (uses service role for reliable delete) */
+  const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string) => {
     try {
-      setUploadProgress(35);
-      setUploadStatus('Eliminando datos anteriores del período...');
+      setUploadProgress(30);
+      setUploadStatus('Enviando al servidor para procesamiento...');
 
-      // Determine the date range from the ventas data
-      const dates = ventas.map(v => v.fecha as string).filter(Boolean).sort();
-      const startDate = dates[0] || `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
-      const endDate = dates[dates.length - 1] || `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
+      const { data: result, error } = await dataService.functions.invoke<{
+        success: boolean;
+        inserted: number;
+        deleted: number;
+        previous_count: number;
+        total_in_db: number;
+        invalid_rows: number;
+        message: string;
+        error?: string;
+      }>('load-sales', {
+        body: {
+          csvContent,
+          targetMonth: targetPeriod.month,
+          targetYear: targetPeriod.year,
+          cargaId,
+          cargadoPor: user?.id,
+        },
+      });
 
-      // Calculate month boundaries for deletion (delete entire month's data)
-      const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
-      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
-
-      // DELETE existing data for this month BEFORE inserting new data
-      // This ensures we REPLACE data instead of adding to it
-      const { error: deleteError } = await (dataService
-        .from('ventas')
-        .delete()
-        .gte('fecha', monthStart)
-        .lte('fecha', monthEnd) as any);
-
-      if (deleteError) {
-        console.error('Delete error:', deleteError);
-        // Continue anyway - might be empty table
+      if (error || !result?.success) {
+        const errorMsg = (result as any)?.error || error?.message || 'Error procesando archivo';
+        throw new Error(errorMsg);
       }
 
-      console.log(`Deleted existing data for period ${monthStart} to ${monthEnd}`);
-
-      setUploadProgress(40);
-      setUploadStatus(`Insertando ${ventas.length} registros...`);
-
-      // Insert in batches of 1000 for speed
-      const batchSize = 1000;
-      let inserted = 0;
-
-      for (let i = 0; i < ventas.length; i += batchSize) {
-        const batch = ventas.slice(i, i + batchSize);
-        const { error } = await (dataService.from('ventas').insert(batch as never[]) as any);
-        
-        if (error) {
-          console.error('Batch error:', error);
-          throw new Error(`Error en lote ${Math.floor(i/batchSize) + 1}: ${error.message}`);
-        }
-        
-        inserted += batch.length;
-        setUploadProgress(40 + Math.round((inserted / ventas.length) * 55));
-        setUploadStatus(`Insertados ${inserted} de ${ventas.length}...`);
-      }
-
-      // Mark complete
+      // Update carga record
       await (dataService.from('carga_archivos')
-        .update({ estado: 'completado', registros_procesados: inserted })
+        .update({ estado: 'completado', registros_procesados: result.inserted })
         .eq('id', cargaId) as any);
 
       setUploadProgress(100);
       setUploadStatus('¡Completado!');
 
-      toast({ title: '¡Carga exitosa!', description: `${inserted} registros insertados` });
+      toast({ 
+        title: '¡Carga exitosa!', 
+        description: `${result.inserted} registros insertados (${result.deleted} anteriores reemplazados)` 
+      });
+      
       setFile(null);
       refetch();
       queryClient.invalidateQueries({ queryKey: ['ventas'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
+
     } catch (error) {
+      // Update carga record with error
+      await (dataService.from('carga_archivos')
+        .update({ estado: 'error', mensaje_error: (error as Error).message })
+        .eq('id', cargaId) as any);
       throw error;
     } finally {
       setUploading(false);
@@ -531,25 +430,54 @@ export default function CargarVentasTab() {
     }
   };
 
+  /** Handle confirmation to proceed with fewer records */
+  const handleFewerRecordsConfirm = async () => {
+    setShowFewerRecordsDialog(false);
+    if (!pendingUploadData) return;
+
+    try {
+      setUploadProgress(25);
+      setUploadStatus('Procesando carga confirmada...');
+      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setPendingUploadData(null);
+      setFewerRecordsInfo(null);
+    }
+  };
+
+  /** Handle cancel of fewer records warning */
+  const handleFewerRecordsCancel = async () => {
+    setShowFewerRecordsDialog(false);
+    setUploading(false);
+    setUploadProgress(0);
+    setUploadStatus('');
+
+    // Mark the carga as cancelled
+    if (pendingUploadData?.cargaId) {
+      await (dataService.from('carga_archivos')
+        .update({ estado: 'error', mensaje_error: 'Cancelado: archivo con menos registros que carga anterior' })
+        .eq('id', pendingUploadData.cargaId) as any);
+      refetch();
+    }
+
+    setPendingUploadData(null);
+    setFewerRecordsInfo(null);
+    toast({ title: 'Carga cancelada', description: 'El archivo no fue procesado.' });
+  };
+
   const handleCloseMonthConfirm = async () => {
     if (!pendingUploadData) return;
 
     try {
-      // Insert the data first
-      await insertSalesData(pendingUploadData.ventas, pendingUploadData.cargaId);
+      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
 
-      // Calculate total amount
-      const totalAmount = pendingUploadData.ventas.reduce((sum, v) => {
-        const vtasAntI = v.vtas_ant_i as number || 0;
-        return sum + vtasAntI;
-      }, 0);
-
-      // Close the period
       await closePeriod({
         month: targetPeriod.month,
         year: targetPeriod.year,
-        totalRecords: pendingUploadData.ventas.length,
-        totalAmount
+        totalRecords: 0,
+        totalAmount: 0
       });
 
       toast({ 
@@ -569,11 +497,10 @@ export default function CargarVentasTab() {
     if (!pendingUploadData) return;
 
     try {
-      // Just insert the data without closing the period
-      await insertSalesData(pendingUploadData.ventas, pendingUploadData.cargaId);
+      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
       toast({ 
         title: '¡Carga exitosa!', 
-        description: `Datos cargados. El período de ${getMonthName(targetPeriod.month)} sigue abierto para más cargas.` 
+        description: `Datos cargados. El período de ${getMonthName(targetPeriod.month)} sigue abierto.` 
       });
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
@@ -593,6 +520,47 @@ export default function CargarVentasTab() {
 
   return (
     <>
+      {/* Fewer Records Warning Dialog */}
+      <Dialog open={showFewerRecordsDialog} onOpenChange={setShowFewerRecordsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" />
+              Alerta: Menor cantidad de registros
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              Está subiendo una cantidad <strong>menor</strong> de registros que el cargue pasado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Carga anterior</p>
+                <p className="text-2xl font-bold text-foreground">{fewerRecordsInfo?.previous?.toLocaleString('es-CO')}</p>
+                <p className="text-xs text-muted-foreground">registros</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Archivo actual</p>
+                <p className="text-2xl font-bold text-warning">{fewerRecordsInfo?.current?.toLocaleString('es-CO')}</p>
+                <p className="text-xs text-muted-foreground">registros</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Diferencia: <strong>{((fewerRecordsInfo?.previous || 0) - (fewerRecordsInfo?.current || 0)).toLocaleString('es-CO')}</strong> registros menos. 
+              ¿Desea continuar con la carga de todas formas?
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleFewerRecordsCancel}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleFewerRecordsConfirm}>
+              Continuar de todas formas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Month Close Dialog */}
       <MonthCloseDialog
         open={showCloseDialog}
