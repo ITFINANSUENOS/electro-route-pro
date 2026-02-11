@@ -689,7 +689,7 @@ export default function DashboardAsesor() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={budgetVsExecuted} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} />
+                    <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} domain={[(dataMin: number) => { const padded = dataMin < 0 ? Math.floor(dataMin * 1.3) : 0; return padded; }, (dataMax: number) => Math.ceil(dataMax * 1.05)]} />
                     <YAxis dataKey="name" type="category" width={70} className="text-[10px] sm:text-xs" />
                     <RechartsTooltip
                       contentStyle={{
