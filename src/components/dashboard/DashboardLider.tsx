@@ -1430,7 +1430,7 @@ export default function DashboardLider() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={budgetVsExecuted} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} domain={['auto', 'auto']} tickCount={7} allowDecimals={false} />
+                  <XAxis type="number" className="text-[10px] sm:text-xs" tickFormatter={(v) => `$${v}M`} domain={[(dataMin: number) => dataMin < 0 ? Math.floor(dataMin / 5) * 5 : 0, 'auto']} tickCount={7} allowDecimals={false} />
                   <YAxis dataKey="name" type="category" width={70} className="text-[10px] sm:text-xs" />
                   <RechartsTooltip
                     contentStyle={{
