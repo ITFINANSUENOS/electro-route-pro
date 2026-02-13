@@ -330,10 +330,26 @@ export default function DashboardJefe() {
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; total: number; byType: Record<string, number> }>);
 
+    // Merge active team profiles that have NO sales so they appear with 0
+    (teamProfiles || []).forEach(p => {
+      if (!p.activo || !p.codigo_asesor) return;
+      if (p.codigo_asesor === '00001') return;
+      if (!byAdvisorMap[p.codigo_asesor]) {
+        byAdvisorMap[p.codigo_asesor] = {
+          codigo: p.codigo_asesor,
+          nombre: p.nombre_completo || p.codigo_asesor,
+          tipoAsesor: p.tipo_asesor || 'EXTERNO',
+          cedula: p.cedula || '',
+          total: 0,
+          byType: {},
+        };
+      }
+    });
+
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => ({
         ...a,
-        total: a.total, // Use net value, not abs - allows negatives for returns
+        total: a.total,
         meta: metasData?.find(m => m.codigo_asesor === a.codigo)?.valor_meta || 0,
       }))
       .sort((a, b) => b.total - a.total);

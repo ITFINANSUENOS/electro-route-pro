@@ -317,6 +317,16 @@ serve(async (req) => {
         invalidRows++;
         continue;
       }
+
+      // Resolve "GENERAL" asesor name: append SEDE to differentiate by regional
+      // e.g. "GENERAL" + SEDE="POPAYAN" → "GENERAL POPAYAN"
+      const asesorNombre = ((venta.asesor_nombre as string) || '').trim().toUpperCase();
+      if (asesorNombre === 'GENERAL') {
+        const sede = ((venta.sede as string) || '').trim().toUpperCase();
+        if (sede) {
+          venta.asesor_nombre = `GENERAL ${sede}`;
+        }
+      }
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
       if (!venta.tipo_venta) {
