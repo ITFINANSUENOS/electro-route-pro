@@ -105,7 +105,8 @@ serve(async (req) => {
 
     const regionalMap = new Map(regionales?.map(r => [r.codigo, r.id]) || []);
 
-    const createdUsers: { email: string; password: string; role: string; nombre: string; status: string }[] = [];
+    // Note: passwords are NOT included in the response for security
+    const createdUsers: { email: string; role: string; nombre: string; status: string }[] = [];
     const errors: string[] = [];
 
     for (const user of testUsers) {
@@ -147,7 +148,6 @@ serve(async (req) => {
 
           createdUsers.push({ 
             email: user.email, 
-            password: user.password,
             role: user.role, 
             nombre: user.nombre_completo,
             status: updateError ? 'error_password' : 'actualizado' 
@@ -229,7 +229,6 @@ serve(async (req) => {
 
         createdUsers.push({ 
           email: user.email, 
-          password: user.password,
           role: user.role, 
           nombre: user.nombre_completo,
           status: 'creado' 
@@ -252,8 +251,9 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('Seed test users error:', errorMessage);
     return new Response(
-      JSON.stringify({ error: `Error interno: ${errorMessage}` }),
+      JSON.stringify({ error: GENERIC_ERRORS.SERVER }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
