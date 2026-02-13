@@ -147,7 +147,8 @@ serve(async (req) => {
       errors: [] as string[]
     };
 
-    const createdUsers: { email: string; password: string; nombre: string; role: string }[] = [];
+    // Note: passwords are NOT included in the response for security
+    const createdUsers: { email: string; nombre: string; role: string }[] = [];
 
     // First pass: collect all valid cedulas from the file
     for (const member of teamData) {
@@ -239,7 +240,7 @@ serve(async (req) => {
                   });
 
                   stats.asesores_created++;
-                  createdUsers.push({ email, password, nombre: member.nombre_asesor.trim(), role: 'asesor_comercial' });
+                  createdUsers.push({ email, nombre: member.nombre_asesor.trim(), role: 'asesor_comercial' });
                   existingEmails.add(email.toLowerCase());
                 }
               } catch (e) {
@@ -319,7 +320,7 @@ serve(async (req) => {
                   });
 
                   stats.jefes_created++;
-                  createdUsers.push({ email: jefeEmail, password: jefePassword, nombre: member.jefe_ventas?.trim() || '', role: 'jefe_ventas' });
+                  createdUsers.push({ email: jefeEmail, nombre: member.jefe_ventas?.trim() || '', role: 'jefe_ventas' });
                   existingEmails.add(jefeEmail.toLowerCase());
                 }
               } catch (_e) {
@@ -399,7 +400,7 @@ serve(async (req) => {
                     .eq('cedula', member.cedula_lider);
 
                   stats.lideres_created++;
-                  createdUsers.push({ email: liderEmail, password: liderPassword, nombre: member.lider_zona?.trim() || '', role: 'lider_zona' });
+                  createdUsers.push({ email: liderEmail, nombre: member.lider_zona?.trim() || '', role: 'lider_zona' });
                   existingEmails.add(liderEmail.toLowerCase());
                 }
               } catch (_e) {
@@ -476,7 +477,7 @@ serve(async (req) => {
                     .eq('cedula', member.cedula_coordinador);
 
                   stats.coordinadores_created++;
-                  createdUsers.push({ email: coordEmail, password: coordPassword, nombre: member.coordinador?.trim() || '', role: 'coordinador_comercial' });
+                  createdUsers.push({ email: coordEmail, nombre: member.coordinador?.trim() || '', role: 'coordinador_comercial' });
                   existingEmails.add(coordEmail.toLowerCase());
                 }
               } catch (_e) {
@@ -534,8 +535,9 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('Sync users error:', errorMessage);
     return new Response(
-      JSON.stringify({ error: `Error interno: ${errorMessage}` }),
+      JSON.stringify({ error: 'Error interno del servidor' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
