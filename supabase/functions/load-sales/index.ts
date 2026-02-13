@@ -26,10 +26,8 @@ const MAX_LENGTHS = {
 function sanitizeCSVField(value: string | null | undefined): string {
   if (!value) return '';
   const trimmed = value.trim();
-  if (/^[=+\-@\t\r]/.test(trimmed)) {
-    return "'" + trimmed;
-  }
-  return trimmed;
+  // Strip dangerous formula characters from start to prevent CSV injection
+  return trimmed.replace(/^[=+\-@\t\r]+/, '');
 }
 
 function truncateField(value: string | null | undefined, maxLength: number): string {
@@ -234,7 +232,41 @@ serve(async (req) => {
       auth: { persistSession: false },
     });
 
-    console.log("Loading sales data...");
+    // --- Authentication & Authorization ---
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'No autorizado' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user: requestingUser }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !requestingUser) {
+      return new Response(
+        JSON.stringify({ error: 'Token inválido' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', requestingUser.id)
+      .single();
+
+    const allowedRoles = ['lider_zona', 'coordinador_comercial', 'administrativo', 'administrador'];
+    if (!roleData || !allowedRoles.includes(roleData.role)) {
+      return new Response(
+        JSON.stringify({ error: 'Permisos insuficientes para cargar ventas' }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // --- End Auth ---
+
+    console.log(`Loading sales data by user ${requestingUser.id} (role: ${roleData.role})`);
 
     const body = await req.json().catch(() => ({}));
     const csvContent = body.csvContent;
