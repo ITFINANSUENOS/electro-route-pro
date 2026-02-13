@@ -618,6 +618,29 @@ export default function DashboardLider() {
     // Also build metaByType for each advisor
     // IMPORTANT: Keep GERENCIA/GENERAL entries in the ranking so totals match "Ventas del Mes"
     // but they will be excluded from the advisor COUNT
+    // Merge active profiles that have NO sales into byAdvisorMap so they appear with 0
+    (profiles || []).forEach(p => {
+      if (!p.activo || !p.codigo_asesor) return;
+      if (p.codigo_asesor === '00001') return;
+      if (!isProfileInScope(p)) return;
+      
+      const normalized = normalizeCode(p.codigo_asesor);
+      // Only add if not already present from sales data
+      if (!byAdvisorMap[normalized]) {
+        const tipoAsesor = (p.tipo_asesor || 'EXTERNO').toUpperCase();
+        const regional = p.regional_id ? regionales.find(r => r.id === p.regional_id)?.nombre : undefined;
+        byAdvisorMap[normalized] = {
+          codigo: normalized,
+          nombre: p.nombre_completo || p.codigo_asesor,
+          tipoAsesor,
+          regional,
+          total: 0,
+          byType: {},
+          isGerencia: false,
+        };
+      }
+    });
+
     const byAdvisor = Object.values(byAdvisorMap)
       .map(a => {
         // Find all metas for this advisor and group by tipo_meta
@@ -636,7 +659,7 @@ export default function DashboardLider() {
         
         return {
           ...a,
-          total: a.total, // Use net value, not abs - returns subtract from total
+          total: a.total,
           meta: totalMeta,
           metaByType,
         };
