@@ -333,14 +333,14 @@ export function RegionalesConfig() {
                 <div className="grid gap-2">
                   <Label htmlFor="zona">Zona</Label>
                   <Select
-                    value={formData.zona}
-                    onValueChange={(value) => setFormData({ ...formData, zona: value })}
+                    value={formData.zona || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, zona: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione zona" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin zona</SelectItem>
+                      <SelectItem value="none">Sin zona</SelectItem>
                       {ZONAS.map((z) => (
                         <SelectItem key={z} value={z}>
                           {z.charAt(0).toUpperCase() + z.slice(1)}
