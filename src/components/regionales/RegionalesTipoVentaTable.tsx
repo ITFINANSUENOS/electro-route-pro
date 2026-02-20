@@ -42,30 +42,21 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 bg-card z-10">Regional</TableHead>
+                <TableHead rowSpan={2} className="sticky left-0 bg-card z-10 align-middle border-b">Regional</TableHead>
                 {TIPOS.map(t => (
-                  <TableHead key={t} colSpan={2} className="text-center border-l">
+                  <TableHead key={t} colSpan={2} className="text-center border-l border-b-0 pb-1">
                     {TIPO_LABELS[t] || t}
                   </TableHead>
                 ))}
-                <TableHead colSpan={2} className="text-center border-l font-bold">Total</TableHead>
+                <TableHead rowSpan={2} className="text-right border-l font-bold align-middle border-b">Total</TableHead>
               </TableRow>
               <TableRow>
-                <TableHead className="sticky left-0 bg-card z-10" />
                 {TIPOS.map(t => (
-                  <TableHead key={`${t}-sub`} colSpan={2} className="text-center border-l">
-                    <div className="flex">
-                      <span className="flex-1 text-right text-xs">$</span>
-                      <span className="flex-1 text-right text-xs">% Nac.</span>
-                    </div>
-                  </TableHead>
+                  <>
+                    <TableHead key={`${t}-v`} className="text-right text-xs border-l text-muted-foreground py-1">$</TableHead>
+                    <TableHead key={`${t}-p`} className="text-right text-xs text-muted-foreground py-1">% Nac.</TableHead>
+                  </>
                 ))}
-                <TableHead className="text-center border-l" colSpan={2}>
-                  <div className="flex">
-                    <span className="flex-1 text-right text-xs">$</span>
-                    <span className="flex-1 text-right text-xs">% Nac.</span>
-                  </div>
-                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,35 +71,21 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
                       totalVal += d.valor;
                       const pct = metaNac > 0 ? (d.valor / metaNac) * 100 : 0;
                       return (
-                        <TableCell key={`${r.id}-${t}`} colSpan={2} className="border-l p-0">
-                          <div className="flex">
-                            <span className="flex-1 text-right text-xs px-2 py-2">{formatCurrency(d.valor)}</span>
-                            <span className={cn('flex-1 text-right text-xs px-2 py-2 font-semibold', getComplianceColor(pct))}>
-                              {pct.toFixed(1)}%
-                            </span>
-                          </div>
-                        </TableCell>
+                        <>
+                          <TableCell key={`${r.id}-${t}-v`} className="text-right text-xs border-l">{formatCurrency(d.valor)}</TableCell>
+                          <TableCell key={`${r.id}-${t}-p`} className={cn('text-right text-xs font-semibold', getComplianceColor(pct))}>
+                            {pct.toFixed(1)}%
+                          </TableCell>
+                        </>
                       );
                     })}
-                    <TableCell colSpan={2} className="border-l p-0">
-                      {(() => {
-                        const totalPct = metaNac > 0 ? (totalVal / metaNac) * 100 : 0;
-                        return (
-                          <div className="flex">
-                            <span className="flex-1 text-right text-xs font-semibold px-2 py-2">{formatCurrency(totalVal)}</span>
-                            <span className={cn('flex-1 text-right text-xs font-semibold px-2 py-2', getComplianceColor(totalPct))}>
-                              {totalPct.toFixed(1)}%
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </TableCell>
+                    <TableCell className="text-right text-xs font-semibold border-l">{formatCurrency(totalVal)}</TableCell>
                   </TableRow>
                 );
               })}
               {data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={TIPOS.length * 2 + 3} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={TIPOS.length * 2 + 2} className="text-center py-8 text-muted-foreground">
                     No hay datos disponibles
                   </TableCell>
                 </TableRow>
