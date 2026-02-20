@@ -20,7 +20,7 @@ export default function Regionales() {
     isLoading: periodsLoading,
   } = usePeriodSelector();
 
-  const { ranking, historico, isLoading, prevMonth, prevYear } = useRegionalesData(
+  const { ranking, historico, metaNacionalByRegional, isLoading, prevMonth, prevYear } = useRegionalesData(
     selectedPeriod.mes,
     selectedPeriod.anio,
     metaType,
@@ -64,7 +64,7 @@ export default function Regionales() {
           <RegionalesBarChart data={ranking} />
 
           {/* Section 3: Tipo de Venta */}
-          <RegionalesTipoVentaTable data={ranking} />
+          <RegionalesTipoVentaTable data={ranking} metaNacionalByRegional={metaNacionalByRegional} />
 
           {/* Section 4: Historico */}
           <RegionalesHistoricoChart

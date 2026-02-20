@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getMonthName } from '@/hooks/usePeriodSelector';
+import { TipoVentaFilter } from './TipoVentaFilter';
 import type { RegionalHistorico } from '@/hooks/useRegionalesData';
 
 interface Props {
@@ -27,6 +29,9 @@ function CustomTooltip({ active, payload, label }: any) {
       {payload.map((p: any, i: number) => (
         <p key={i} style={{ color: p.color }}>
           {p.name}: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(p.value)}
+          {p.payload?.[`${p.dataKey}_count`] != null && (
+            <span className="text-muted-foreground ml-1">(Q: {p.payload[`${p.dataKey}_count`]})</span>
+          )}
         </p>
       ))}
     </div>
@@ -34,28 +39,48 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prevMonth, prevYear }: Props) {
+  const [tipoFilter, setTipoFilter] = useState<string[]>([]);
   const currentLabel = getMonthName(currentMonth);
   const prevLabel = getMonthName(prevMonth);
 
-  const chartData = data.map(r => ({
+  // Apply tipo filter
+  const filtered = tipoFilter.length === 0
+    ? data
+    : data.map(r => {
+        let currentTotal = 0, previousTotal = 0, currentCount = 0, previousCount = 0;
+        tipoFilter.forEach(t => {
+          const cd = r.currentDesglose?.[t];
+          const pd = r.previousDesglose?.[t];
+          if (cd) { currentTotal += cd.valor; currentCount += cd.cantidad; }
+          if (pd) { previousTotal += pd.valor; previousCount += pd.cantidad; }
+        });
+        const variacionValor = previousTotal !== 0 ? ((currentTotal - previousTotal) / Math.abs(previousTotal)) * 100 : currentTotal > 0 ? 100 : 0;
+        return { ...r, currentTotal, previousTotal, currentCount, previousCount, variacionValor };
+      });
+
+  const chartData = filtered.map(r => ({
     nombre: r.nombre.length > 12 ? r.nombre.substring(0, 12) + '…' : r.nombre,
     [currentLabel]: r.currentTotal,
     [prevLabel]: r.previousTotal,
+    [`${currentLabel}_count`]: r.currentCount,
+    [`${prevLabel}_count`]: r.previousCount,
     variacion: r.variacionValor,
   }));
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-5 w-5 text-green-500" />
-          Comparativo Histórico: {currentLabel} {currentYear} vs {prevLabel} {prevYear}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-5 w-5 text-green-500" />
+            Comparativo Histórico: {currentLabel} {currentYear} vs {prevLabel} {prevYear}
+          </CardTitle>
+          <TipoVentaFilter selected={tipoFilter} onChange={setTipoFilter} />
+        </div>
       </CardHeader>
       <CardContent>
-        {/* KPI badges */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {data.slice(0, 6).map(r => (
+          {filtered.slice(0, 6).map(r => (
             <div key={r.id} className="flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1">
               <span className="font-medium">{r.nombre}:</span>
               {r.variacionValor >= 0 ? (

@@ -23,6 +23,8 @@ export interface RegionalHistorico {
   previousCount: number;
   variacionValor: number;
   variacionCantidad: number;
+  currentDesglose: Record<string, { valor: number; cantidad: number }>;
+  previousDesglose: Record<string, { valor: number; cantidad: number }>;
 }
 
 async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any): Promise<any[]> {
@@ -113,13 +115,29 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     enabled: !!regionales,
   });
 
+  // Fetch nacional metas (always, for desglose table)
+  const { data: metasNacionales } = useQuery({
+    queryKey: ['regionales-metas-nacional', selectedMonth, selectedYear],
+    queryFn: async () => {
+      const { data, error } = await (dataService
+        .from('metas')
+        .select('codigo_asesor, valor_meta')
+        .eq('mes', selectedMonth)
+        .eq('anio', selectedYear)
+        .eq('tipo_meta_categoria', 'nacional') as any);
+      if (error) throw error;
+      return data as Array<{ codigo_asesor: string; valor_meta: number }>;
+    },
+    enabled: !!regionales,
+  });
+
   // Previous month metas for historical
   const prevMonth = prevDate.getMonth() + 1;
   const prevYear = prevDate.getFullYear();
 
   const processed = useMemo(() => {
     if (!regionales || !profiles || !salesData || !metas) {
-      return { ranking: [], historico: [] };
+      return { ranking: [], historico: [], metaNacionalByRegional: {} as Record<string, number> };
     }
 
     // Build lookup: codigo_asesor -> regional_id
@@ -131,10 +149,10 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     });
 
     // Aggregate sales by regional
-    const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; desglose: Record<string, { valor: number; cantidad: number }> }>();
+    const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; desglose: Record<string, { valor: number; cantidad: number }>; prevDesglose: Record<string, { valor: number; cantidad: number }> }>();
     
     regionales.forEach(r => {
-      regionalSales.set(r.id, { current: 0, currentCount: 0, previous: 0, previousCount: 0, desglose: {} });
+      regionalSales.set(r.id, { current: 0, currentCount: 0, previous: 0, previousCount: 0, desglose: {}, prevDesglose: {} });
     });
 
     salesData.forEach(sale => {
@@ -158,6 +176,10 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       } else if (isPrev) {
         entry.previous += amount;
         entry.previousCount += 1;
+        const tipo = sale.tipo_venta || 'OTROS';
+        if (!entry.prevDesglose[tipo]) entry.prevDesglose[tipo] = { valor: 0, cantidad: 0 };
+        entry.prevDesglose[tipo].valor += amount;
+        entry.prevDesglose[tipo].cantidad += 1;
       }
     });
 
@@ -186,6 +208,16 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       };
     }).sort((a, b) => b.cumplimiento - a.cumplimiento);
 
+    // Aggregate nacional metas by regional
+    const metaNacionalByRegional: Record<string, number> = {};
+    if (metasNacionales) {
+      metasNacionales.forEach(m => {
+        const regionalId = asesorToRegional.get(m.codigo_asesor);
+        if (!regionalId) return;
+        metaNacionalByRegional[regionalId] = (metaNacionalByRegional[regionalId] || 0) + m.valor_meta;
+      });
+    }
+
     // Build historico
     const historico: RegionalHistorico[] = regionales.map(r => {
       const sales = regionalSales.get(r.id);
@@ -202,15 +234,18 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
         previousCount: prevCount,
         variacionValor: prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : curr > 0 ? 100 : 0,
         variacionCantidad: prevCount !== 0 ? ((currCount - prevCount) / prevCount) * 100 : currCount > 0 ? 100 : 0,
+        currentDesglose: sales?.desglose || {},
+        previousDesglose: sales?.prevDesglose || {},
       };
     }).sort((a, b) => b.currentTotal - a.currentTotal);
 
-    return { ranking, historico };
-  }, [regionales, profiles, salesData, metas, currentStart, currentEnd, prevStart, prevEnd]);
+    return { ranking, historico, metaNacionalByRegional };
+  }, [regionales, profiles, salesData, metas, metasNacionales, currentStart, currentEnd, prevStart, prevEnd]);
 
   return {
     ranking: processed.ranking,
     historico: processed.historico,
+    metaNacionalByRegional: processed.metaNacionalByRegional,
     regionales: regionales || [],
     isLoading: salesLoading || !regionales || !profiles,
     prevMonth,
