@@ -1,10 +1,13 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2, CalendarCheck, Lock, AlertTriangle } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Clock, Loader2, CalendarCheck, Lock, AlertTriangle, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { dataService } from '@/services';
@@ -12,6 +15,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSalesPeriod, getMonthName, isClosingDay } from '@/hooks/useSalesPeriod';
 import MonthCloseDialog from './MonthCloseDialog';
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+const AVAILABLE_YEARS = [2025, 2026];
 
 interface UploadHistory {
   id: string;
@@ -109,8 +118,14 @@ export default function CargarVentasTab() {
   const [showFewerRecordsDialog, setShowFewerRecordsDialog] = useState(false);
   const [fewerRecordsInfo, setFewerRecordsInfo] = useState<{ previous: number; current: number } | null>(null);
   const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string } | null>(null);
+  
+  // Historic mode state
+  const [historicMode, setHistoricMode] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<number>(1);
+  const [selectedYear, setSelectedYear] = useState<number>(2025);
+  
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
   
   const { 
@@ -121,8 +136,15 @@ export default function CargarVentasTab() {
     getOrCreatePeriod 
   } = useSalesPeriod();
 
-  const targetPeriod = useMemo(() => getCurrentTargetPeriod(), []);
-  const periodClosed = useMemo(() => isPeriodClosed(targetPeriod.month, targetPeriod.year), [targetPeriod]);
+  const canUseHistoricMode = role === 'administrador' || role === 'coordinador_comercial';
+
+  const autoTargetPeriod = useMemo(() => getCurrentTargetPeriod(), []);
+  const autoPeriodClosed = useMemo(() => isPeriodClosed(autoTargetPeriod.month, autoTargetPeriod.year), [autoTargetPeriod]);
+  
+  const targetPeriod = historicMode && canUseHistoricMode
+    ? { month: selectedMonth, year: selectedYear, isClosingDay: false }
+    : autoTargetPeriod;
+  const periodClosed = historicMode ? false : autoPeriodClosed;
 
   const { data: uploadHistory, refetch } = useQuery({
     queryKey: ['upload-history-ventas'],
@@ -573,9 +595,65 @@ export default function CargarVentasTab() {
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* Historic Mode Selector - only for admin/coordinador */}
+        {canUseHistoricMode && (
+          <div className="lg:col-span-3">
+            <Card className="border-dashed">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="historic-mode"
+                      checked={historicMode}
+                      onCheckedChange={setHistoricMode}
+                    />
+                    <Label htmlFor="historic-mode" className="flex items-center gap-2 cursor-pointer">
+                      <History className="h-4 w-4" />
+                      Modo Histórico
+                    </Label>
+                  </div>
+                  {historicMode && (
+                    <div className="flex items-center gap-2">
+                      <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTH_NAMES.map((name, idx) => (
+                            <SelectItem key={idx} value={String(idx + 1)}>{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {AVAILABLE_YEARS.map((y) => (
+                            <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Period Status Alert */}
         <div className="lg:col-span-3">
-          {periodClosed ? (
+          {historicMode && canUseHistoricMode ? (
+            <Alert className="border-warning bg-warning/10">
+              <History className="h-4 w-4 text-warning" />
+              <AlertTitle className="text-warning">Modo Histórico</AlertTitle>
+              <AlertDescription>
+                Cargando datos para <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong>. 
+                Los datos existentes de este período serán reemplazados.
+              </AlertDescription>
+            </Alert>
+          ) : periodClosed ? (
             <Alert variant="destructive">
               <Lock className="h-4 w-4" />
               <AlertTitle>Período Cerrado</AlertTitle>

@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.seed-test-users]
 verify_jwt = false
+
+[functions.migrate-regional]
+verify_jwt = false
