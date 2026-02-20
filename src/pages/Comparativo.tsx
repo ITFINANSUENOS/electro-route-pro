@@ -1,15 +1,16 @@
  import { useState, useMemo } from 'react';
  import { motion } from 'framer-motion';
-import { BarChart3, TrendingUp } from 'lucide-react';
+import { BarChart3, TrendingUp, CalendarDays, History } from 'lucide-react';
  import { format, subMonths } from 'date-fns';
  import { es } from 'date-fns/locale';
- import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
  import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
  import { PeriodSelector } from '@/components/dashboard/PeriodSelector';
  import { usePeriodSelector } from '@/hooks/usePeriodSelector';
- import { useComparativeData, ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
+ import { useComparativeData, ComparativeFilters as FiltersType, ComparisonMode } from '@/hooks/useComparativeData';
  import { ComparativeFilters } from '@/components/comparativo/ComparativeFilters';
  import { ComparativeChart } from '@/components/comparativo/ComparativeChart';
  import { ComparativeKPICards } from '@/components/comparativo/ComparativeKPICards';
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label';
     availablePeriods, 
     isLoading: periodsLoading 
   } = usePeriodSelector();
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('mes_anterior');
   const [showAmount, setShowAmount] = useState(true);
   const [showCount, setShowCount] = useState(true);
    const [filters, setFilters] = useState<FiltersType>({
@@ -35,11 +37,12 @@ import { Label } from '@/components/ui/label';
      regionalIds: [],
    });
  
-   const { dailyData, kpis, isLoading, currentPeriod, previousPeriod } = useComparativeData(
+  const { dailyData, kpis, isLoading, currentPeriod, previousPeriod } = useComparativeData(
     selectedPeriod.mes,
     selectedPeriod.anio,
-     filters
-   );
+    filters,
+    comparisonMode
+  );
  
    const currentMonthLabel = useMemo(() => {
      return format(currentPeriod.start, 'MMMM yyyy', { locale: es });
@@ -49,7 +52,9 @@ import { Label } from '@/components/ui/label';
      return format(previousPeriod.start, 'MMMM yyyy', { locale: es });
    }, [previousPeriod]);
  
-   return (
+  const comparisonLabel = comparisonMode === 'mes_anterior' ? 'vs mes anterior' : 'vs año anterior';
+
+  return (
      <motion.div
        initial={{ opacity: 0, y: 20 }}
        animate={{ opacity: 1, y: 0 }}
@@ -63,16 +68,45 @@ import { Label } from '@/components/ui/label';
                <BarChart3 className="h-8 w-8 text-secondary" />
                Comparativo
              </h1>
-             <p className="text-muted-foreground mt-1">
-               Compara el rendimiento de ventas día a día entre períodos
-             </p>
+              <p className="text-muted-foreground mt-1">
+                Compara el rendimiento de ventas día a día entre períodos ({comparisonLabel})
+              </p>
            </div>
-          <PeriodSelector
-            value={periodValue}
-            onChange={handlePeriodChange}
-            periods={availablePeriods}
-            isLoading={periodsLoading}
-          />
+          <div className="flex items-center gap-3">
+            {/* Comparison mode toggle */}
+            <div className="flex items-center rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setComparisonMode('mes_anterior')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                  comparisonMode === 'mes_anterior'
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                Mes anterior
+              </button>
+              <button
+                onClick={() => setComparisonMode('anio_anterior')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                  comparisonMode === 'anio_anterior'
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <History className="h-3.5 w-3.5" />
+                Año anterior
+              </button>
+            </div>
+            <PeriodSelector
+              value={periodValue}
+              onChange={handlePeriodChange}
+              periods={availablePeriods}
+              isLoading={periodsLoading}
+            />
+          </div>
          </div>
  
          {/* Filters */}
