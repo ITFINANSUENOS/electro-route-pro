@@ -53,8 +53,8 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
               <TableRow>
                 {TIPOS.map(t => (
                   <>
-                    <TableHead key={`${t}-v`} className="text-right text-xs border-l text-muted-foreground py-1">Ventas $</TableHead>
-                    <TableHead key={`${t}-p`} className="text-right text-xs text-muted-foreground py-1">Cump %</TableHead>
+                    <TableHead key={`${t}-v`} className="text-right text-xs border-l text-muted-foreground py-1 whitespace-nowrap">Ventas&nbsp;$</TableHead>
+                    <TableHead key={`${t}-p`} className="text-right text-xs text-muted-foreground py-1 whitespace-nowrap">Cump%</TableHead>
                   </>
                 ))}
               </TableRow>
