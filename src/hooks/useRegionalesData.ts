@@ -186,20 +186,20 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       if (!entry) return;
 
       const amount = sale.vtas_ant_i || 0;
+      const rawTipo = sale.tipo_venta || 'OTROS';
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
       const isCurrent = sale.fecha >= currentStart && sale.fecha <= currentEnd;
       const isPrev = sale.fecha >= prevStart && sale.fecha <= prevEnd;
 
       if (isCurrent) {
         entry.current += amount;
         entry.currentCount += 1;
-        const tipo = sale.tipo_venta || 'OTROS';
         if (!entry.desglose[tipo]) entry.desglose[tipo] = { valor: 0, cantidad: 0 };
         entry.desglose[tipo].valor += amount;
         entry.desglose[tipo].cantidad += 1;
       } else if (isPrev) {
         entry.previous += amount;
         entry.previousCount += 1;
-        const tipo = sale.tipo_venta || 'OTROS';
         if (!entry.prevDesglose[tipo]) entry.prevDesglose[tipo] = { valor: 0, cantidad: 0 };
         entry.prevDesglose[tipo].valor += amount;
         entry.prevDesglose[tipo].cantidad += 1;
@@ -215,7 +215,8 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       const amount = sale.vtas_ant_i || 0;
       entry.prevYear += amount;
       entry.prevYearCount += 1;
-      const tipo = sale.tipo_venta || 'OTROS';
+      const rawTipo = sale.tipo_venta || 'OTROS';
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
       if (!entry.prevYearDesglose[tipo]) entry.prevYearDesglose[tipo] = { valor: 0, cantidad: 0 };
       entry.prevYearDesglose[tipo].valor += amount;
       entry.prevYearDesglose[tipo].cantidad += 1;

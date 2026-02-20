@@ -10,11 +10,11 @@ interface Props {
   metaNacionalByRegional: Record<string, number>;
 }
 
-const TIPOS = ['CONTADO', 'FINANSUEÑOS', 'CONVENIO', 'CREDICONTADO'];
+const TIPOS = ['CONTADO', 'CREDITO', 'ALIADOS', 'CREDICONTADO'];
 const TIPO_LABELS: Record<string, string> = {
   CONTADO: 'Contado',
-  FINANSUEÑOS: 'Crédito',
-  CONVENIO: 'Aliados',
+  CREDITO: 'Crédito',
+  ALIADOS: 'Aliados',
   CREDICONTADO: 'CrediContado',
 };
 
