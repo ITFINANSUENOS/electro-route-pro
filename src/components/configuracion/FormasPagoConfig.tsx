@@ -39,6 +39,7 @@ interface FormaPago {
   nombre: string;
   tipo_venta: string;
   activo: boolean;
+  cod_forma: string | null;
   created_at: string;
 }
 
@@ -67,6 +68,7 @@ export function FormasPagoConfig() {
     nombre: '',
     tipo_venta: '',
     activo: true,
+    cod_forma: '',
   });
 
   const fetchFormasPago = async () => {
@@ -95,7 +97,8 @@ export function FormasPagoConfig() {
   const filteredFormas = formasPago.filter((forma) => {
     if (filterTipo !== 'all' && forma.tipo_venta !== filterTipo) return false;
     if (filterCodigo && !forma.codigo.toLowerCase().includes(filterCodigo.toLowerCase()) && 
-        !forma.nombre.toLowerCase().includes(filterCodigo.toLowerCase())) return false;
+        !forma.nombre.toLowerCase().includes(filterCodigo.toLowerCase()) &&
+        !(forma.cod_forma || '').toLowerCase().includes(filterCodigo.toLowerCase())) return false;
     return true;
   });
 
@@ -112,6 +115,7 @@ export function FormasPagoConfig() {
       nombre: '',
       tipo_venta: '',
       activo: true,
+      cod_forma: '',
     });
     setEditingForma(null);
   };
@@ -123,6 +127,7 @@ export function FormasPagoConfig() {
       nombre: forma.nombre,
       tipo_venta: forma.tipo_venta,
       activo: forma.activo ?? true,
+      cod_forma: forma.cod_forma || '',
     });
     setDialogOpen(true);
   };
@@ -163,7 +168,6 @@ export function FormasPagoConfig() {
     setSaving(true);
     try {
       if (editingForma) {
-        // Update existing
         const { error } = await dataService
           .from('formas_pago')
           .update({
@@ -171,12 +175,12 @@ export function FormasPagoConfig() {
             nombre: formData.nombre,
             tipo_venta: formData.tipo_venta,
             activo: formData.activo,
-          })
+            cod_forma: formData.cod_forma || null,
+          } as Record<string, unknown>)
           .eq('id', editingForma.id);
 
         if (error) throw error;
 
-        // Log changes
         if (editingForma.codigo !== formData.codigo) {
           await logChange(editingForma.id, 'codigo', editingForma.codigo, formData.codigo);
         }
@@ -189,10 +193,12 @@ export function FormasPagoConfig() {
         if (editingForma.activo !== formData.activo) {
           await logChange(editingForma.id, 'activo', editingForma.activo.toString(), formData.activo.toString());
         }
+        if ((editingForma.cod_forma || '') !== formData.cod_forma) {
+          await logChange(editingForma.id, 'cod_forma', editingForma.cod_forma, formData.cod_forma || null);
+        }
 
         toast.success('Forma de pago actualizada');
       } else {
-        // Create new
         const { data, error } = await dataService
           .from('formas_pago')
           .insert({
@@ -200,13 +206,13 @@ export function FormasPagoConfig() {
             nombre: formData.nombre,
             tipo_venta: formData.tipo_venta,
             activo: formData.activo,
-          })
+            cod_forma: formData.cod_forma || null,
+          } as Record<string, unknown>)
           .select()
           .single();
 
         if (error) throw error;
 
-        // Log creation
         await logChange((data as unknown as FormaPago).id, 'creacion', null, `Forma de pago ${formData.codigo} creada`);
 
         toast.success('Forma de pago creada');
@@ -233,7 +239,6 @@ export function FormasPagoConfig() {
     );
   };
 
-  // Group by tipo_venta for summary
   const summary = TIPOS_VENTA.map(tipo => ({
     ...tipo,
     count: formasPago.filter(f => f.tipo_venta === tipo.value).length,
@@ -301,7 +306,7 @@ export function FormasPagoConfig() {
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Código o nombre..."
+                placeholder="Código, nombre o COD_FORMA_..."
                 value={filterCodigo}
                 onChange={(e) => setFilterCodigo(e.target.value)}
                 className="pl-8 h-9"
@@ -330,6 +335,7 @@ export function FormasPagoConfig() {
               <TableRow>
                 <TableHead className="w-[150px]">Código</TableHead>
                 <TableHead>Nombre</TableHead>
+                <TableHead className="w-[100px]">COD_FORMA_</TableHead>
                 <TableHead className="w-[150px]">Tipo de Venta</TableHead>
                 <TableHead className="w-[100px]">Estado</TableHead>
                 <TableHead className="w-[80px]">Editar</TableHead>
@@ -338,13 +344,13 @@ export function FormasPagoConfig() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : filteredFormas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     {hasActiveFilters 
                       ? 'No hay formas de pago que coincidan con los filtros' 
                       : 'No hay formas de pago configuradas'
@@ -356,6 +362,9 @@ export function FormasPagoConfig() {
                   <TableRow key={forma.id}>
                     <TableCell className="font-mono font-medium">{forma.codigo}</TableCell>
                     <TableCell>{forma.nombre}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">
+                      {forma.cod_forma || '—'}
+                    </TableCell>
                     <TableCell>{getTipoVentaBadge(forma.tipo_venta)}</TableCell>
                     <TableCell>
                       <Badge variant={forma.activo ? 'default' : 'secondary'}>
@@ -414,6 +423,19 @@ export function FormasPagoConfig() {
                     onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                     required
                   />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="cod_forma">COD_FORMA_ (Referencia)</Label>
+                  <Input
+                    id="cod_forma"
+                    placeholder="FS10, PB01, PS01..."
+                    value={formData.cod_forma}
+                    onChange={(e) => setFormData({ ...formData, cod_forma: e.target.value.toUpperCase() })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Código de referencia del CSV (informativo)
+                  </p>
                 </div>
 
                 <div className="grid gap-2">
