@@ -40,31 +40,38 @@ function CustomTooltip({ active, payload, label }: any) {
 
 export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prevMonth, prevYear }: Props) {
   const [tipoFilter, setTipoFilter] = useState<string[]>([]);
-  const currentLabel = getMonthName(currentMonth);
-  const prevLabel = getMonthName(prevMonth);
+  const currentLabel = `${getMonthName(currentMonth)} ${currentYear}`;
+  const prevLabel = `${getMonthName(prevMonth)} ${prevYear}`;
+  const prevYearLabel = `${getMonthName(currentMonth)} ${currentYear - 1}`;
 
   // Apply tipo filter
   const filtered = tipoFilter.length === 0
     ? data
     : data.map(r => {
-        let currentTotal = 0, previousTotal = 0, currentCount = 0, previousCount = 0;
+        let currentTotal = 0, previousTotal = 0, currentCount = 0, previousCount = 0, prevYearTotal = 0, prevYearCount = 0;
         tipoFilter.forEach(t => {
           const cd = r.currentDesglose?.[t];
           const pd = r.previousDesglose?.[t];
+          const yd = r.prevYearDesglose?.[t];
           if (cd) { currentTotal += cd.valor; currentCount += cd.cantidad; }
           if (pd) { previousTotal += pd.valor; previousCount += pd.cantidad; }
+          if (yd) { prevYearTotal += yd.valor; prevYearCount += yd.cantidad; }
         });
         const variacionValor = previousTotal !== 0 ? ((currentTotal - previousTotal) / Math.abs(previousTotal)) * 100 : currentTotal > 0 ? 100 : 0;
-        return { ...r, currentTotal, previousTotal, currentCount, previousCount, variacionValor };
+        const variacionAnioValor = prevYearTotal !== 0 ? ((currentTotal - prevYearTotal) / Math.abs(prevYearTotal)) * 100 : currentTotal > 0 ? 100 : 0;
+        return { ...r, currentTotal, previousTotal, currentCount, previousCount, variacionValor, prevYearTotal, prevYearCount, variacionAnioValor };
       });
 
   const chartData = filtered.map(r => ({
     nombre: r.nombre.length > 12 ? r.nombre.substring(0, 12) + '…' : r.nombre,
     [currentLabel]: r.currentTotal,
     [prevLabel]: r.previousTotal,
+    [prevYearLabel]: r.prevYearTotal,
     [`${currentLabel}_count`]: r.currentCount,
     [`${prevLabel}_count`]: r.previousCount,
+    [`${prevYearLabel}_count`]: r.prevYearCount,
     variacion: r.variacionValor,
+    variacionAnio: r.variacionAnioValor,
   }));
 
   return (
@@ -73,7 +80,7 @@ export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prev
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="h-5 w-5 text-green-500" />
-            Comparativo Histórico: {currentLabel} {currentYear} vs {prevLabel} {prevYear}
+            Comparativo Histórico
           </CardTitle>
           <TipoVentaFilter selected={tipoFilter} onChange={setTipoFilter} />
         </div>
@@ -83,6 +90,7 @@ export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prev
           {filtered.slice(0, 6).map(r => (
             <div key={r.id} className="flex items-center gap-1 text-xs bg-muted rounded-full px-3 py-1">
               <span className="font-medium">{r.nombre}:</span>
+              <span className="text-muted-foreground">vs mes:</span>
               {r.variacionValor >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-green-500" />
               ) : (
@@ -90,6 +98,15 @@ export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prev
               )}
               <span className={cn(r.variacionValor >= 0 ? 'text-green-600' : 'text-destructive', 'font-semibold')}>
                 {r.variacionValor >= 0 ? '+' : ''}{r.variacionValor.toFixed(1)}%
+              </span>
+              <span className="text-muted-foreground ml-1">vs año:</span>
+              {r.variacionAnioValor >= 0 ? (
+                <TrendingUp className="h-3 w-3 text-green-500" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-destructive" />
+              )}
+              <span className={cn(r.variacionAnioValor >= 0 ? 'text-green-600' : 'text-destructive', 'font-semibold')}>
+                {r.variacionAnioValor >= 0 ? '+' : ''}{r.variacionAnioValor.toFixed(1)}%
               </span>
             </div>
           ))}
@@ -104,6 +121,7 @@ export function RegionalesHistoricoChart({ data, currentMonth, currentYear, prev
             <Legend />
             <Bar dataKey={currentLabel} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             <Bar dataKey={prevLabel} fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[4, 4, 0, 0]} />
+            <Bar dataKey={prevYearLabel} fill="hsl(45, 93%, 47%)" opacity={0.6} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

@@ -25,6 +25,10 @@ export interface RegionalHistorico {
   variacionCantidad: number;
   currentDesglose: Record<string, { valor: number; cantidad: number }>;
   previousDesglose: Record<string, { valor: number; cantidad: number }>;
+  prevYearTotal: number;
+  prevYearCount: number;
+  prevYearDesglose: Record<string, { valor: number; cantidad: number }>;
+  variacionAnioValor: number;
 }
 
 async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any): Promise<any[]> {
@@ -55,6 +59,10 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
   const prevStart = format(startOfMonth(prevDate), 'yyyy-MM-dd');
   const prevEnd = format(endOfMonth(prevDate), 'yyyy-MM-dd');
 
+  const prevYearDate = new Date(selectedYear - 1, selectedMonth - 1);
+  const prevYearStart = format(startOfMonth(prevYearDate), 'yyyy-MM-dd');
+  const prevYearEnd = format(endOfMonth(prevYearDate), 'yyyy-MM-dd');
+
   // Fetch regionales
   const { data: regionales } = useQuery({
     queryKey: ['regionales-list'],
@@ -84,18 +92,32 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     },
   });
 
-  // Fetch current + previous month sales with pagination
+  // Fetch current + previous month + prev year sales with pagination
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ['regionales-sales', selectedMonth, selectedYear],
-    queryFn: () => fetchAllPaginated((page, pageSize) =>
-      dataService
-        .from('ventas')
-        .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cantidad, cliente_identificacion')
-        .gte('fecha', prevStart)
-        .lte('fecha', currentEnd)
-        .neq('tipo_venta', 'OTROS')
-        .range(page * pageSize, (page + 1) * pageSize - 1)
-    ),
+    queryFn: async () => {
+      // Fetch current+prev month range
+      const currentPrevData = await fetchAllPaginated((page, pageSize) =>
+        dataService
+          .from('ventas')
+          .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cantidad, cliente_identificacion')
+          .gte('fecha', prevStart)
+          .lte('fecha', currentEnd)
+          .neq('tipo_venta', 'OTROS')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+      );
+      // Fetch prev year same month
+      const prevYearData = await fetchAllPaginated((page, pageSize) =>
+        dataService
+          .from('ventas')
+          .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cantidad, cliente_identificacion')
+          .gte('fecha', prevYearStart)
+          .lte('fecha', prevYearEnd)
+          .neq('tipo_venta', 'OTROS')
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+      );
+      return { currentPrevData, prevYearData };
+    },
     enabled: !!regionales && !!profiles,
   });
 
@@ -139,6 +161,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     if (!regionales || !profiles || !salesData || !metas) {
       return { ranking: [], historico: [], metaNacionalByRegional: {} as Record<string, number> };
     }
+    const { currentPrevData, prevYearData } = salesData;
 
     // Build lookup: codigo_asesor -> regional_id
     const asesorToRegional = new Map<string, string>();
@@ -149,13 +172,13 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     });
 
     // Aggregate sales by regional
-    const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; desglose: Record<string, { valor: number; cantidad: number }>; prevDesglose: Record<string, { valor: number; cantidad: number }> }>();
+    const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; prevYear: number; prevYearCount: number; desglose: Record<string, { valor: number; cantidad: number }>; prevDesglose: Record<string, { valor: number; cantidad: number }>; prevYearDesglose: Record<string, { valor: number; cantidad: number }> }>();
     
     regionales.forEach(r => {
-      regionalSales.set(r.id, { current: 0, currentCount: 0, previous: 0, previousCount: 0, desglose: {}, prevDesglose: {} });
+      regionalSales.set(r.id, { current: 0, currentCount: 0, previous: 0, previousCount: 0, prevYear: 0, prevYearCount: 0, desglose: {}, prevDesglose: {}, prevYearDesglose: {} });
     });
 
-    salesData.forEach(sale => {
+    currentPrevData.forEach(sale => {
       const regionalId = asesorToRegional.get(sale.codigo_asesor);
       if (!regionalId) return;
       const entry = regionalSales.get(regionalId);
@@ -168,7 +191,6 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       if (isCurrent) {
         entry.current += amount;
         entry.currentCount += 1;
-        // Desglose by tipo_venta
         const tipo = sale.tipo_venta || 'OTROS';
         if (!entry.desglose[tipo]) entry.desglose[tipo] = { valor: 0, cantidad: 0 };
         entry.desglose[tipo].valor += amount;
@@ -181,6 +203,21 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
         entry.prevDesglose[tipo].valor += amount;
         entry.prevDesglose[tipo].cantidad += 1;
       }
+    });
+
+    // Aggregate prev year sales
+    prevYearData.forEach(sale => {
+      const regionalId = asesorToRegional.get(sale.codigo_asesor);
+      if (!regionalId) return;
+      const entry = regionalSales.get(regionalId);
+      if (!entry) return;
+      const amount = sale.vtas_ant_i || 0;
+      entry.prevYear += amount;
+      entry.prevYearCount += 1;
+      const tipo = sale.tipo_venta || 'OTROS';
+      if (!entry.prevYearDesglose[tipo]) entry.prevYearDesglose[tipo] = { valor: 0, cantidad: 0 };
+      entry.prevYearDesglose[tipo].valor += amount;
+      entry.prevYearDesglose[tipo].cantidad += 1;
     });
 
     // Aggregate metas by regional
@@ -225,6 +262,8 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       const prev = sales?.previous || 0;
       const currCount = sales?.currentCount || 0;
       const prevCount = sales?.previousCount || 0;
+      const prevYr = sales?.prevYear || 0;
+      const prevYrCount = sales?.prevYearCount || 0;
       return {
         id: r.id,
         nombre: r.nombre,
@@ -236,6 +275,10 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
         variacionCantidad: prevCount !== 0 ? ((currCount - prevCount) / prevCount) * 100 : currCount > 0 ? 100 : 0,
         currentDesglose: sales?.desglose || {},
         previousDesglose: sales?.prevDesglose || {},
+        prevYearTotal: prevYr,
+        prevYearCount: prevYrCount,
+        prevYearDesglose: sales?.prevYearDesglose || {},
+        variacionAnioValor: prevYr !== 0 ? ((curr - prevYr) / Math.abs(prevYr)) * 100 : curr > 0 ? 100 : 0,
       };
     }).sort((a, b) => b.currentTotal - a.currentTotal);
 
