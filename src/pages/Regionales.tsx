@@ -31,15 +31,15 @@ export default function Regionales() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
             <TrendingUp className="h-5 w-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Regionales</h1>
-            <p className="text-sm text-muted-foreground">Comparativo global de todas las regionales</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Regionales</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Comparativo global de todas las regionales</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <MetaTypeToggle value={metaType} onChange={setMetaType} />
           <PeriodSelector
             value={periodValue}

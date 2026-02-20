@@ -80,8 +80,8 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
           <TipoVentaFilter selected={tipoFilter} onChange={setTipoFilter} />
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <Table>
+      <CardContent className="p-0 overflow-x-auto">
+        <Table className="min-w-[600px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-12 text-center">#</TableHead>
