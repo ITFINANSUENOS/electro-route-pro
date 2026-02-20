@@ -3,10 +3,13 @@
 
 import type { IAuthService } from './auth.service';
 import type { IDataService } from './data.service';
+import type { IStorageService } from './storage.service';
 import { SupabaseAuthProvider } from './providers/supabase/auth.provider';
 import { SupabaseDataProvider } from './providers/supabase/data.provider';
+import { SupabaseStorageProvider } from './providers/supabase/storage.provider';
 import { AwsAuthProvider } from './providers/aws/auth.provider';
 import { AwsDataProvider } from './providers/aws/data.provider';
+import { AwsStorageProvider } from './providers/aws/storage.provider';
 
 const provider = import.meta.env.VITE_BACKEND_PROVIDER || 'supabase';
 
@@ -30,10 +33,22 @@ function createDataService(): IDataService {
   }
 }
 
+function createStorageService(): IStorageService {
+  switch (provider) {
+    case 'aws':
+      return new AwsStorageProvider();
+    case 'supabase':
+    default:
+      return new SupabaseStorageProvider();
+  }
+}
+
 export const authService: IAuthService = createAuthService();
 export const dataService: IDataService = createDataService();
+export const storageService: IStorageService = createStorageService();
 
 // Re-export types for convenience
 export type { IAuthService } from './auth.service';
 export type { IDataService } from './data.service';
+export type { IStorageService } from './storage.service';
 export type { ServiceUser, ServiceSession, AuthSignUpProfileData, UserProfileResult } from './types';
