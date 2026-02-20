@@ -230,7 +230,7 @@ const formatCount = (value: number) => {
           {/* Reference area for zoom selection */}
           {refAreaLeft !== null && refAreaRight !== null && (
             <ReferenceArea
-              yAxisId="amount"
+              yAxisId={showAmount ? "amount" : "count"}
               x1={refAreaLeft}
               x2={refAreaRight}
               strokeOpacity={0.3}

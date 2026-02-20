@@ -38,8 +38,18 @@ async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) =>
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await buildQuery(page, pageSize);
-    if (error) throw error;
+    let result: any;
+    try {
+      result = await buildQuery(page, pageSize);
+    } catch (err) {
+      console.error('fetchAllPaginated query error:', err);
+      break;
+    }
+    const { data, error } = result;
+    if (error) {
+      console.error('fetchAllPaginated data error:', error);
+      break;
+    }
     if (data && data.length > 0) {
       all = [...all, ...data];
       hasMore = data.length === pageSize;
@@ -97,28 +107,33 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     queryKey: ['regionales-sales', selectedMonth, selectedYear],
     retry: 2,
     queryFn: async () => {
-      // Fetch both ranges IN PARALLEL
-      const [currentPrevData, prevYearData] = await Promise.all([
-        fetchAllPaginated((page, pageSize) =>
-          dataService
-            .from('ventas')
-            .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
-            .gte('fecha', prevStart)
-            .lte('fecha', currentEnd)
-            .neq('tipo_venta', 'OTROS')
-            .range(page * pageSize, (page + 1) * pageSize - 1)
-        ),
-        fetchAllPaginated((page, pageSize) =>
-          dataService
-            .from('ventas')
-            .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
-            .gte('fecha', prevYearStart)
-            .lte('fecha', prevYearEnd)
-            .neq('tipo_venta', 'OTROS')
-            .range(page * pageSize, (page + 1) * pageSize - 1)
-        ),
-      ]);
-      return { currentPrevData, prevYearData };
+      try {
+        // Fetch both ranges IN PARALLEL
+        const [currentPrevData, prevYearData] = await Promise.all([
+          fetchAllPaginated((page, pageSize) =>
+            dataService
+              .from('ventas')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .gte('fecha', prevStart)
+              .lte('fecha', currentEnd)
+              .neq('tipo_venta', 'OTROS')
+              .range(page * pageSize, (page + 1) * pageSize - 1)
+          ),
+          fetchAllPaginated((page, pageSize) =>
+            dataService
+              .from('ventas')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .gte('fecha', prevYearStart)
+              .lte('fecha', prevYearEnd)
+              .neq('tipo_venta', 'OTROS')
+              .range(page * pageSize, (page + 1) * pageSize - 1)
+          ),
+        ]);
+        return { currentPrevData, prevYearData };
+      } catch (err) {
+        console.error('useRegionalesData queryFn error:', err);
+        return { currentPrevData: [], prevYearData: [] };
+      }
     },
     enabled: !!regionales && !!profiles,
   });
