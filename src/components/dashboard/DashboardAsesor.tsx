@@ -677,7 +677,7 @@ export default function DashboardAsesor() {
               <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" />
               Presupuesto vs Ejecutado
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Mi cumplimiento por tipo de venta (en millones)</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Mi cumplimiento por tipo de venta</CardDescription>
           </CardHeader>
           <CardContent>
             {budgetVsExecuted.length === 0 ? (
