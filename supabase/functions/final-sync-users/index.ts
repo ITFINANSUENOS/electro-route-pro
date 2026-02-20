@@ -134,7 +134,7 @@ serve(async (req) => {
       errors: [] as string[],
     };
 
-    const createdUsers: { cedula: string; correo: string; password: string; nombre: string; rol: string }[] = [];
+    const createdUsers: { cedula: string; correo: string; nombre: string; rol: string }[] = [];
 
     console.log(`Processing ${users.length} users...`);
 
@@ -252,7 +252,7 @@ serve(async (req) => {
             }
 
             stats.created++;
-            createdUsers.push({ cedula, correo, password, nombre, rol });
+            createdUsers.push({ cedula, correo, nombre, rol });
           }
         } else {
           stats.skipped++;

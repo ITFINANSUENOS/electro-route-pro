@@ -7,6 +7,16 @@ interface MetaRow {
   tipo_meta_categoria: string;
 }
 
+/** Sanitize CSV field to prevent formula injection */
+function sanitizeCSVField(value: string): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return "'" + trimmed;
+  }
+  return trimmed;
+}
+
 /**
  * Parse Colombian currency format: " $ 15.000.000 " -> 15000000
  * Also handles negative values like -55.749 (with decimal point)
@@ -119,9 +129,11 @@ export async function importMetasCSV(
     if (!line.trim()) continue;
     
     const values = parseCSVLine(line, delimiter);
-    const codigoAsesor = values[codigoIdx]?.trim();
+    const rawCodigoAsesor = values[codigoIdx]?.trim();
+    const codigoAsesor = sanitizeCSVField(rawCodigoAsesor || '');
     
-    if (!codigoAsesor) {
+    // Validate codigo_asesor is alphanumeric only
+    if (!codigoAsesor || !/^[a-zA-Z0-9']+$/.test(codigoAsesor)) {
       errors.push(`Fila ${i + 1}: código de asesor vacío`);
       continue;
     }
