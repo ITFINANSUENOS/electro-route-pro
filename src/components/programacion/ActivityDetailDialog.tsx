@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSchedulingConfig } from '@/hooks/useSchedulingConfig';
 import { useActivityEvidenceStatus, isActivityForToday } from '@/hooks/useActivityEvidenceStatus';
 import { TimeSelect } from './TimeSelect';
+import { LocationPicker } from './LocationPicker';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MapaUbicacion } from '@/components/ui/MapaUbicacion';
@@ -281,14 +282,10 @@ export function ActivityDetailDialog({ activity, isOpen, onClose, onRefresh }: A
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Municipio / Lugar *</Label>
-              <Input
-                placeholder="Ej: Popayán Centro"
-                value={editData.municipio}
-                onChange={(e) => setEditData({ ...editData, municipio: e.target.value })}
-              />
-            </div>
+            <LocationPicker
+              value={editData.municipio}
+              onChange={(value) => setEditData({ ...editData, municipio: value })}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
