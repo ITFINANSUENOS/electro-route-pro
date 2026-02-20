@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Programacion from "./pages/Programacion";
@@ -23,38 +24,42 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 2 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
     },
   },
 });
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/programacion" element={<Programacion />} />
-              <Route path="/actividades" element={<Actividades />} />
-              <Route path="/cargar-ventas" element={<CargarVentas />} />
-              <Route path="/mapa" element={<Mapa />} />
-              <Route path="/informacion" element={<Informacion />} />
-              <Route path="/usuarios" element={<Usuarios />} />
-              <Route path="/configuracion" element={<Configuracion />} />
-              <Route path="/comparativo" element={<Comparativo />} />
-              <Route path="/regionales" element={<Regionales />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/programacion" element={<Programacion />} />
+                <Route path="/actividades" element={<Actividades />} />
+                <Route path="/cargar-ventas" element={<CargarVentas />} />
+                <Route path="/mapa" element={<Mapa />} />
+                <Route path="/informacion" element={<Informacion />} />
+                <Route path="/usuarios" element={<Usuarios />} />
+                <Route path="/configuracion" element={<Configuracion />} />
+                <Route path="/comparativo" element={<Comparativo />} />
+                <Route path="/regionales" element={<Regionales />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
