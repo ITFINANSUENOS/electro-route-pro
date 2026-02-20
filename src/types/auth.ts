@@ -88,10 +88,10 @@ export const rolePermissions: Record<UserRole, string[]> = {
 export const menuOrderByRole: Record<UserRole, string[]> = {
   asesor_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo'],
   jefe_ventas: ['dashboard', 'programacion', 'actividades', 'comparativo'],
-  lider_zona: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
-  coordinador_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
+  lider_zona: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
+  coordinador_comercial: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
   administrativo: ['dashboard', 'cargar-ventas'],
-  administrador: ['dashboard', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios', 'configuracion'],
+  administrador: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios', 'configuracion'],
 };
 
 // Helper function to get zona based on regional name

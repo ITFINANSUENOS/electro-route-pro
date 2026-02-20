@@ -16,6 +16,7 @@ import Usuarios from "./pages/Usuarios";
 import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 import Comparativo from "./pages/Comparativo";
+import Regionales from "./pages/Regionales";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/comparativo" element={<Comparativo />} />
+              <Route path="/regionales" element={<Regionales />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
