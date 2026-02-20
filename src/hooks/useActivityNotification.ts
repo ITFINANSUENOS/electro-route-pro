@@ -3,14 +3,21 @@ import { dataService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { useMemo } from 'react';
+import { useConsultasConfig } from './useConsultasConfig';
 
 export function useActivityNotification() {
   const { user, role } = useAuth();
   const today = format(new Date(), 'yyyy-MM-dd');
   const currentHour = new Date().getHours();
+  const currentMinutes = new Date().getMinutes();
+  const consultasConfig = useConsultasConfig();
 
   const isAsesorComercial = role === 'asesor_comercial';
-  const isInNotificationWindow = currentHour >= 16 && currentHour < 21;
+
+  const currentTotalMin = currentHour * 60 + currentMinutes;
+  const startTotalMin = consultasConfig.consultasStartHour * 60 + consultasConfig.consultasStartMinutes;
+  const endTotalMin = consultasConfig.consultasEndHour * 60 + consultasConfig.consultasEndMinutes;
+  const isInNotificationWindow = currentTotalMin >= startTotalMin && currentTotalMin < endTotalMin;
 
   const { data: todayReport } = useQuery({
     queryKey: ['today-report-notification', user?.id, today],
@@ -45,5 +52,6 @@ export function useActivityNotification() {
     isAsesorComercial,
     hasSubmittedConsultas: !!todayReport && 
       (todayReport.consultas !== null || todayReport.solicitudes !== null),
+    consultasConfig,
   };
 }
