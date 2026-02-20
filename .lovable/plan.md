@@ -1,45 +1,52 @@
 
 
-# Plan: Agregar Reporte de Consultas y Solicitudes en Ver Planillas
+# Plan: Dashboard Comparativo de Regionales
 
-## Objetivo
+## Resumen
 
-Agregar un tercer sub-tab dentro de "Ver Planillas" llamado **"Ver Consultas"** que muestre, por cada asesor y por cada dia del mes, cuantas consultas y solicitudes reporto, y si no reporto nada, que quede claramente marcado.
+Crear una nueva pagina **"Regionales"** accesible desde el menu lateral (debajo de Dashboard) para roles `lider_zona`, `coordinador_comercial` y `administrador`. Esta pagina presenta un dashboard comparativo global de todas las regionales con multiples vistas: cumplimiento de metas, desglose por tipo de venta, y comparativo historico mes a mes.
 
 ---
 
 ## Estructura Visual
 
-Un nuevo tab al lado de "Ver Listado" y "Ver Actividad":
+### Header
+- Icono de TrendingUp con flecha subiendo + titulo "Regionales"
+- Selector de periodo (mes/anio) reutilizando `PeriodSelector`
+- Toggle para alternar entre Meta Comercial y Meta Nacional
 
-```text
-[Ver Listado]  [Ver Actividad]  [Ver Consultas]
-```
+### Seccion 1: Ranking de Regionales por Cumplimiento de Meta
 
-### Cuadricula de Consultas
+Una tabla/cards mostrando cada regional con:
+- Nombre de la regional
+- Venta total del periodo
+- Meta asignada (comercial o nacional segun toggle)
+- % de cumplimiento (barra de progreso)
+- Cantidad de ventas (Q)
+- Ordenadas de mayor a menor cumplimiento
 
-- **Filas**: Asesores (mismos filtros jerarquicos existentes)
-- **Columnas**: Dias del mes (1 al 28/29/30/31)
-- **Cada celda muestra**: "C/S" donde C = consultas, S = solicitudes del dia
-  - Ejemplo: "5/2" = 5 consultas, 2 solicitudes
-  - Si no reporto nada y estaba programado: celda roja con "--/--"
-  - Si no estaba programado: celda gris sin contenido
-  - Si reporto al menos algo: celda azul con los numeros
-- **Columnas adicionales al final**: Totales del mes (Total Consultas, Total Solicitudes)
+### Seccion 2: Grafica Comparativa de Barras por Regional
 
-### Leyenda
+Un BarChart horizontal o vertical con:
+- Una barra por regional mostrando venta actual vs meta
+- Colores diferenciados: verde si supera meta, amarillo si esta entre 70-100%, rojo si esta debajo de 70%
+- Tooltip con detalle de valores
 
-- Azul: Reporto consultas/solicitudes
-- Rojo: Estaba programado y no reporto
-- Gris: No programado / dia futuro
+### Seccion 3: Desglose por Tipo de Venta
 
-### Exportacion Excel
+Una tabla o grafico apilado que muestre, por cada regional:
+- Ventas en Contado (valor + cantidad)
+- Ventas en Credito / Finansuenos (valor + cantidad)
+- Ventas en Aliados/Convenio (valor + cantidad)
+- Ventas en CrediContado (valor + cantidad)
+- Total
 
-Boton "Descargar Excel" que genera un archivo con:
-- Filas: Nombre, Codigo del asesor
-- Columnas: Cada dia del mes (2 sub-columnas: Consultas y Solicitudes)
-- Columnas finales: Total Consultas, Total Solicitudes
-- Celdas coloreadas igual que la interfaz
+### Seccion 4: Comparativo Historico (mes actual vs mes anterior)
+
+Similar al modulo Comparativo existente pero agrupado por regional:
+- Barras agrupadas mostrando mes actual vs mes anterior por regional
+- KPIs de variacion porcentual por regional
+- Lineas de tendencia opcionales
 
 ---
 
@@ -47,41 +54,79 @@ Boton "Descargar Excel" que genera un archivo con:
 
 ### Archivos nuevos
 
-1. **`src/components/actividades/ConsultasGrid.tsx`**
-   - Recibe los mismos props que `AttendanceGrid` (profiles, month, year, daysInMonth)
-   - Consulta `reportes_diarios` trayendo `user_id, fecha, consultas, solicitudes` para el rango del mes
-   - Consulta `programacion` para saber quien estaba programado cada dia
-   - Cruza ambas fuentes para construir la cuadricula
-   - Usa ScrollArea horizontal (igual que AttendanceGrid)
-   - Cada celda muestra "C/S" en formato compacto
-   - Agrega columnas de totales al final de la fila
+1. **`src/pages/Regionales.tsx`**
+   - Pagina principal que orquesta las secciones
+   - Usa `PeriodSelector` y `MetaTypeToggle` existentes
+   - Controla estado de filtros y periodo seleccionado
 
-2. **`src/utils/exportConsultasExcel.ts`**
-   - Genera Excel con ExcelJS (ya instalado)
-   - Hoja "Consultas y Solicitudes"
-   - Headers: Nombre, Codigo, luego cada dia con sub-headers Cons/Sol
-   - Columnas finales: Total Consultas, Total Solicitudes
-   - Colores: azul para dias con reporte, rojo para incumplimiento
+2. **`src/hooks/useRegionalesData.ts`**
+   - Hook principal que consulta:
+     - `regionales` (lista de regionales activas)
+     - `ventas` (ventas del periodo, con paginacion)
+     - `metas` (metas por codigo_asesor, cruzadas con profiles para agrupar por regional)
+     - `profiles` (para mapear codigo_asesor a regional_id)
+   - Agrupa ventas por regional_id calculando: total_valor, total_cantidad, desglose por tipo_venta
+   - Agrupa metas por regional sumando las metas individuales
+   - Calcula % cumplimiento por regional
+   - Para el historico: trae tambien el mes anterior y calcula variaciones
+
+3. **`src/components/regionales/RegionalesRankingTable.tsx`**
+   - Tabla con ranking de regionales ordenadas por cumplimiento
+   - Barra de progreso visual con colores segun umbral
+   - Columnas: posicion, nombre, ventas, meta, %, cantidad
+
+4. **`src/components/regionales/RegionalesBarChart.tsx`**
+   - Grafico de barras (Recharts) comparando ventas vs meta por regional
+   - Barras coloreadas segun nivel de cumplimiento
+   - Doble barra: actual vs meta
+
+5. **`src/components/regionales/RegionalesTipoVentaTable.tsx`**
+   - Tabla con desglose por tipo de venta para cada regional
+   - Sub-columnas: Contado, Credito, Aliados, CrediContado
+   - Cada celda muestra valor ($) y cantidad (Q)
+
+6. **`src/components/regionales/RegionalesHistoricoChart.tsx`**
+   - Grafico de barras agrupadas: mes actual vs mes anterior por regional
+   - KPIs de variacion al pie o encima del grafico
+   - Reutiliza patrones del ComparativeChart existente
 
 ### Archivos modificados
 
-1. **`src/components/actividades/PlanillasViewer.tsx`**
-   - Agregar import de `ConsultasGrid` y del icono `MessageSquare` de lucide
-   - Agregar tercer tab "Ver Consultas" con icono de mensaje
-   - Pasar los mismos props (filteredProfiles, month, year, daysInMonth)
+1. **`src/components/layout/AppSidebar.tsx`**
+   - Agregar item de navegacion "Regionales" con icono `TrendingUp`
+   - Roles: `lider_zona`, `coordinador_comercial`, `administrador`
+   - Posicion: justo debajo de "Dashboard"
+
+2. **`src/types/auth.ts`**
+   - Agregar `'regionales'` al `menuOrderByRole` para los 3 roles, despues de `'dashboard'`
+
+3. **`src/App.tsx`**
+   - Agregar ruta `/regionales` apuntando al nuevo componente
 
 ### Datos utilizados
 
-Los datos ya existen en la tabla `reportes_diarios`:
-- `consultas` (integer, default 0)
-- `solicitudes` (integer, default 0)
-- `user_id`, `fecha`
+- **`regionales`**: lista de regionales (id, nombre, codigo)
+- **`ventas`**: datos de ventas con paginacion (fecha, vtas_ant_i, codigo_asesor, tipo_venta)
+- **`metas`**: metas por codigo_asesor (valor_meta, tipo_meta_categoria)
+- **`profiles`**: mapeo codigo_asesor a regional_id
+- No se requieren cambios en la base de datos
 
-No se requieren cambios en la base de datos ni nuevas tablas.
+### Logica de paginacion
 
-### Orden de implementacion
+Se reutiliza el patron de paginacion existente en `useComparativeData` (fetch en bloques de 1000 registros) para garantizar datos completos.
 
-1. Crear `ConsultasGrid.tsx` con la cuadricula visual
-2. Crear `exportConsultasExcel.ts` para la descarga
-3. Modificar `PlanillasViewer.tsx` para agregar el tercer tab
+### Logica de metas
+
+- Se suman las metas individuales de los asesores de cada regional para obtener la meta regional
+- Se filtra por `tipo_meta_categoria` segun el toggle (comercial/nacional)
+- Se usa el periodo seleccionado (mes/anio) para filtrar metas
+
+---
+
+## Orden de Implementacion
+
+1. Crear `useRegionalesData.ts` con toda la logica de consulta y agregacion
+2. Crear los 4 componentes visuales (Ranking, BarChart, TipoVenta, Historico)
+3. Crear `Regionales.tsx` integrando todo
+4. Modificar `AppSidebar.tsx`, `auth.ts` y `App.tsx` para agregar navegacion y ruta
 
