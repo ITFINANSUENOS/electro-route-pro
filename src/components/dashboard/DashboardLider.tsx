@@ -1569,7 +1569,7 @@ export default function DashboardLider() {
 
       <motion.div variants={item} className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Advisors at Risk */}
-        <Card className="card-elevated">
+        <Card className="card-elevated overflow-hidden">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
@@ -1577,7 +1577,7 @@ export default function DashboardLider() {
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm">No proyectan cumplir la meta</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6">
             {advisorsAtRisk.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">
                 <p>¡Todos los asesores proyectan cumplir!</p>
@@ -1590,8 +1590,8 @@ export default function DashboardLider() {
                     className="p-2 sm:p-3 rounded-lg border bg-danger/5 border-danger/20 cursor-pointer hover:bg-danger/10 transition-colors"
                     onClick={() => setAtRiskPopupOpen(true)}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{advisor.nombre}</span>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="font-medium text-xs sm:text-sm truncate">{advisor.nombre}</span>
                       <StatusBadge 
                         status={advisor.compliance < 50 ? 'danger' : 'warning'} 
                         label={`${advisor.compliance.toFixed(1)}%`} 
@@ -1649,8 +1649,8 @@ export default function DashboardLider() {
             </CardHeader>
             <CardContent>
               {incumplimientos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
+                  <table className="w-full min-w-[500px]">
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-3 px-4 font-medium text-muted-foreground">
