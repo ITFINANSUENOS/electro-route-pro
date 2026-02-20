@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { List, Camera } from 'lucide-react';
+import { List, Camera, MessageSquare } from 'lucide-react';
 import { AttendanceGrid } from './AttendanceGrid';
 import { ActivityPhotosGrid } from './ActivityPhotosGrid';
+import { ConsultasGrid } from './ConsultasGrid';
 
 export function PlanillasViewer() {
   const { role, profile } = useAuth();
@@ -162,6 +163,10 @@ export function PlanillasViewer() {
             <Camera className="h-4 w-4" />
             Ver Actividad
           </TabsTrigger>
+          <TabsTrigger value="consultas" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Ver Consultas
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="listado">
@@ -175,6 +180,15 @@ export function PlanillasViewer() {
 
         <TabsContent value="actividad">
           <ActivityPhotosGrid
+            profiles={filteredProfiles}
+            month={selectedMonth}
+            year={selectedYear}
+            daysInMonth={daysInMonth}
+          />
+        </TabsContent>
+
+        <TabsContent value="consultas">
+          <ConsultasGrid
             profiles={filteredProfiles}
             month={selectedMonth}
             year={selectedYear}
