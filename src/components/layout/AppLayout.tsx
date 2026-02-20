@@ -26,8 +26,8 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen w-full bg-background">
       <AppSidebar />
-      <main className={`flex-1 overflow-auto ${isMobile ? 'w-full pt-14' : ''}`}>
-        <div className="container mx-auto py-4 px-3 sm:py-6 sm:px-4 md:px-6 lg:px-8 max-w-full">
+      <main className={`flex-1 overflow-x-hidden overflow-y-auto ${isMobile ? 'w-full pt-14' : ''}`}>
+        <div className="container mx-auto py-4 px-3 sm:py-6 sm:px-4 md:px-6 lg:px-8 max-w-full overflow-x-hidden">
           <Outlet />
         </div>
       </main>

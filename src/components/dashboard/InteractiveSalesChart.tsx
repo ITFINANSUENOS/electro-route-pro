@@ -318,9 +318,10 @@ export function InteractiveSalesChart({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="h-[280px] sm:h-[320px] flex flex-col sm:flex-row items-center"
+              className="min-h-[350px] sm:h-[320px] flex flex-col sm:flex-row items-center"
             >
-              <ResponsiveContainer width="100%" height="60%" className="sm:!w-[55%] sm:!h-full">
+              <div className="w-full sm:w-[55%] h-[180px] sm:h-full">
+                <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={positiveItems}
@@ -335,7 +336,6 @@ export function InteractiveSalesChart({
                     onMouseEnter={(_, index) => setActiveIndex(index)}
                     onMouseLeave={() => setActiveIndex(undefined)}
                     onClick={(data, index) => {
-                      // Map positive items index back to enrichedSalesByType
                       if (data.key && Object.keys(tiposVentaLabels).includes(data.key)) {
                         setSelectedType(data.key as TipoVentaKey);
                       }
@@ -372,7 +372,8 @@ export function InteractiveSalesChart({
                     }}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              </div>
               <div className="space-y-2 sm:space-y-3 flex-1 w-full sm:w-auto px-2 sm:px-0">
                 {enrichedSalesByType.map((type, index) => (
                   <motion.div 

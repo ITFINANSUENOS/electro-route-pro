@@ -316,10 +316,10 @@ export function RankingTable({
             </div>
           </div>
         </CardHeader>
-        <CardContent className={`px-2 sm:px-4 ${isMaximized ? 'flex-1 overflow-hidden' : ''}`}>
+        <CardContent className={`px-0 sm:px-4 overflow-hidden ${isMaximized ? 'flex-1 overflow-hidden' : ''}`}>
           <div className={`relative ${isMaximized ? 'h-[calc(100vh-220px)]' : 'h-[400px] sm:h-[500px]'}`}>
             <ScrollArea className="h-full w-full">
-              <div className="min-w-[900px] pb-4 pr-4">
+              <div className="min-w-[800px] pb-4 pr-4">
                 <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
