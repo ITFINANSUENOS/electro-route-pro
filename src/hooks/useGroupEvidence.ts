@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { dataService } from '@/services';
-import { supabase } from '@/integrations/supabase/client';
+import { dataService, storageService } from '@/services';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -71,19 +70,24 @@ export function useGroupEvidence(group: GroupIdentifier | null) {
     }) => {
       if (!user?.id || !group) throw new Error('No user or group');
 
-      // Upload file to storage
+      // Upload file to storage via service layer
       const fileName = `${group.fecha}/${group.tipo_actividad}/${group.municipio}/${params.tipoFoto}_${Date.now()}.jpg`;
-      const { data: uploadData, error: uploadError } = await supabase
-        .storage
-        .from('evidencia-fotos')
-        .upload(fileName, params.file, { contentType: params.file.type });
+      const bucket = storageService.from('evidencia-fotos');
+
+      const { data: uploadData, error: uploadError } = await bucket.upload(
+        fileName,
+        params.file,
+        { contentType: params.file.type },
+      );
 
       if (uploadError) throw uploadError;
+      if (!uploadData) throw new Error('Upload returned no data');
 
-      const { data: { publicUrl } } = supabase
-        .storage
-        .from('evidencia-fotos')
-        .getPublicUrl(uploadData.path);
+      // Get signed URL (bucket is private)
+      const { data: signedData, error: signedError } = await bucket.createSignedUrl(uploadData.path, 3600);
+      if (signedError) throw signedError;
+
+      const photoUrl = signedData?.signedUrl || '';
 
       // Insert record
       const { error } = await (dataService
@@ -96,7 +100,7 @@ export function useGroupEvidence(group: GroupIdentifier | null) {
           hora_inicio: group.hora_inicio,
           hora_fin: group.hora_fin,
           tipo_foto: params.tipoFoto,
-          foto_url: publicUrl,
+          foto_url: photoUrl,
           subido_por: user.id,
           gps_latitud: params.gpsLatitud,
           gps_longitud: params.gpsLongitud,
