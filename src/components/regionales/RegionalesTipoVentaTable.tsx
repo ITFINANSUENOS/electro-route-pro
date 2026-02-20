@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ShoppingCart } from 'lucide-react';
@@ -51,11 +52,11 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
                 <TableHead rowSpan={2} className="text-right border-l font-bold align-middle border-b">Total</TableHead>
               </TableRow>
               <TableRow>
-                {TIPOS.map(t => (
-                  <>
-                    <TableHead key={`${t}-v`} className="text-right text-xs border-l text-muted-foreground py-1 whitespace-nowrap">Ventas&nbsp;$</TableHead>
-                    <TableHead key={`${t}-p`} className="text-right text-xs text-muted-foreground py-1 whitespace-nowrap">Cump%</TableHead>
-                  </>
+              {TIPOS.map(t => (
+                  <Fragment key={`sub-${t}`}>
+                    <TableHead className="text-right text-xs border-l text-muted-foreground py-1 whitespace-nowrap">Ventas&nbsp;$</TableHead>
+                    <TableHead className="text-right text-xs text-muted-foreground py-1 whitespace-nowrap">Cump%</TableHead>
+                  </Fragment>
                 ))}
               </TableRow>
             </TableHeader>
@@ -71,12 +72,12 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
                       totalVal += d.valor;
                       const pct = metaNac > 0 ? (d.valor / metaNac) * 100 : 0;
                       return (
-                        <>
-                          <TableCell key={`${r.id}-${t}-v`} className="text-right text-xs border-l">{formatCurrency(d.valor)}</TableCell>
-                          <TableCell key={`${r.id}-${t}-p`} className={cn('text-right text-xs font-semibold', getComplianceColor(pct))}>
+                        <Fragment key={`${r.id}-${t}`}>
+                          <TableCell className="text-right text-xs border-l">{formatCurrency(d.valor)}</TableCell>
+                          <TableCell className={cn('text-right text-xs font-semibold', getComplianceColor(pct))}>
                             {pct.toFixed(1)}%
                           </TableCell>
-                        </>
+                        </Fragment>
                       );
                     })}
                     <TableCell className="text-right text-xs font-semibold border-l">{formatCurrency(totalVal)}</TableCell>

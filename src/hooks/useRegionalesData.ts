@@ -95,6 +95,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
   // Fetch current + previous month + prev year sales with pagination
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ['regionales-sales', selectedMonth, selectedYear],
+    retry: 2,
     queryFn: async () => {
       // Fetch both ranges IN PARALLEL
       const [currentPrevData, prevYearData] = await Promise.all([

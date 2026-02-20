@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 const TIPOS_VENTA = [
   { value: 'CONTADO', label: 'Contado' },
-  { value: 'FINANSUEÑOS', label: 'Crédito' },
-  { value: 'CONVENIO', label: 'Aliados' },
+  { value: 'CREDITO', label: 'Crédito' },
+  { value: 'ALIADOS', label: 'Aliados' },
   { value: 'CREDICONTADO', label: 'CrediContado' },
 ];
 
