@@ -1,132 +1,122 @@
 
 
-# Plan: Dashboard Comparativo de Regionales
+# Plan: Carga Historica de Ventas y Reasignacion de Regionales
 
 ## Resumen
 
-Crear una nueva pagina **"Regionales"** accesible desde el menu lateral (debajo de Dashboard) para roles `lider_zona`, `coordinador_comercial` y `administrador`. Esta pagina presenta un dashboard comparativo global de todas las regionales con multiples vistas: cumplimiento de metas, desglose por tipo de venta, y comparativo historico mes a mes.
+Dos funcionalidades nuevas:
+
+1. **Carga de ventas historicas**: Permitir a administradores y coordinadores comerciales seleccionar manualmente el mes/anio destino (incluyendo meses del 2025) al subir archivos CSV de ventas.
+2. **Reasignacion de regionales**: Desde la configuracion de regionales, poder desactivar una regional y reasignar sus datos historicos de ventas a otra regional activa.
 
 ---
 
-## Estructura Visual
+## Parte 1: Carga de Ventas Historicas
 
-### Header
-- Icono de TrendingUp con flecha subiendo + titulo "Regionales"
-- Selector de periodo (mes/anio) reutilizando `PeriodSelector`
-- Toggle para alternar entre Meta Comercial y Meta Nacional
+### Cambios en la interfaz (CargarVentasTab.tsx)
 
-### Seccion 1: Ranking de Regionales por Cumplimiento de Meta
+- Agregar un selector de "Periodo destino" con dos dropdowns: **Mes** (Enero-Diciembre) y **Anio** (2025, 2026).
+- Solo visible para roles `administrador` y `coordinador_comercial`.
+- Por defecto, sigue usando el periodo automatico actual (logica existente de `useSalesPeriod`).
+- Si el usuario selecciona un periodo manual, se pasa ese mes/anio al edge function `load-sales` en lugar del automatico.
+- Se elimina la restriccion de "periodo cerrado" cuando se usa modo historico (los meses del 2025 pueden no tener periodo creado, se crea automaticamente).
+- Se muestra una alerta amarilla indicando: "Modo historico: cargando datos para [Mes] [Anio]".
 
-Una tabla/cards mostrando cada regional con:
-- Nombre de la regional
-- Venta total del periodo
-- Meta asignada (comercial o nacional segun toggle)
-- % de cumplimiento (barra de progreso)
-- Cantidad de ventas (Q)
-- Ordenadas de mayor a menor cumplimiento
+### Cambios en el edge function (load-sales)
 
-### Seccion 2: Grafica Comparativa de Barras por Regional
+- Ya soporta `targetMonth` y `targetYear` como parametros opcionales. No requiere cambios en el backend.
 
-Un BarChart horizontal o vertical con:
-- Una barra por regional mostrando venta actual vs meta
-- Colores diferenciados: verde si supera meta, amarillo si esta entre 70-100%, rojo si esta debajo de 70%
-- Tooltip con detalle de valores
+### Logica de validacion
 
-### Seccion 3: Desglose por Tipo de Venta
+- Se mantiene la validacion del 50% de fechas dentro del rango.
+- El anio seleccionable sera 2025 y 2026 (configurable).
 
-Una tabla o grafico apilado que muestre, por cada regional:
-- Ventas en Contado (valor + cantidad)
-- Ventas en Credito / Finansuenos (valor + cantidad)
-- Ventas en Aliados/Convenio (valor + cantidad)
-- Ventas en CrediContado (valor + cantidad)
-- Total
+---
 
-### Seccion 4: Comparativo Historico (mes actual vs mes anterior)
+## Parte 2: Reasignacion de Regionales
 
-Similar al modulo Comparativo existente pero agrupado por regional:
-- Barras agrupadas mostrando mes actual vs mes anterior por regional
-- KPIs de variacion porcentual por regional
-- Lineas de tendencia opcionales
+### Nuevo concepto: "Migrar Regional"
+
+Cuando una regional como PUERTO TEJADA (codigo 106) se absorbe en otra (ej: SANTANDER, codigo 103):
+
+1. El admin abre la regional PUERTO TEJADA en configuracion.
+2. Ve un boton "Migrar a otra regional".
+3. Selecciona la regional destino (SANTANDER).
+4. El sistema actualiza en la tabla `ventas` todos los registros donde `cod_region = 106`, cambiando a `cod_region = 103`.
+5. Tambien actualiza los `profiles` que tenian `regional_id` de PUERTO TEJADA, asignandolos a SANTANDER.
+6. Desactiva la regional PUERTO TEJADA (`activo = false`).
+7. Todo queda registrado en `historial_ediciones`.
+
+### Cambios en la interfaz (RegionalesConfig.tsx)
+
+- Agregar un boton "Migrar" (icono ArrowRightLeft) en cada fila de la tabla de regionales activas.
+- Al hacer clic, abre un dialog con:
+  - Nombre de la regional origen (ej: PUERTO TEJADA - 106)
+  - Dropdown para seleccionar regional destino (solo regionales activas, excluyendo la actual)
+  - Checkbox: "Desactivar regional origen despues de migrar"
+  - Resumen de impacto: cuantos registros de ventas y perfiles seran afectados (consulta previa)
+  - Boton "Confirmar Migracion" con confirmacion adicional
+
+### Nueva edge function: migrate-regional
+
+Se necesita una edge function con `service_role` para:
+1. Contar registros afectados (ventas con `cod_region` origen, profiles con `regional_id` origen)
+2. Actualizar masivamente `ventas.cod_region` del codigo origen al destino
+3. Actualizar `profiles.regional_id` del origen al destino
+4. Opcionalmente desactivar la regional origen
+5. Registrar en `historial_ediciones`
+
+Esto requiere service role porque las politicas RLS de ventas no permiten UPDATE a ningun rol.
+
+### Parametros del dialog de migracion
+
+- Regional origen (automatico, la seleccionada)
+- Regional destino (selector)
+- Filtro opcional de periodo: "Solo migrar ventas de [Mes/Anio]" o "Todas las ventas"
+  - Esto permite migrar solo los datos de un mes especifico sin afectar otros periodos
 
 ---
 
 ## Detalle Tecnico
 
-### Archivos nuevos
-
-1. **`src/pages/Regionales.tsx`**
-   - Pagina principal que orquesta las secciones
-   - Usa `PeriodSelector` y `MetaTypeToggle` existentes
-   - Controla estado de filtros y periodo seleccionado
-
-2. **`src/hooks/useRegionalesData.ts`**
-   - Hook principal que consulta:
-     - `regionales` (lista de regionales activas)
-     - `ventas` (ventas del periodo, con paginacion)
-     - `metas` (metas por codigo_asesor, cruzadas con profiles para agrupar por regional)
-     - `profiles` (para mapear codigo_asesor a regional_id)
-   - Agrupa ventas por regional_id calculando: total_valor, total_cantidad, desglose por tipo_venta
-   - Agrupa metas por regional sumando las metas individuales
-   - Calcula % cumplimiento por regional
-   - Para el historico: trae tambien el mes anterior y calcula variaciones
-
-3. **`src/components/regionales/RegionalesRankingTable.tsx`**
-   - Tabla con ranking de regionales ordenadas por cumplimiento
-   - Barra de progreso visual con colores segun umbral
-   - Columnas: posicion, nombre, ventas, meta, %, cantidad
-
-4. **`src/components/regionales/RegionalesBarChart.tsx`**
-   - Grafico de barras (Recharts) comparando ventas vs meta por regional
-   - Barras coloreadas segun nivel de cumplimiento
-   - Doble barra: actual vs meta
-
-5. **`src/components/regionales/RegionalesTipoVentaTable.tsx`**
-   - Tabla con desglose por tipo de venta para cada regional
-   - Sub-columnas: Contado, Credito, Aliados, CrediContado
-   - Cada celda muestra valor ($) y cantidad (Q)
-
-6. **`src/components/regionales/RegionalesHistoricoChart.tsx`**
-   - Grafico de barras agrupadas: mes actual vs mes anterior por regional
-   - KPIs de variacion al pie o encima del grafico
-   - Reutiliza patrones del ComparativeChart existente
-
 ### Archivos modificados
 
-1. **`src/components/layout/AppSidebar.tsx`**
-   - Agregar item de navegacion "Regionales" con icono `TrendingUp`
-   - Roles: `lider_zona`, `coordinador_comercial`, `administrador`
-   - Posicion: justo debajo de "Dashboard"
+1. **`src/components/informacion/CargarVentasTab.tsx`**
+   - Agregar estado `historicMode` con `selectedMonth` y `selectedYear`
+   - Agregar selectores de mes/anio cuando el rol es admin/coordinador
+   - Pasar el periodo seleccionado manualmente al `processUploadViaEdgeFunction`
+   - Saltar validacion de periodo cerrado en modo historico
 
-2. **`src/types/auth.ts`**
-   - Agregar `'regionales'` al `menuOrderByRole` para los 3 roles, despues de `'dashboard'`
+2. **`src/components/configuracion/RegionalesConfig.tsx`**
+   - Agregar boton "Migrar" por fila
+   - Agregar dialog de migracion con selector de destino
+   - Consulta previa de impacto (conteo de ventas y profiles)
+   - Llamada a edge function `migrate-regional`
+   - Registro en historial
 
-3. **`src/App.tsx`**
-   - Agregar ruta `/regionales` apuntando al nuevo componente
+### Archivos nuevos
 
-### Datos utilizados
+3. **`supabase/functions/migrate-regional/index.ts`**
+   - Edge function con service_role
+   - Recibe: `sourceRegionalId`, `targetRegionalId`, `sourceCodRegion`, `targetCodRegion`, `deactivateSource`, `filterMonth`, `filterYear`
+   - Ejecuta updates masivos en ventas y profiles
+   - Retorna conteo de registros migrados
+   - Solo accesible por admin/coordinador_comercial
 
-- **`regionales`**: lista de regionales (id, nombre, codigo)
-- **`ventas`**: datos de ventas con paginacion (fecha, vtas_ant_i, codigo_asesor, tipo_venta)
-- **`metas`**: metas por codigo_asesor (valor_meta, tipo_meta_categoria)
-- **`profiles`**: mapeo codigo_asesor a regional_id
-- No se requieren cambios en la base de datos
+### Configuracion necesaria
 
-### Logica de paginacion
+4. **`supabase/config.toml`** - Agregar entrada para `migrate-regional` con `verify_jwt = false`
 
-Se reutiliza el patron de paginacion existente en `useComparativeData` (fetch en bloques de 1000 registros) para garantizar datos completos.
+### Base de datos
 
-### Logica de metas
+- No se requieren cambios de esquema. Se usan las columnas existentes:
+  - `ventas.cod_region` (integer)
+  - `profiles.regional_id` (uuid)
+  - `regionales.activo` (boolean)
 
-- Se suman las metas individuales de los asesores de cada regional para obtener la meta regional
-- Se filtra por `tipo_meta_categoria` segun el toggle (comercial/nacional)
-- Se usa el periodo seleccionado (mes/anio) para filtrar metas
+### Orden de implementacion
 
----
-
-## Orden de Implementacion
-
-1. Crear `useRegionalesData.ts` con toda la logica de consulta y agregacion
-2. Crear los 4 componentes visuales (Ranking, BarChart, TipoVenta, Historico)
-3. Crear `Regionales.tsx` integrando todo
-4. Modificar `AppSidebar.tsx`, `auth.ts` y `App.tsx` para agregar navegacion y ruta
+1. Modificar `CargarVentasTab.tsx` para modo historico
+2. Crear edge function `migrate-regional`
+3. Modificar `RegionalesConfig.tsx` para agregar migracion
 
