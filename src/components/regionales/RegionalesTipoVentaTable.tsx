@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ShoppingCart } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import type { RegionalData } from '@/hooks/useRegionalesData';
 
 interface Props {
   data: RegionalData[];
+  metaNacionalByRegional: Record<string, number>;
 }
 
 const TIPOS = ['CONTADO', 'FINANSUEÑOS', 'CONVENIO', 'CREDICONTADO'];
@@ -20,7 +22,13 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
-export function RegionalesTipoVentaTable({ data }: Props) {
+function getComplianceColor(pct: number) {
+  if (pct >= 100) return 'text-green-600';
+  if (pct >= 70) return 'text-yellow-600';
+  return 'text-destructive';
+}
+
+export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -45,35 +53,56 @@ export function RegionalesTipoVentaTable({ data }: Props) {
               <TableRow>
                 <TableHead className="sticky left-0 bg-card z-10" />
                 {TIPOS.map(t => (
-                  <> 
-                    <TableHead key={`${t}-v`} className="text-right text-xs border-l">$</TableHead>
-                    <TableHead key={`${t}-q`} className="text-right text-xs">Q</TableHead>
-                  </>
+                  <TableHead key={`${t}-sub`} colSpan={2} className="text-center border-l">
+                    <div className="flex">
+                      <span className="flex-1 text-right text-xs">$</span>
+                      <span className="flex-1 text-right text-xs">% Nac.</span>
+                    </div>
+                  </TableHead>
                 ))}
-                <TableHead className="text-right text-xs border-l">$</TableHead>
-                <TableHead className="text-right text-xs">Q</TableHead>
+                <TableHead className="text-center border-l" colSpan={2}>
+                  <div className="flex">
+                    <span className="flex-1 text-right text-xs">$</span>
+                    <span className="flex-1 text-right text-xs">% Nac.</span>
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.map(r => {
                 let totalVal = 0;
-                let totalQ = 0;
+                const metaNac = metaNacionalByRegional[r.id] || 0;
                 return (
                   <TableRow key={r.id}>
                     <TableCell className="sticky left-0 bg-card z-10 font-medium whitespace-nowrap">{r.nombre}</TableCell>
                     {TIPOS.map(t => {
                       const d = r.desglose[t] || { valor: 0, cantidad: 0 };
                       totalVal += d.valor;
-                      totalQ += d.cantidad;
+                      const pct = metaNac > 0 ? (d.valor / metaNac) * 100 : 0;
                       return (
-                        <>
-                          <TableCell key={`${t}-v`} className="text-right text-xs border-l">{formatCurrency(d.valor)}</TableCell>
-                          <TableCell key={`${t}-q`} className="text-right text-xs">{d.cantidad}</TableCell>
-                        </>
+                        <TableCell key={`${r.id}-${t}`} colSpan={2} className="border-l p-0">
+                          <div className="flex">
+                            <span className="flex-1 text-right text-xs px-2 py-2">{formatCurrency(d.valor)}</span>
+                            <span className={cn('flex-1 text-right text-xs px-2 py-2 font-semibold', getComplianceColor(pct))}>
+                              {pct.toFixed(1)}%
+                            </span>
+                          </div>
+                        </TableCell>
                       );
                     })}
-                    <TableCell className="text-right text-xs font-semibold border-l">{formatCurrency(totalVal)}</TableCell>
-                    <TableCell className="text-right text-xs font-semibold">{totalQ}</TableCell>
+                    <TableCell colSpan={2} className="border-l p-0">
+                      {(() => {
+                        const totalPct = metaNac > 0 ? (totalVal / metaNac) * 100 : 0;
+                        return (
+                          <div className="flex">
+                            <span className="flex-1 text-right text-xs font-semibold px-2 py-2">{formatCurrency(totalVal)}</span>
+                            <span className={cn('flex-1 text-right text-xs font-semibold px-2 py-2', getComplianceColor(totalPct))}>
+                              {totalPct.toFixed(1)}%
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                   </TableRow>
                 );
               })}
