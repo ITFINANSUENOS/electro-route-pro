@@ -15,6 +15,7 @@ import {
   FileText,
   Menu,
   X,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,13 @@ const allNavItems: NavItem[] = [
     href: '/dashboard', 
     icon: LayoutDashboard,
     roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
+  },
+  { 
+    id: 'regionales',
+    title: 'Regionales', 
+    href: '/regionales', 
+    icon: TrendingUp,
+    roles: ['lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
     id: 'programacion',
