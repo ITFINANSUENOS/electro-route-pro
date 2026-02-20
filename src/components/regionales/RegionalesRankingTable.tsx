@@ -31,7 +31,7 @@ function getProgressColor(pct: number) {
   return '[&>div]:bg-destructive';
 }
 
-const TIPOS_ALL = ['CONTADO', 'FINANSUEÑOS', 'CONVENIO', 'CREDICONTADO'];
+const TIPOS_ALL = ['CONTADO', 'CREDITO', 'ALIADOS', 'CREDICONTADO'];
 
 function filterByTipo(data: RegionalData[], tipos: string[]): RegionalData[] {
   if (tipos.length === 0) return data; // all
