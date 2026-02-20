@@ -1,122 +1,127 @@
 
 
-# Plan: Carga Historica de Ventas y Reasignacion de Regionales
+## Plan: Preparacion Completa para Carga de Ventas Historicas 2025
 
-## Resumen
-
-Dos funcionalidades nuevas:
-
-1. **Carga de ventas historicas**: Permitir a administradores y coordinadores comerciales seleccionar manualmente el mes/anio destino (incluyendo meses del 2025) al subir archivos CSV de ventas.
-2. **Reasignacion de regionales**: Desde la configuracion de regionales, poder desactivar una regional y reasignar sus datos historicos de ventas a otra regional activa.
+### Resumen
+Implementar todos los cambios necesarios en base de datos, edge function y UI para cargar exitosamente los CSVs de enero y febrero 2025, manejando correctamente codigos de pago nuevos, encoding corrupto, devoluciones, asesores inactivos y datos de producto.
 
 ---
 
-## Parte 1: Carga de Ventas Historicas
+### Hallazgos Clave de los CSVs
 
-### Cambios en la interfaz (CargarVentasTab.tsx)
+**Enero 2025**: ~3,648 registros | **Febrero 2025**: ~4,135 registros
 
-- Agregar un selector de "Periodo destino" con dos dropdowns: **Mes** (Enero-Diciembre) y **Anio** (2025, 2026).
-- Solo visible para roles `administrador` y `coordinador_comercial`.
-- Por defecto, sigue usando el periodo automatico actual (logica existente de `useSalesPeriod`).
-- Si el usuario selecciona un periodo manual, se pasa ese mes/anio al edge function `load-sales` en lugar del automatico.
-- Se elimina la restriccion de "periodo cerrado" cuando se usa modo historico (los meses del 2025 pueden no tener periodo creado, se crea automaticamente).
-- Se muestra una alerta amarilla indicando: "Modo historico: cargando datos para [Mes] [Anio]".
+**Codigos de pago**:
+- Todos los FORMA1PAGO de enero 2025 ya existen en la tabla `formas_pago`
+- Febrero 2025 tiene un codigo nuevo: **PLAN BRILLA / ALIADOS 01** (COD_FORMA_: PB01) - clasificar como **ALIADOS**
+- "CREDITO ENTIDADES" (PE01) ya existe clasificado como CONTADO
 
-### Cambios en el edge function (load-sales)
+**Encoding corrupto**: Ambos CSVs tienen "FINANSUEÐOS" en vez de "FINANSUEÑOS" (la ñ esta corrupta como caracter Ð). Sin normalizacion, el lookup no matcheara estos codigos.
 
-- Ya soporta `targetMonth` y `targetYear` como parametros opcionales. No requiere cambios en el backend.
+**Devoluciones**: Febrero 2025 contiene registros de devolucion (tipo documento DV00, valores negativos en VTAS_ANT_I, CANTIDAD=-1, MOTIVODEV=CM061). El sistema ya maneja negativos algebraicamente segun las reglas de negocio existentes.
 
-### Logica de validacion
+**Asesores no registrados**: Los CSVs de 2025 contienen asesores que probablemente ya no estan activos en el sistema. Para los graficos y rankings necesitan existir como referencia pero no como usuarios activos.
 
-- Se mantiene la validacion del 50% de fechas dentro del rango.
-- El anio seleccionable sera 2025 y 2026 (configurable).
+**Datos de producto**: Los CSVs incluyen MARCA, CODMARCA, NOMBRE_LIN (linea), CODLINEA, CATEGORIA2, NOMBRE_PRO, REFERENCIA, NOMBRE_COR - estos campos ya se guardan en la tabla `ventas` y estan disponibles para analisis por marca/producto.
 
 ---
 
-## Parte 2: Reasignacion de Regionales
+### Parte 1: Base de Datos
 
-### Nuevo concepto: "Migrar Regional"
+#### 1.1 Agregar columna `cod_forma` a `formas_pago`
+Agregar campo informativo para guardar el COD_FORMA_ del CSV como referencia.
 
-Cuando una regional como PUERTO TEJADA (codigo 106) se absorbe en otra (ej: SANTANDER, codigo 103):
+```text
+ALTER TABLE formas_pago ADD COLUMN cod_forma TEXT;
+```
 
-1. El admin abre la regional PUERTO TEJADA en configuracion.
-2. Ve un boton "Migrar a otra regional".
-3. Selecciona la regional destino (SANTANDER).
-4. El sistema actualiza en la tabla `ventas` todos los registros donde `cod_region = 106`, cambiando a `cod_region = 103`.
-5. Tambien actualiza los `profiles` que tenian `regional_id` de PUERTO TEJADA, asignandolos a SANTANDER.
-6. Desactiva la regional PUERTO TEJADA (`activo = false`).
-7. Todo queda registrado en `historial_ediciones`.
+#### 1.2 Insertar codigo nuevo PB01
+```text
+INSERT INTO formas_pago (codigo, nombre, tipo_venta, cod_forma, activo)
+VALUES ('PLAN BRILLA / ALIADOS 01', 'Brilla Aliados 01', 'ALIADOS', 'PB01', true);
+```
 
-### Cambios en la interfaz (RegionalesConfig.tsx)
+#### 1.3 Insertar codigo PS01 (para futuros cargues de 2026)
+```text
+INSERT INTO formas_pago (codigo, nombre, tipo_venta, cod_forma, activo)
+VALUES ('PLAN SISTECREDITO / ALIADOS 01', 'Sistecredito Aliados 01', 'ALIADOS', 'PS01', true);
+```
 
-- Agregar un boton "Migrar" (icono ArrowRightLeft) en cada fila de la tabla de regionales activas.
-- Al hacer clic, abre un dialog con:
-  - Nombre de la regional origen (ej: PUERTO TEJADA - 106)
-  - Dropdown para seleccionar regional destino (solo regionales activas, excluyendo la actual)
-  - Checkbox: "Desactivar regional origen despues de migrar"
-  - Resumen de impacto: cuantos registros de ventas y perfiles seran afectados (consulta previa)
-  - Boton "Confirmar Migracion" con confirmacion adicional
-
-### Nueva edge function: migrate-regional
-
-Se necesita una edge function con `service_role` para:
-1. Contar registros afectados (ventas con `cod_region` origen, profiles con `regional_id` origen)
-2. Actualizar masivamente `ventas.cod_region` del codigo origen al destino
-3. Actualizar `profiles.regional_id` del origen al destino
-4. Opcionalmente desactivar la regional origen
-5. Registrar en `historial_ediciones`
-
-Esto requiere service role porque las politicas RLS de ventas no permiten UPDATE a ningun rol.
-
-### Parametros del dialog de migracion
-
-- Regional origen (automatico, la seleccionada)
-- Regional destino (selector)
-- Filtro opcional de periodo: "Solo migrar ventas de [Mes/Anio]" o "Todas las ventas"
-  - Esto permite migrar solo los datos de un mes especifico sin afectar otros periodos
+#### 1.4 Actualizar cod_forma en registros existentes
+Poblar los codigos conocidos como referencia informativa en los registros actuales.
 
 ---
 
-## Detalle Tecnico
+### Parte 2: Edge Function `load-sales` - 3 Mejoras
 
-### Archivos modificados
+#### 2.1 Normalizacion de caracteres especiales
+Funcion que normaliza texto removiendo acentos y caracteres no-ASCII antes de comparar en el lookup, para que "FINANSUEÐOS" matchee con "FINANSUEÑOS".
 
-1. **`src/components/informacion/CargarVentasTab.tsx`**
-   - Agregar estado `historicMode` con `selectedMonth` y `selectedYear`
-   - Agregar selectores de mes/anio cuando el rol es admin/coordinador
-   - Pasar el periodo seleccionado manualmente al `processUploadViaEdgeFunction`
-   - Saltar validacion de periodo cerrado en modo historico
+```text
+normalizeForComparison("PLAN FINANSUEÐOS 15 MESES")
+  -> "PLAN FINANSUENOS 15 MESES"
+normalizeForComparison("PLAN FINANSUEÑOS 15 MESES")  
+  -> "PLAN FINANSUENOS 15 MESES"
+// Ambos producen la misma clave -> match exitoso
+```
 
-2. **`src/components/configuracion/RegionalesConfig.tsx`**
-   - Agregar boton "Migrar" por fila
-   - Agregar dialog de migracion con selector de destino
-   - Consulta previa de impacto (conteo de ventas y profiles)
-   - Llamada a edge function `migrate-regional`
-   - Registro en historial
+#### 2.2 Auto-creacion de codigos desconocidos
+Cuando un FORMA1PAGO no se encuentre en el lookup:
+1. Se crea automaticamente en `formas_pago` con `tipo_venta = 'OTROS'`
+2. Se guarda el COD_FORMA_ como referencia
+3. Se reportan los codigos nuevos creados en la respuesta
+4. El usuario luego va a Configuracion > Formas de Pago y asigna el tipo correcto
 
-### Archivos nuevos
+#### 2.3 Guardar cod_forma_pago correctamente
+Verificar que COD_FORMA_ del CSV se persista en `ventas.cod_forma_pago`.
 
-3. **`supabase/functions/migrate-regional/index.ts`**
-   - Edge function con service_role
-   - Recibe: `sourceRegionalId`, `targetRegionalId`, `sourceCodRegion`, `targetCodRegion`, `deactivateSource`, `filterMonth`, `filterYear`
-   - Ejecuta updates masivos en ventas y profiles
-   - Retorna conteo de registros migrados
-   - Solo accesible por admin/coordinador_comercial
+---
 
-### Configuracion necesaria
+### Parte 3: UI Configuracion - FormasPagoConfig
 
-4. **`supabase/config.toml`** - Agregar entrada para `migrate-regional` con `verify_jwt = false`
+#### 3.1 Mostrar columna COD_FORMA_ en la tabla
+Agregar columna visible en la tabla de formas de pago mostrando el codigo de referencia.
 
-### Base de datos
+#### 3.2 Campo editable en dialog crear/editar
+Agregar input "COD_FORMA_ (Referencia)" en el formulario de crear y editar forma de pago.
 
-- No se requieren cambios de esquema. Se usan las columnas existentes:
-  - `ventas.cod_region` (integer)
-  - `profiles.regional_id` (uuid)
-  - `regionales.activo` (boolean)
+---
 
-### Orden de implementacion
+### Parte 4: Asesores Inactivos
 
-1. Modificar `CargarVentasTab.tsx` para modo historico
-2. Crear edge function `migrate-regional`
-3. Modificar `RegionalesConfig.tsx` para agregar migracion
+Los CSVs de 2025 contienen asesores que ya no estan en el sistema. El enfoque sera:
+
+- **No se crean usuarios nuevos**: Los asesores de 2025 no necesitan login ni acceso al sistema
+- **Los datos de venta se cargan tal cual**: con `codigo_asesor`, `cedula_asesor`, `asesor_nombre` del CSV
+- **Para graficos y rankings**: Las consultas ya funcionan con joins a `ventas` usando `codigo_asesor`, por lo que los asesores sin perfil activo simplemente apareceran en los informes historicos con su nombre del CSV
+- **Sin cambios necesarios**: El sistema ya muestra `asesor_nombre` de la tabla `ventas` directamente en rankings y graficos, no requiere que exista un perfil activo
+
+---
+
+### Parte 5: Productos y Analisis
+
+Los campos de producto ya existen en la tabla `ventas`:
+- `marca`, `cod_marca` - Marca del producto
+- `linea`, `cod_linea` - Linea de producto  
+- `categoria` - Categoria
+- `producto`, `referencia`, `nombre_corto` - Datos del producto
+
+Estos datos se cargan desde el CSV y quedan almacenados. No se necesitan cambios de esquema. Un futuro analisis por marca/producto puede consultarlos directamente.
+
+---
+
+### Archivos a Modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| Migracion SQL | Agregar columna `cod_forma`, insertar PB01 y PS01, poblar cod_forma existentes |
+| `supabase/functions/load-sales/index.ts` | Normalizacion de caracteres, auto-creacion de codigos, lookup mejorado |
+| `src/components/configuracion/FormasPagoConfig.tsx` | Agregar columna y campo COD_FORMA_ |
+
+### Orden de Ejecucion
+
+1. Ejecutar migracion de base de datos
+2. Actualizar y desplegar edge function `load-sales`
+3. Actualizar UI de FormasPagoConfig
+4. Listo para cargar los CSVs via modo historico (Enero 2025, luego Febrero 2025)
 
