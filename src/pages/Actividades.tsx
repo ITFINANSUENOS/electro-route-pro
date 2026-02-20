@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Camera, List, CheckCircle, MapPin, AlertTriangle } from 'lucide-react';
+import { Camera, List, CheckCircle, MapPin, AlertTriangle, ClipboardList } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -12,6 +12,8 @@ import { ActividadesViewer } from '@/components/actividades/ActividadesViewer';
 import { TodayAssignmentCard } from '@/components/actividades/TodayAssignmentCard';
 import { EvidenceSection } from '@/components/actividades/EvidenceSection';
 import { ConsultasSection } from '@/components/actividades/ConsultasSection';
+import { GroupEvidenceSection } from '@/components/actividades/GroupEvidenceSection';
+import { PlanillasViewer } from '@/components/actividades/PlanillasViewer';
 import { useTodayActivity } from '@/hooks/useTodayActivity';
 import { useActivityTimeRestrictions } from '@/hooks/useActivityTimeRestrictions';
 import { useActivityNotification } from '@/hooks/useActivityNotification';
@@ -33,7 +35,7 @@ export default function Actividades() {
   } = useTodayActivity();
 
   const timeRestrictions = useActivityTimeRestrictions(todayAssignment);
-  const { showNotification: showConsultasNotification, isAsesorComercial: notificationIsAsesor } = useActivityNotification();
+  const { showNotification: showConsultasNotification, isAsesorComercial: notificationIsAsesor, consultasConfig } = useActivityNotification();
 
   // Determine if user can view activity reports
   const canViewReports = role === 'jefe_ventas' || role === 'lider_zona' || 
@@ -125,7 +127,7 @@ export default function Actividades() {
           <AlertTriangle className="h-4 w-4 text-warning" />
           <AlertTitle className="text-warning">Recordatorio Importante</AlertTitle>
           <AlertDescription>
-            Debes registrar tus consultas y solicitudes del día antes de las 9:00 PM
+            Debes registrar tus consultas y solicitudes del día antes de las {consultasConfig.consultasHoraFin}
           </AlertDescription>
         </Alert>
       )}
@@ -144,6 +146,10 @@ export default function Actividades() {
               <List className="h-4 w-4" />
               Ver Actividades
             </TabsTrigger>
+            <TabsTrigger value="planillas" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Ver Planillas
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="registro">
@@ -161,11 +167,16 @@ export default function Actividades() {
               onSubmitConsultas={handleSubmitConsultas}
               isSubmittingEvidence={submitEvidence.isPending}
               isSubmittingConsultas={submitConsultas.isPending}
+              consultasConfig={consultasConfig}
             />
           </TabsContent>
 
           <TabsContent value="ver">
             <ActividadesViewer />
+          </TabsContent>
+
+          <TabsContent value="planillas">
+            <PlanillasViewer />
           </TabsContent>
         </Tabs>
       ) : (
@@ -183,6 +194,7 @@ export default function Actividades() {
           onSubmitConsultas={handleSubmitConsultas}
           isSubmittingEvidence={submitEvidence.isPending}
           isSubmittingConsultas={submitConsultas.isPending}
+          consultasConfig={consultasConfig}
         />
       )}
     </motion.div>
@@ -212,6 +224,7 @@ interface ActivityRegistrationContentProps {
   }) => Promise<void>;
   isSubmittingEvidence: boolean;
   isSubmittingConsultas: boolean;
+  consultasConfig?: any;
 }
 
 function ActivityRegistrationContent({
@@ -228,6 +241,7 @@ function ActivityRegistrationContent({
   onSubmitConsultas,
   isSubmittingEvidence,
   isSubmittingConsultas,
+  consultasConfig,
 }: ActivityRegistrationContentProps) {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -239,7 +253,27 @@ function ActivityRegistrationContent({
 
       {/* Right column - Activity Forms */}
       <div className="lg:col-span-2 space-y-6">
-        {/* Evidence Section - Only for scheduled activities */}
+        {/* Group Evidence Section - for correría and punto fijo */}
+        {hasScheduledActivity && todayAssignment && (todayAssignment.tipo_actividad === 'correria' || todayAssignment.tipo_actividad === 'punto') && (
+          <Card className="card-elevated">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-primary" />
+                Fotos Grupales
+              </CardTitle>
+              <CardDescription>
+                {todayAssignment.tipo_actividad === 'correria'
+                  ? 'Registra las 3 fotos grupales de la correría'
+                  : 'Registra las fotos de apertura y cierre'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GroupEvidenceSection todayAssignment={todayAssignment} />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Evidence Section - GPS only during scheduled hours */}
         {hasScheduledActivity && (
           <Card className="card-elevated">
             <CardHeader>
@@ -247,14 +281,12 @@ function ActivityRegistrationContent({
                 {hasEvidenceSubmitted ? (
                   <CheckCircle className="h-5 w-5 text-success" />
                 ) : (
-                  <Camera className="h-5 w-5 text-primary" />
+                  <MapPin className="h-5 w-5 text-primary" />
                 )}
-                Evidencia de Actividad
+                Ubicación GPS
               </CardTitle>
               <CardDescription>
-                {todayAssignment?.tipo_actividad === 'correria' 
-                  ? 'Registra foto y ubicación GPS para correría'
-                  : 'Marca tu ubicación para punto fijo'}
+                Registra tu ubicación durante el horario de la actividad
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -284,7 +316,7 @@ function ActivityRegistrationContent({
               <CardDescription>
                 {isFreeUser 
                   ? 'Registra las consultas y solicitudes realizadas hoy (opcional)'
-                  : 'Registra las consultas y solicitudes del día (4pm - 9pm)'}
+                  : `Registra las consultas y solicitudes del día (${consultasConfig?.consultasHoraInicio || '12:00'} - ${consultasConfig?.consultasHoraFin || '22:00'})`}
               </CardDescription>
             </CardHeader>
             <CardContent>

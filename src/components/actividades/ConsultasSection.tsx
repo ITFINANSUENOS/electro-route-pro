@@ -56,7 +56,7 @@ export function ConsultasSection({
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Recordatorio</AlertTitle>
           <AlertDescription>
-            Debes registrar tus consultas y solicitudes del día antes de las 9:00 PM
+            Debes registrar tus consultas y solicitudes del día dentro del horario habilitado
           </AlertDescription>
         </Alert>
       )}

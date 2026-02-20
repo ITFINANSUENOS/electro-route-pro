@@ -17,6 +17,18 @@ interface ProgramacionSettings {
   requiere_ubicacion_gps: boolean;
   hora_limite_evidencia: string;
   permitir_evidencia_fuera_horario: boolean;
+  // New photo group settings
+  fotos_grupales_correria_cantidad: number;
+  foto_correria_inicio_desde: string;
+  foto_correria_inicio_hasta: string;
+  foto_correria_intermedio_desde: string;
+  foto_correria_intermedio_hasta: string;
+  foto_correria_cierre_desde: string;
+  foto_correria_cierre_hasta: string;
+  foto_punto_margen_minutos: number;
+  fotos_apertura_cierre_punto: boolean;
+  consultas_hora_inicio: string;
+  consultas_hora_fin: string;
 }
 
 export default function ProgramacionConfig() {
@@ -30,6 +42,17 @@ export default function ProgramacionConfig() {
     requiere_ubicacion_gps: true,
     hora_limite_evidencia: '22:00',
     permitir_evidencia_fuera_horario: false,
+    fotos_grupales_correria_cantidad: 3,
+    foto_correria_inicio_desde: '05:00',
+    foto_correria_inicio_hasta: '09:00',
+    foto_correria_intermedio_desde: '05:00',
+    foto_correria_intermedio_hasta: '19:00',
+    foto_correria_cierre_desde: '16:00',
+    foto_correria_cierre_hasta: '19:00',
+    foto_punto_margen_minutos: 30,
+    fotos_apertura_cierre_punto: true,
+    consultas_hora_inicio: '12:00',
+    consultas_hora_fin: '22:00',
   });
 
   useEffect(() => {
@@ -59,6 +82,17 @@ export default function ProgramacionConfig() {
           requiere_ubicacion_gps: getValue('requiere_ubicacion_gps', 'true') === 'true',
           hora_limite_evidencia: getValue('hora_limite_evidencia', '22:00'),
           permitir_evidencia_fuera_horario: getValue('permitir_evidencia_fuera_horario', 'false') === 'true',
+          fotos_grupales_correria_cantidad: parseInt(getValue('fotos_grupales_correria_cantidad', '3')),
+          foto_correria_inicio_desde: getValue('foto_correria_inicio_desde', '05:00'),
+          foto_correria_inicio_hasta: getValue('foto_correria_inicio_hasta', '09:00'),
+          foto_correria_intermedio_desde: getValue('foto_correria_intermedio_desde', '05:00'),
+          foto_correria_intermedio_hasta: getValue('foto_correria_intermedio_hasta', '19:00'),
+          foto_correria_cierre_desde: getValue('foto_correria_cierre_desde', '16:00'),
+          foto_correria_cierre_hasta: getValue('foto_correria_cierre_hasta', '19:00'),
+          foto_punto_margen_minutos: parseInt(getValue('foto_punto_margen_minutos', '30')),
+          fotos_apertura_cierre_punto: getValue('fotos_apertura_cierre_punto', 'true') === 'true',
+          consultas_hora_inicio: getValue('consultas_hora_inicio', '12:00'),
+          consultas_hora_fin: getValue('consultas_hora_fin', '22:00'),
         });
       }
     } catch (error) {
@@ -96,6 +130,17 @@ export default function ProgramacionConfig() {
         { permiso: 'requiere_ubicacion_gps', valor: settings.requiere_ubicacion_gps.toString() },
         { permiso: 'hora_limite_evidencia', valor: settings.hora_limite_evidencia },
         { permiso: 'permitir_evidencia_fuera_horario', valor: settings.permitir_evidencia_fuera_horario.toString() },
+        { permiso: 'fotos_grupales_correria_cantidad', valor: settings.fotos_grupales_correria_cantidad.toString() },
+        { permiso: 'foto_correria_inicio_desde', valor: settings.foto_correria_inicio_desde },
+        { permiso: 'foto_correria_inicio_hasta', valor: settings.foto_correria_inicio_hasta },
+        { permiso: 'foto_correria_intermedio_desde', valor: settings.foto_correria_intermedio_desde },
+        { permiso: 'foto_correria_intermedio_hasta', valor: settings.foto_correria_intermedio_hasta },
+        { permiso: 'foto_correria_cierre_desde', valor: settings.foto_correria_cierre_desde },
+        { permiso: 'foto_correria_cierre_hasta', valor: settings.foto_correria_cierre_hasta },
+        { permiso: 'foto_punto_margen_minutos', valor: settings.foto_punto_margen_minutos.toString() },
+        { permiso: 'fotos_apertura_cierre_punto', valor: settings.fotos_apertura_cierre_punto.toString() },
+        { permiso: 'consultas_hora_inicio', valor: settings.consultas_hora_inicio },
+        { permiso: 'consultas_hora_fin', valor: settings.consultas_hora_fin },
       ];
 
       for (const setting of settingsToSave) {
@@ -327,6 +372,142 @@ export default function ProgramacionConfig() {
             <p className="text-sm text-muted-foreground">
               Después de esta hora no se podrá subir evidencia del día
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Fotos Grupales - Correría */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Fotos Grupales - Correría
+          </CardTitle>
+          <CardDescription>
+            Ventanas de tiempo para las fotos grupales obligatorias en correrías
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label>Cantidad de fotos obligatorias</Label>
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              value={settings.fotos_grupales_correria_cantidad}
+              onChange={(e) => setSettings({ ...settings, fotos_grupales_correria_cantidad: parseInt(e.target.value) || 3 })}
+              className="w-24"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Foto Inicio - Desde</Label>
+              <Input type="time" value={settings.foto_correria_inicio_desde}
+                onChange={(e) => setSettings({ ...settings, foto_correria_inicio_desde: e.target.value })} className="w-40" />
+            </div>
+            <div className="space-y-2">
+              <Label>Foto Inicio - Hasta</Label>
+              <Input type="time" value={settings.foto_correria_inicio_hasta}
+                onChange={(e) => setSettings({ ...settings, foto_correria_inicio_hasta: e.target.value })} className="w-40" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Foto Instalación - Desde</Label>
+              <Input type="time" value={settings.foto_correria_intermedio_desde}
+                onChange={(e) => setSettings({ ...settings, foto_correria_intermedio_desde: e.target.value })} className="w-40" />
+            </div>
+            <div className="space-y-2">
+              <Label>Foto Instalación - Hasta</Label>
+              <Input type="time" value={settings.foto_correria_intermedio_hasta}
+                onChange={(e) => setSettings({ ...settings, foto_correria_intermedio_hasta: e.target.value })} className="w-40" />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Foto Cierre - Desde</Label>
+              <Input type="time" value={settings.foto_correria_cierre_desde}
+                onChange={(e) => setSettings({ ...settings, foto_correria_cierre_desde: e.target.value })} className="w-40" />
+            </div>
+            <div className="space-y-2">
+              <Label>Foto Cierre - Hasta</Label>
+              <Input type="time" value={settings.foto_correria_cierre_hasta}
+                onChange={(e) => setSettings({ ...settings, foto_correria_cierre_hasta: e.target.value })} className="w-40" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Fotos Punto Fijo */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Fotos Punto Fijo
+          </CardTitle>
+          <CardDescription>
+            Configuración de fotos de apertura y cierre para puntos fijos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Requerir fotos de apertura y cierre</Label>
+              <p className="text-sm text-muted-foreground">
+                Los asesores deben tomar foto desde adentro al abrir y cerrar
+              </p>
+            </div>
+            <Switch
+              checked={settings.fotos_apertura_cierre_punto}
+              onCheckedChange={(checked) => setSettings({ ...settings, fotos_apertura_cierre_punto: checked })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Margen de tiempo (minutos)</Label>
+            <Input
+              type="number"
+              min={10}
+              max={120}
+              value={settings.foto_punto_margen_minutos}
+              onChange={(e) => setSettings({ ...settings, foto_punto_margen_minutos: parseInt(e.target.value) || 30 })}
+              className="w-24"
+            />
+            <p className="text-sm text-muted-foreground">
+              Margen antes y después de la hora programada para subir la foto
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Horario de Consultas */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Horario de Consultas y Solicitudes
+          </CardTitle>
+          <CardDescription>
+            Ventana de tiempo para que los asesores registren consultas y solicitudes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Hora de inicio</Label>
+              <Input type="time" value={settings.consultas_hora_inicio}
+                onChange={(e) => setSettings({ ...settings, consultas_hora_inicio: e.target.value })} className="w-40" />
+            </div>
+            <div className="space-y-2">
+              <Label>Hora de fin</Label>
+              <Input type="time" value={settings.consultas_hora_fin}
+                onChange={(e) => setSettings({ ...settings, consultas_hora_fin: e.target.value })} className="w-40" />
+            </div>
           </div>
         </CardContent>
       </Card>

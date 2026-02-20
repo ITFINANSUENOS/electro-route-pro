@@ -159,6 +159,57 @@ export type Database = {
         }
         Relationships: []
       }
+      evidencia_grupal: {
+        Row: {
+          created_at: string | null
+          fecha: string
+          foto_url: string
+          gps_latitud: number | null
+          gps_longitud: number | null
+          hora_fin: string | null
+          hora_inicio: string | null
+          id: string
+          municipio: string
+          nombre_actividad: string | null
+          notas: string | null
+          subido_por: string
+          tipo_actividad: string
+          tipo_foto: string
+        }
+        Insert: {
+          created_at?: string | null
+          fecha: string
+          foto_url: string
+          gps_latitud?: number | null
+          gps_longitud?: number | null
+          hora_fin?: string | null
+          hora_inicio?: string | null
+          id?: string
+          municipio: string
+          nombre_actividad?: string | null
+          notas?: string | null
+          subido_por: string
+          tipo_actividad: string
+          tipo_foto: string
+        }
+        Update: {
+          created_at?: string | null
+          fecha?: string
+          foto_url?: string
+          gps_latitud?: number | null
+          gps_longitud?: number | null
+          hora_fin?: string | null
+          hora_inicio?: string | null
+          id?: string
+          municipio?: string
+          nombre_actividad?: string | null
+          notas?: string | null
+          subido_por?: string
+          tipo_actividad?: string
+          tipo_foto?: string
+        }
+        Relationships: []
+      }
       formas_pago: {
         Row: {
           activo: boolean | null

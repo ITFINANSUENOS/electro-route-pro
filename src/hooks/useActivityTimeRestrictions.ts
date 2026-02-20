@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { format } from 'date-fns';
+import { useConsultasConfig } from './useConsultasConfig';
 
 interface ActivitySchedule {
   hora_inicio: string | null;
@@ -8,16 +8,11 @@ interface ActivitySchedule {
 }
 
 interface TimeRestrictions {
-  // Evidence (photo + GPS) time window
   canUploadEvidence: boolean;
   evidenceTimeMessage: string;
-  
-  // Consultas/Solicitudes time window (4pm-9pm)
   canUploadConsultas: boolean;
   consultasTimeMessage: string;
   isInConsultasWindow: boolean;
-  
-  // Current time info
   currentHour: number;
   currentMinutes: number;
 }
@@ -25,29 +20,44 @@ interface TimeRestrictions {
 export function useActivityTimeRestrictions(
   todayAssignment: ActivitySchedule | null
 ): TimeRestrictions {
+  const consultasConfig = useConsultasConfig();
+
   return useMemo(() => {
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
     const currentTimeString = `${String(currentHour).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
 
-    // Consultas/Solicitudes window: 4pm (16:00) to 9pm (21:00)
-    const consultasStartHour = 16;
-    const consultasEndHour = 21;
-    const isInConsultasWindow = currentHour >= consultasStartHour && currentHour < consultasEndHour;
-    
-    let canUploadConsultas = isInConsultasWindow;
+    // Dynamic consultas window from config
+    const consultasStartHour = consultasConfig.consultasStartHour;
+    const consultasStartMin = consultasConfig.consultasStartMinutes;
+    const consultasEndHour = consultasConfig.consultasEndHour;
+    const consultasEndMin = consultasConfig.consultasEndMinutes;
+
+    const currentTotalMin = currentHour * 60 + currentMinutes;
+    const consultasStartTotalMin = consultasStartHour * 60 + consultasStartMin;
+    const consultasEndTotalMin = consultasEndHour * 60 + consultasEndMin;
+
+    const isInConsultasWindow = currentTotalMin >= consultasStartTotalMin && currentTotalMin < consultasEndTotalMin;
+
+    const canUploadConsultas = isInConsultasWindow;
     let consultasTimeMessage = '';
-    
-    if (currentHour < consultasStartHour) {
-      consultasTimeMessage = `Las consultas y solicitudes se pueden registrar desde las 4:00 PM`;
-    } else if (currentHour >= consultasEndHour) {
-      consultasTimeMessage = `El horario para registrar consultas y solicitudes ha terminado (hasta 9:00 PM)`;
+
+    const formatHour = (h: number, m: number) => {
+      const period = h >= 12 ? 'PM' : 'AM';
+      const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      return m > 0 ? `${displayH}:${String(m).padStart(2, '0')} ${period}` : `${displayH}:00 ${period}`;
+    };
+
+    if (currentTotalMin < consultasStartTotalMin) {
+      consultasTimeMessage = `Las consultas y solicitudes se pueden registrar desde las ${formatHour(consultasStartHour, consultasStartMin)}`;
+    } else if (currentTotalMin >= consultasEndTotalMin) {
+      consultasTimeMessage = `El horario para registrar consultas y solicitudes ha terminado (hasta ${formatHour(consultasEndHour, consultasEndMin)})`;
     } else {
-      consultasTimeMessage = `Horario habilitado hasta las 9:00 PM`;
+      consultasTimeMessage = `Horario habilitado hasta las ${formatHour(consultasEndHour, consultasEndMin)}`;
     }
 
-    // Evidence time window based on activity schedule
+    // Evidence time window based on activity schedule (GPS restricted to scheduled hours)
     let canUploadEvidence = false;
     let evidenceTimeMessage = '';
 
@@ -55,25 +65,23 @@ export function useActivityTimeRestrictions(
       evidenceTimeMessage = 'No tienes actividad programada para hoy';
       canUploadEvidence = false;
     } else if (todayAssignment.hora_inicio && todayAssignment.hora_fin) {
-      const activityStart = todayAssignment.hora_inicio.slice(0, 5); // "HH:MM"
+      const activityStart = todayAssignment.hora_inicio.slice(0, 5);
       const activityEnd = todayAssignment.hora_fin.slice(0, 5);
-      
-      // Compare time strings
+
       const isAfterStart = currentTimeString >= activityStart;
       const isBeforeEnd = currentTimeString <= activityEnd;
-      
+
       if (!isAfterStart) {
-        evidenceTimeMessage = `La evidencia se puede registrar desde las ${activityStart}`;
+        evidenceTimeMessage = `La ubicación GPS se puede registrar desde las ${activityStart}`;
         canUploadEvidence = false;
       } else if (!isBeforeEnd) {
-        evidenceTimeMessage = `El horario para registrar evidencia ha terminado (hasta ${activityEnd})`;
+        evidenceTimeMessage = `El horario para registrar ubicación GPS ha terminado (hasta ${activityEnd})`;
         canUploadEvidence = false;
       } else {
-        evidenceTimeMessage = `Horario habilitado hasta las ${activityEnd}`;
+        evidenceTimeMessage = `Ubicación GPS habilitada hasta las ${activityEnd}`;
         canUploadEvidence = true;
       }
     } else {
-      // No specific hours set, allow all day
       canUploadEvidence = true;
       evidenceTimeMessage = 'Horario habilitado todo el día';
     }
@@ -87,14 +95,15 @@ export function useActivityTimeRestrictions(
       currentHour,
       currentMinutes,
     };
-  }, [todayAssignment]);
+  }, [todayAssignment, consultasConfig]);
 }
 
-// Utility to check if notification should be shown
 export function shouldShowConsultasNotification(
   currentHour: number,
-  hasSubmittedConsultasToday: boolean
+  hasSubmittedConsultasToday: boolean,
+  consultasStartHour: number = 12,
+  consultasEndHour: number = 22
 ): boolean {
-  const isInWindow = currentHour >= 16 && currentHour < 21;
+  const isInWindow = currentHour >= consultasStartHour && currentHour < consultasEndHour;
   return isInWindow && !hasSubmittedConsultasToday;
 }
