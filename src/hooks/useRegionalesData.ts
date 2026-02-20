@@ -96,26 +96,27 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ['regionales-sales', selectedMonth, selectedYear],
     queryFn: async () => {
-      // Fetch current+prev month range
-      const currentPrevData = await fetchAllPaginated((page, pageSize) =>
-        dataService
-          .from('ventas')
-          .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cantidad, cliente_identificacion')
-          .gte('fecha', prevStart)
-          .lte('fecha', currentEnd)
-          .neq('tipo_venta', 'OTROS')
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-      );
-      // Fetch prev year same month
-      const prevYearData = await fetchAllPaginated((page, pageSize) =>
-        dataService
-          .from('ventas')
-          .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cantidad, cliente_identificacion')
-          .gte('fecha', prevYearStart)
-          .lte('fecha', prevYearEnd)
-          .neq('tipo_venta', 'OTROS')
-          .range(page * pageSize, (page + 1) * pageSize - 1)
-      );
+      // Fetch both ranges IN PARALLEL
+      const [currentPrevData, prevYearData] = await Promise.all([
+        fetchAllPaginated((page, pageSize) =>
+          dataService
+            .from('ventas')
+            .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+            .gte('fecha', prevStart)
+            .lte('fecha', currentEnd)
+            .neq('tipo_venta', 'OTROS')
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+        ),
+        fetchAllPaginated((page, pageSize) =>
+          dataService
+            .from('ventas')
+            .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+            .gte('fecha', prevYearStart)
+            .lte('fecha', prevYearEnd)
+            .neq('tipo_venta', 'OTROS')
+            .range(page * pageSize, (page + 1) * pageSize - 1)
+        ),
+      ]);
       return { currentPrevData, prevYearData };
     },
     enabled: !!regionales && !!profiles,
