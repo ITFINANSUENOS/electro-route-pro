@@ -59,8 +59,8 @@ serve(async (req) => {
       sourceCodRegion,
       targetCodRegion,
       deactivateSource,
-      filterMonth,
-      filterYear,
+      fechaEfectiva,
+      notas,
       mode, // 'count' or 'execute'
     } = body;
 
@@ -71,27 +71,11 @@ serve(async (req) => {
       );
     }
 
-    // Build date filter for ventas if period specified
-    let dateFilter: { gte?: string; lte?: string } | null = null;
-    if (filterMonth && filterYear) {
-      const lastDay = new Date(filterYear, filterMonth, 0).getDate();
-      dateFilter = {
-        gte: `${filterYear}-${String(filterMonth).padStart(2, "0")}-01`,
-        lte: `${filterYear}-${String(filterMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
-      };
-    }
-
-    // Count affected records
-    let ventasQuery = supabase
+    // Count affected records for impact preview
+    const { count: ventasCount } = await supabase
       .from("ventas")
       .select("*", { count: "exact", head: true })
       .eq("cod_region", sourceCodRegion);
-
-    if (dateFilter) {
-      ventasQuery = ventasQuery.gte("fecha", dateFilter.gte!).lte("fecha", dateFilter.lte!);
-    }
-
-    const { count: ventasCount } = await ventasQuery;
 
     const { count: profilesCount } = await supabase
       .from("profiles")
@@ -99,53 +83,53 @@ serve(async (req) => {
       .eq("regional_id", sourceRegionalId);
 
     if (mode === "count") {
+      // Check if mapping already exists
+      const { data: existingMapping } = await supabase
+        .from("regional_mappings")
+        .select("id")
+        .eq("source_cod_region", sourceCodRegion)
+        .eq("activo", true)
+        .maybeSingle();
+
       return new Response(
         JSON.stringify({
           success: true,
           ventasCount: ventasCount || 0,
           profilesCount: profilesCount || 0,
+          existingMapping: !!existingMapping,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Execute migration
-    console.log(`Migrating regional ${sourceCodRegion} -> ${targetCodRegion} by user ${user.id}`);
+    // Execute: create mapping (NOT modify original data)
+    console.log(`Creating regional mapping ${sourceCodRegion} -> ${targetCodRegion} by user ${user.id}`);
 
-    // 1. Update ventas
-    let updateVentasQuery = supabase
-      .from("ventas")
-      .update({ cod_region: targetCodRegion })
-      .eq("cod_region", sourceCodRegion);
+    // 1. Insert mapping record
+    const { data: mapping, error: mappingError } = await supabase
+      .from("regional_mappings")
+      .insert({
+        source_cod_region: sourceCodRegion,
+        target_cod_region: targetCodRegion,
+        source_regional_id: sourceRegionalId,
+        target_regional_id: targetRegionalId,
+        fecha_efectiva: fechaEfectiva || new Date().toISOString().split("T")[0],
+        notas: notas || `Consolidación: regional ${sourceCodRegion} → ${targetCodRegion}`,
+        creado_por: user.id,
+        activo: true,
+      })
+      .select()
+      .single();
 
-    if (dateFilter) {
-      updateVentasQuery = updateVentasQuery.gte("fecha", dateFilter.gte!).lte("fecha", dateFilter.lte!);
-    }
-
-    const { error: ventasError } = await updateVentasQuery;
-    if (ventasError) {
-      console.error("Error updating ventas:", ventasError.message);
+    if (mappingError) {
+      console.error("Error creating mapping:", mappingError.message);
       return new Response(
-        JSON.stringify({ error: `Error migrando ventas: ${ventasError.message}` }),
+        JSON.stringify({ error: `Error creando mapeo: ${mappingError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 2. Update profiles (always all, not filtered by date)
-    const { error: profilesError } = await supabase
-      .from("profiles")
-      .update({ regional_id: targetRegionalId })
-      .eq("regional_id", sourceRegionalId);
-
-    if (profilesError) {
-      console.error("Error updating profiles:", profilesError.message);
-      return new Response(
-        JSON.stringify({ error: `Error migrando perfiles: ${profilesError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 3. Optionally deactivate source regional
+    // 2. Optionally deactivate source regional
     if (deactivateSource) {
       const { error: deactivateError } = await supabase
         .from("regionales")
@@ -157,22 +141,24 @@ serve(async (req) => {
       }
     }
 
-    // 4. Log in historial_ediciones
+    // 3. Log in historial_ediciones
     await supabase.from("historial_ediciones").insert({
-      tabla: "regionales",
-      registro_id: sourceRegionalId,
-      campo_editado: "migracion_regional",
+      tabla: "regional_mappings",
+      registro_id: mapping.id,
+      campo_editado: "creacion_mapeo",
       valor_anterior: `Regional ${sourceCodRegion}`,
-      valor_nuevo: `Migrado a regional ${targetCodRegion}. Ventas: ${ventasCount || 0}, Perfiles: ${profilesCount || 0}${dateFilter ? ` (periodo: ${filterMonth}/${filterYear})` : " (todos)"}`,
+      valor_nuevo: `Mapeado a regional ${targetCodRegion}. Ventas afectadas: ${ventasCount || 0}, Perfiles: ${profilesCount || 0}. Datos originales preservados.`,
       modificado_por: user.id,
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        ventasMigrated: ventasCount || 0,
-        profilesMigrated: profilesCount || 0,
+        mappingId: mapping.id,
+        ventasAffected: ventasCount || 0,
+        profilesAffected: profilesCount || 0,
         deactivated: !!deactivateSource,
+        message: "Mapeo creado exitosamente. Los datos originales se preservan.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

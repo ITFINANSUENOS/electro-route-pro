@@ -3,6 +3,7 @@ import { dataService } from "@/services";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, Info, Shield } from "lucide-react";
 
 interface Regional {
   id: string;
@@ -48,11 +49,6 @@ interface MigrateRegionalDialogProps {
   onMigrationComplete: () => void;
 }
 
-const MONTH_NAMES = [
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-];
-
 export function MigrateRegionalDialog({
   open,
   onOpenChange,
@@ -62,10 +58,9 @@ export function MigrateRegionalDialog({
 }: MigrateRegionalDialogProps) {
   const [targetRegionalId, setTargetRegionalId] = useState<string>("");
   const [deactivateSource, setDeactivateSource] = useState(true);
-  const [filterByPeriod, setFilterByPeriod] = useState(false);
-  const [filterMonth, setFilterMonth] = useState<number>(1);
-  const [filterYear, setFilterYear] = useState<number>(2025);
-  const [impactData, setImpactData] = useState<{ ventasCount: number; profilesCount: number } | null>(null);
+  const [fechaEfectiva, setFechaEfectiva] = useState(new Date().toISOString().split("T")[0]);
+  const [notas, setNotas] = useState("");
+  const [impactData, setImpactData] = useState<{ ventasCount: number; profilesCount: number; existingMapping: boolean } | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -76,7 +71,6 @@ export function MigrateRegionalDialog({
 
   const targetRegional = allRegionales.find((r) => r.id === targetRegionalId);
 
-  // Fetch impact count when target changes
   useEffect(() => {
     if (!targetRegionalId || !open) {
       setImpactData(null);
@@ -95,15 +89,12 @@ export function MigrateRegionalDialog({
             targetRegionalId,
             sourceCodRegion: sourceRegional.codigo,
             targetCodRegion: target.codigo,
-            deactivateSource,
-            filterMonth: filterByPeriod ? filterMonth : null,
-            filterYear: filterByPeriod ? filterYear : null,
             mode: "count",
           },
         });
 
         if (error) throw error;
-        setImpactData(data as { ventasCount: number; profilesCount: number });
+        setImpactData(data as { ventasCount: number; profilesCount: number; existingMapping: boolean });
       } catch (error) {
         console.error("Error fetching impact:", error);
         toast.error("Error consultando impacto");
@@ -113,7 +104,7 @@ export function MigrateRegionalDialog({
     };
 
     fetchImpact();
-  }, [targetRegionalId, filterByPeriod, filterMonth, filterYear, open]);
+  }, [targetRegionalId, open]);
 
   const handleMigrate = async () => {
     setShowConfirm(false);
@@ -128,24 +119,24 @@ export function MigrateRegionalDialog({
           sourceCodRegion: sourceRegional.codigo,
           targetCodRegion: targetRegional.codigo,
           deactivateSource,
-          filterMonth: filterByPeriod ? filterMonth : null,
-          filterYear: filterByPeriod ? filterYear : null,
+          fechaEfectiva,
+          notas,
           mode: "execute",
         },
       });
 
       if (error) throw error;
 
-      const result = data as { ventasMigrated: number; profilesMigrated: number; deactivated: boolean };
+      const result = data as { ventasAffected: number; profilesAffected: number; deactivated: boolean };
       toast.success(
-        `Migración completada: ${result.ventasMigrated} ventas y ${result.profilesMigrated} perfiles migrados${result.deactivated ? ". Regional desactivada." : "."}`
+        `Mapeo creado: ${result.ventasAffected} ventas y ${result.profilesAffected} perfiles consolidados lógicamente${result.deactivated ? ". Regional desactivada." : "."}`
       );
 
       onOpenChange(false);
       onMigrationComplete();
     } catch (error) {
       console.error("Migration error:", error);
-      toast.error((error as Error).message || "Error en la migración");
+      toast.error((error as Error).message || "Error creando mapeo");
     } finally {
       setMigrating(false);
     }
@@ -154,7 +145,8 @@ export function MigrateRegionalDialog({
   const resetState = () => {
     setTargetRegionalId("");
     setDeactivateSource(true);
-    setFilterByPeriod(false);
+    setFechaEfectiva(new Date().toISOString().split("T")[0]);
+    setNotas("");
     setImpactData(null);
   };
 
@@ -169,14 +161,13 @@ export function MigrateRegionalDialog({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Migrar Regional</DialogTitle>
+            <DialogTitle>Consolidar Regional</DialogTitle>
             <DialogDescription>
-              Reasignar datos de <strong>{sourceRegional.nombre} (Código {sourceRegional.codigo})</strong> a otra regional.
+              Crear mapeo lógico de <strong>{sourceRegional.nombre} (Código {sourceRegional.codigo})</strong> hacia otra regional. Los datos originales se preservan.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            {/* Target selector */}
             <div className="grid gap-2">
               <Label>Regional Destino *</Label>
               <Select value={targetRegionalId} onValueChange={setTargetRegionalId}>
@@ -193,45 +184,27 @@ export function MigrateRegionalDialog({
               </Select>
             </div>
 
-            {/* Period filter */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="filter-period"
-                  checked={filterByPeriod}
-                  onCheckedChange={(v) => setFilterByPeriod(!!v)}
-                />
-                <Label htmlFor="filter-period" className="cursor-pointer">
-                  Solo migrar ventas de un período específico
-                </Label>
-              </div>
-
-              {filterByPeriod && (
-                <div className="flex gap-2 ml-6">
-                  <Select value={String(filterMonth)} onValueChange={(v) => setFilterMonth(parseInt(v))}>
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MONTH_NAMES.map((name, idx) => (
-                        <SelectItem key={idx} value={String(idx + 1)}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={String(filterYear)} onValueChange={(v) => setFilterYear(parseInt(v))}>
-                    <SelectTrigger className="w-[90px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2025">2025</SelectItem>
-                      <SelectItem value="2026">2026</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+            <div className="grid gap-2">
+              <Label>Fecha efectiva</Label>
+              <Input
+                type="date"
+                value={fechaEfectiva}
+                onChange={(e) => setFechaEfectiva(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Desde qué fecha aplica la consolidación en los reportes
+              </p>
             </div>
 
-            {/* Deactivate checkbox */}
+            <div className="grid gap-2">
+              <Label>Notas (opcional)</Label>
+              <Input
+                placeholder="Ej: Puerto Tejada se fusiona con Santander"
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+              />
+            </div>
+
             <div className="flex items-center gap-2">
               <Checkbox
                 id="deactivate"
@@ -239,7 +212,7 @@ export function MigrateRegionalDialog({
                 onCheckedChange={(v) => setDeactivateSource(!!v)}
               />
               <Label htmlFor="deactivate" className="cursor-pointer">
-                Desactivar regional origen después de migrar
+                Desactivar regional origen
               </Label>
             </div>
 
@@ -253,26 +226,34 @@ export function MigrateRegionalDialog({
                     <span className="text-sm text-muted-foreground">Calculando...</span>
                   </div>
                 ) : impactData ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-2xl font-bold">{impactData.ventasCount.toLocaleString("es-CO")}</p>
-                      <p className="text-xs text-muted-foreground">
-                        registros de ventas{filterByPeriod ? ` (${MONTH_NAMES[filterMonth - 1]} ${filterYear})` : ""}
-                      </p>
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-2xl font-bold">{impactData.ventasCount.toLocaleString("es-CO")}</p>
+                        <p className="text-xs text-muted-foreground">registros de ventas</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{impactData.profilesCount.toLocaleString("es-CO")}</p>
+                        <p className="text-xs text-muted-foreground">perfiles de asesores</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">{impactData.profilesCount.toLocaleString("es-CO")}</p>
-                      <p className="text-xs text-muted-foreground">perfiles de asesores</p>
-                    </div>
-                  </div>
+                    {impactData.existingMapping && (
+                      <Alert className="border-warning bg-warning/10">
+                        <Info className="h-4 w-4 text-warning" />
+                        <AlertDescription className="text-sm">
+                          Ya existe un mapeo activo para esta regional.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
                 ) : null}
               </div>
             )}
 
-            <Alert className="border-warning bg-warning/10">
-              <AlertTriangle className="h-4 w-4 text-warning" />
+            <Alert className="border-primary/30 bg-primary/5">
+              <Shield className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
-                Esta acción es irreversible. Todos los datos seleccionados serán reasignados permanentemente.
+                <strong>Datos preservados:</strong> Este mapeo es lógico y reversible. Los registros originales de ventas no se modifican. Puedes desactivar el mapeo en cualquier momento.
               </AlertDescription>
             </Alert>
           </div>
@@ -282,32 +263,33 @@ export function MigrateRegionalDialog({
               Cancelar
             </Button>
             <Button
-              variant="destructive"
               onClick={() => setShowConfirm(true)}
               disabled={!targetRegionalId || migrating || loadingImpact}
             >
               {migrating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Migrar Regional
+              Crear Mapeo
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation dialog */}
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Confirmar migración?</AlertDialogTitle>
+            <AlertDialogTitle>¿Confirmar consolidación?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se migrarán {impactData?.ventasCount || 0} registros de ventas y {impactData?.profilesCount || 0} perfiles
-              de <strong>{sourceRegional.nombre}</strong> a <strong>{targetRegional?.nombre}</strong>.
+              Se creará un mapeo lógico: los {impactData?.ventasCount || 0} registros de ventas de{" "}
+              <strong>{sourceRegional.nombre}</strong> se consolidarán bajo{" "}
+              <strong>{targetRegional?.nombre}</strong> en los reportes.
               {deactivateSource && " La regional origen será desactivada."}
+              <br /><br />
+              <strong>Este mapeo es reversible</strong> — puedes desactivarlo desde la gestión de mapeos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleMigrate} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Confirmar Migración
+            <AlertDialogAction onClick={handleMigrate}>
+              Confirmar Mapeo
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

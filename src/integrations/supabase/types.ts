@@ -621,6 +621,63 @@ export type Database = {
         }
         Relationships: []
       }
+      regional_mappings: {
+        Row: {
+          activo: boolean
+          creado_por: string | null
+          created_at: string
+          fecha_efectiva: string
+          fecha_fin: string | null
+          id: string
+          notas: string | null
+          source_cod_region: number
+          source_regional_id: string
+          target_cod_region: number
+          target_regional_id: string
+        }
+        Insert: {
+          activo?: boolean
+          creado_por?: string | null
+          created_at?: string
+          fecha_efectiva?: string
+          fecha_fin?: string | null
+          id?: string
+          notas?: string | null
+          source_cod_region: number
+          source_regional_id: string
+          target_cod_region: number
+          target_regional_id: string
+        }
+        Update: {
+          activo?: boolean
+          creado_por?: string | null
+          created_at?: string
+          fecha_efectiva?: string
+          fecha_fin?: string | null
+          id?: string
+          notas?: string | null
+          source_cod_region?: number
+          source_regional_id?: string
+          target_cod_region?: number
+          target_regional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regional_mappings_source_regional_id_fkey"
+            columns: ["source_regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regional_mappings_target_regional_id_fkey"
+            columns: ["target_regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       regionales: {
         Row: {
           activo: boolean | null
@@ -946,6 +1003,14 @@ export type Database = {
           p_start_date: string
         }
         Returns: number
+      }
+      get_effective_cod_region: {
+        Args: { p_cod_region: number; p_fecha?: string }
+        Returns: number
+      }
+      get_effective_regional_id: {
+        Args: { p_fecha?: string; p_regional_id: string }
+        Returns: string
       }
       get_top_regional_sales: {
         Args: {
