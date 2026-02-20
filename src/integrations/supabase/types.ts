@@ -213,6 +213,7 @@ export type Database = {
       formas_pago: {
         Row: {
           activo: boolean | null
+          cod_forma: string | null
           codigo: string
           created_at: string
           id: string
@@ -221,6 +222,7 @@ export type Database = {
         }
         Insert: {
           activo?: boolean | null
+          cod_forma?: string | null
           codigo: string
           created_at?: string
           id?: string
@@ -229,6 +231,7 @@ export type Database = {
         }
         Update: {
           activo?: boolean | null
+          cod_forma?: string | null
           codigo?: string
           created_at?: string
           id?: string

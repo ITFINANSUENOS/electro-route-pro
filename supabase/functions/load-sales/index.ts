@@ -26,7 +26,6 @@ const MAX_LENGTHS = {
 function sanitizeCSVField(value: string | null | undefined): string {
   if (!value) return '';
   const trimmed = value.trim();
-  // Strip dangerous formula characters from start to prevent CSV injection
   return trimmed.replace(/^[=+\-@\t\r]+/, '');
 }
 
@@ -34,6 +33,19 @@ function truncateField(value: string | null | undefined, maxLength: number): str
   if (!value) return '';
   const sanitized = sanitizeCSVField(value);
   return sanitized.slice(0, maxLength);
+}
+
+/**
+ * Normalize text for comparison: remove accents, non-ASCII chars (like corrupted ñ → Ð),
+ * so "FINANSUEÐOS" and "FINANSUEÑOS" both become "FINANSUENOS".
+ */
+function normalizeForComparison(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')   // strip combining diacritical marks
+    .replace(/[^\x20-\x7E]/g, '')      // strip non-ASCII (Ð, ñ remnants, etc.)
+    .toUpperCase()
+    .trim();
 }
 
 const HEADER_MAP: Record<string, string> = {
@@ -149,8 +161,15 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return result;
 }
 
+/**
+ * Build payment type lookup with normalized keys for encoding-resilient matching.
+ * Returns two maps: one with normalized keys, one with original keys for reference.
+ */
 // deno-lint-ignore no-explicit-any
-async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string>> {
+async function buildPaymentTypeLookup(supabase: any): Promise<{ 
+  normalizedLookup: Map<string, string>;
+  originalLookup: Map<string, string>;
+}> {
   const { data, error } = await supabase
     .from('formas_pago')
     .select('codigo, tipo_venta')
@@ -158,30 +177,49 @@ async function buildPaymentTypeLookup(supabase: any): Promise<Map<string, string
   
   if (error) {
     console.error("Error fetching formas_pago:", error.message);
-    return new Map();
+    return { normalizedLookup: new Map(), originalLookup: new Map() };
   }
   
-  const lookup = new Map<string, string>();
+  const normalizedLookup = new Map<string, string>();
+  const originalLookup = new Map<string, string>();
+  
   if (data && Array.isArray(data)) {
     for (const fp of data) {
       if (fp.codigo && fp.tipo_venta) {
-        lookup.set(String(fp.codigo).toUpperCase().trim(), String(fp.tipo_venta));
+        const original = String(fp.codigo).toUpperCase().trim();
+        const normalized = normalizeForComparison(fp.codigo);
+        originalLookup.set(original, String(fp.tipo_venta));
+        normalizedLookup.set(normalized, String(fp.tipo_venta));
       }
     }
   }
-  return lookup;
+  return { normalizedLookup, originalLookup };
 }
 
-function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<string, string>): string | null {
-  const forma1 = (forma1Pago || '').toUpperCase().trim();
+function deriveTipoVenta(
+  forma1Pago: string, 
+  formaPago: string, 
+  normalizedLookup: Map<string, string>,
+  originalLookup: Map<string, string>
+): string | null {
+  const forma1Upper = (forma1Pago || '').toUpperCase().trim();
+  const forma1Normalized = normalizeForComparison(forma1Pago || '');
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  if (lookup.has(forma1)) return lookup.get(forma1)!;
+  // 1. Exact match on original key
+  if (originalLookup.has(forma1Upper)) return originalLookup.get(forma1Upper)!;
   
-  for (const [codigo, tipoVenta] of lookup.entries()) {
-    if (forma1.includes(codigo) || codigo.includes(forma1)) return tipoVenta;
+  // 2. Normalized match (handles encoding issues like FINANSUEÐOS vs FINANSUEÑOS)
+  if (normalizedLookup.has(forma1Normalized)) return normalizedLookup.get(forma1Normalized)!;
+  
+  // 3. Partial match on normalized keys
+  for (const [normalizedKey, tipoVenta] of normalizedLookup.entries()) {
+    if (forma1Normalized.includes(normalizedKey) || normalizedKey.includes(forma1Normalized)) {
+      return tipoVenta;
+    }
   }
   
+  // 4. Fallback to FORMAPAGO general classification
   if (formaGeneral === 'CONTADO') return 'CONTADO';
   if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
   if (formaGeneral === 'CREDITO') return 'CREDITO';
@@ -191,15 +229,11 @@ function deriveTipoVenta(forma1Pago: string, formaPago: string, lookup: Map<stri
   return null;
 }
 
-/**
- * Detect the target month/year from parsed dates in the CSV.
- * Returns the month/year that has the most records.
- */
 function detectTargetPeriod(dates: string[]): { month: number; year: number } {
   const counts = new Map<string, number>();
   for (const d of dates) {
     if (!d) continue;
-    const key = d.substring(0, 7); // YYYY-MM
+    const key = d.substring(0, 7);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   
@@ -227,7 +261,6 @@ serve(async (req) => {
   }
 
   try {
-    // Use service role key to bypass RLS for reliable delete + insert
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
     });
@@ -264,7 +297,6 @@ serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    // --- End Auth ---
 
     console.log(`Loading sales data by user ${requestingUser.id} (role: ${roleData.role})`);
 
@@ -282,7 +314,7 @@ serve(async (req) => {
       );
     }
 
-    const paymentTypeLookup = await buildPaymentTypeLookup(supabase);
+    const { normalizedLookup, originalLookup } = await buildPaymentTypeLookup(supabase);
 
     const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
     if (lines.length < 2) {
@@ -315,6 +347,9 @@ serve(async (req) => {
     const parsedDates: string[] = [];
     const dataRows = lines.slice(1);
     let invalidRows = 0;
+    const newCodesCreated: string[] = [];
+    // Track codes already auto-created in this run to avoid duplicate inserts
+    const autoCreatedCodes = new Set<string>();
 
     for (const line of dataRows) {
       if (!line.trim()) continue;
@@ -351,7 +386,6 @@ serve(async (req) => {
       }
 
       // Resolve "GENERAL" asesor name: append SEDE to differentiate by regional
-      // e.g. "GENERAL" + SEDE="POPAYAN" → "GENERAL POPAYAN"
       const asesorNombre = ((venta.asesor_nombre as string) || '').trim().toUpperCase();
       if (asesorNombre === 'GENERAL') {
         const sede = ((venta.sede as string) || '').trim().toUpperCase();
@@ -361,12 +395,37 @@ serve(async (req) => {
       }
       if (venta.vtas_ant_i == null) venta.vtas_ant_i = 0;
       
+      // Derive tipo_venta using normalized lookup
       if (!venta.tipo_venta) {
-        venta.tipo_venta = deriveTipoVenta(
-          (venta.forma1_pago as string) || '', 
-          (venta.forma_pago as string) || '',
-          paymentTypeLookup
-        );
+        const forma1Pago = (venta.forma1_pago as string) || '';
+        const formaPago = (venta.forma_pago as string) || '';
+        const codFormaPago = (venta.cod_forma_pago as string) || '';
+        
+        let tipoVenta = deriveTipoVenta(forma1Pago, formaPago, normalizedLookup, originalLookup);
+        
+        // Auto-create unknown codes
+        if (!tipoVenta && forma1Pago.trim()) {
+          const forma1Upper = forma1Pago.toUpperCase().trim();
+          if (!autoCreatedCodes.has(forma1Upper)) {
+            autoCreatedCodes.add(forma1Upper);
+            try {
+              await supabase.from('formas_pago').upsert({
+                codigo: forma1Upper,
+                nombre: forma1Upper,
+                tipo_venta: 'OTROS',
+                cod_forma: codFormaPago.trim() || null,
+                activo: true,
+              }, { onConflict: 'codigo', ignoreDuplicates: true });
+              newCodesCreated.push(`${forma1Upper} (${codFormaPago || 'sin cod'})`);
+              console.log(`Auto-created payment code: ${forma1Upper} (cod_forma: ${codFormaPago})`);
+            } catch (e) {
+              console.error(`Failed to auto-create code ${forma1Upper}:`, e);
+            }
+          }
+          tipoVenta = 'OTROS';
+        }
+        
+        venta.tipo_venta = tipoVenta;
       }
 
       if (!venta.codigo_asesor || (venta.codigo_asesor as string).trim() === '') {
@@ -396,13 +455,11 @@ serve(async (req) => {
       : detectTargetPeriod(parsedDates);
 
     const monthStart = `${period.year}-${String(period.month).padStart(2, '0')}-01`;
-    // Calculate the actual last day of the month
     const lastDay = new Date(period.year, period.month, 0).getDate();
     const monthEnd = `${period.year}-${String(period.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     console.log(`Target period: ${monthStart} to ${monthEnd}`);
 
-    // Check previous record count for this period before deleting
     const { count: previousCount } = await supabase
       .from('ventas')
       .select('*', { count: 'exact', head: true })
@@ -411,7 +468,6 @@ serve(async (req) => {
 
     console.log(`Previous records in period: ${previousCount}, New records: ${ventas.length}`);
 
-    // DELETE existing records for this month using service role (bypasses RLS)
     const { error: deleteError, count: deletedCount } = await supabase
       .from('ventas')
       .delete({ count: 'exact' })
@@ -455,6 +511,10 @@ serve(async (req) => {
       .gte('fecha', monthStart)
       .lte('fecha', monthEnd);
 
+    if (newCodesCreated.length > 0) {
+      console.log(`New payment codes auto-created: ${newCodesCreated.join(', ')}`);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -464,7 +524,8 @@ serve(async (req) => {
         total_in_db: finalCount,
         invalid_rows: invalidRows,
         period: { month: period.month, year: period.year },
-        message: `Cargados ${inserted} registros de ventas exitosamente (${deletedCount || 0} anteriores eliminados)` 
+        new_codes_created: newCodesCreated,
+        message: `Cargados ${inserted} registros de ventas exitosamente (${deletedCount || 0} anteriores eliminados)${newCodesCreated.length > 0 ? `. ${newCodesCreated.length} códigos de pago nuevos creados automáticamente (tipo OTROS). Configúrelos en Configuración > Formas de Pago.` : ''}` 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
