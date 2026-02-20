@@ -522,12 +522,12 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
             {isLeaderOrCoordinator ? 'Mi Equipo' : 'Gestión de Usuarios'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {isLeaderOrCoordinator 
               ? 'Visualiza y gestiona los usuarios de tu regional'
               : 'Administra los usuarios del sistema'
@@ -536,19 +536,19 @@ export default function Usuarios() {
         </div>
         {/* Only show admin actions for administrators */}
         {isAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Descargar Excel
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={handleDownloadExcel} disabled={loading || users.length === 0}>
+              <Download className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">Descargar</span> Excel
             </Button>
-            <Button variant="outline" onClick={fetchUsers} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
             </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button size="sm" onClick={resetForm}>
+                  <Plus className="h-4 w-4 mr-1.5" />
                   Nuevo Usuario
                 </Button>
               </DialogTrigger>
@@ -899,8 +899,8 @@ export default function Usuarios() {
       </Card>
 
       {/* Tabla de usuarios */}
-      <div className="border rounded-lg">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto">
+        <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow>
               <TableHead>Rol</TableHead>

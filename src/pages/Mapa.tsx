@@ -83,7 +83,7 @@ export default function Mapa() {
         onClear={handleClearFilters}
       />
 
-      <div className="grid gap-6 lg:grid-cols-4">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-4">
         {/* Map */}
         <Card className="card-elevated lg:col-span-3">
           <CardContent className="p-0 overflow-hidden rounded-xl">
