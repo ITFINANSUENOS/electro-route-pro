@@ -177,7 +177,7 @@
 
   /* KPI Cards */
   .kpi-card {
-    @apply bg-card rounded-xl p-6 border border-border transition-all duration-300;
+    @apply bg-card rounded-xl p-3 sm:p-6 border border-border transition-all duration-300;
     box-shadow: var(--shadow-sm);
   }
 

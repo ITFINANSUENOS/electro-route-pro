@@ -346,8 +346,6 @@ export function AppSidebar() {
           </div>
           <div className="w-10" /> {/* Spacer for balance */}
         </div>
-        {/* Spacer for fixed header */}
-        <div className="h-14" />
       </>
     );
   }

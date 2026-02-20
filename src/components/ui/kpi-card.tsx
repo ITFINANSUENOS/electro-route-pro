@@ -77,17 +77,17 @@ export function KpiCard({
           <Download className="h-3.5 w-3.5" />
         </button>
       )}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-1 sm:gap-2">
         <div className="space-y-1 min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{title}</p>
-          <p className="text-lg sm:text-xl md:text-2xl font-bold text-foreground truncate">{value}</p>
+          <p className="text-[10px] sm:text-sm font-medium text-muted-foreground leading-tight">{title}</p>
+          <p className="text-base sm:text-xl md:text-2xl font-bold text-foreground truncate">{value}</p>
           {subtitle && (
-            <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{subtitle}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{subtitle}</p>
           )}
         </div>
         {Icon && (
-          <div className={cn("rounded-lg bg-accent p-1.5 sm:p-2 flex-shrink-0", onDownload && "mr-6")}>
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-accent-foreground" />
+          <div className={cn("rounded-lg bg-accent p-1 sm:p-2 flex-shrink-0", onDownload && "mr-6")}>
+            <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-accent-foreground" />
           </div>
         )}
       </div>
