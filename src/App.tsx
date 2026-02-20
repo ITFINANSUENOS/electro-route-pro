@@ -46,7 +46,7 @@ const App = () => (
               <Route path="/informacion" element={<Informacion />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/configuracion" element={<Configuracion />} />
-            <Route path="/comparativo" element={<Comparativo />} />
+              <Route path="/comparativo" element={<Comparativo />} />
               <Route path="/regionales" element={<Regionales />} />
             </Route>
             <Route path="*" element={<NotFound />} />
