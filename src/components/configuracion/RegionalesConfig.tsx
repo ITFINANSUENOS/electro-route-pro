@@ -31,7 +31,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, Pencil, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Loader2, RefreshCw, ArrowRightLeft } from "lucide-react";
+import { MigrateRegionalDialog } from "./MigrateRegionalDialog";
 
 interface Regional {
   id: string;
@@ -51,6 +52,8 @@ export function RegionalesConfig() {
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRegional, setEditingRegional] = useState<Regional | null>(null);
+  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
+  const [migratingRegional, setMigratingRegional] = useState<Regional | null>(null);
   
   const [formData, setFormData] = useState({
     nombre: '',
@@ -230,7 +233,7 @@ export function RegionalesConfig() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Zona</TableHead>
                 <TableHead className="w-[100px]">Estado</TableHead>
-                <TableHead className="w-[80px]">Editar</TableHead>
+                <TableHead className="w-[120px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -258,13 +261,28 @@ export function RegionalesConfig() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(regional)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(regional)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        {regional.activo && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Migrar a otra regional"
+                            onClick={() => {
+                              setMigratingRegional(regional);
+                              setMigrateDialogOpen(true);
+                            }}
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -354,6 +372,17 @@ export function RegionalesConfig() {
           </DialogContent>
         </Dialog>
       </CardContent>
+
+      {/* Migrate Regional Dialog */}
+      {migratingRegional && (
+        <MigrateRegionalDialog
+          open={migrateDialogOpen}
+          onOpenChange={setMigrateDialogOpen}
+          sourceRegional={migratingRegional}
+          allRegionales={regionales}
+          onMigrationComplete={fetchRegionales}
+        />
+      )}
     </Card>
   );
 }
