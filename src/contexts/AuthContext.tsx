@@ -30,9 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        setTimeout(async () => {
-          await loadProfile(session.user.id);
-        }, 0);
+        loadProfile(session.user.id);
       } else {
         setProfile(null);
         setRole(null);
