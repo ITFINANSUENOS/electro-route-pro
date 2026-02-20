@@ -62,11 +62,14 @@ async function fetchAllSalesWithPagination(
   return allData;
 }
 
- export function useComparativeData(
-   selectedMonth: number,
-   selectedYear: number,
-   filters: ComparativeFilters
- ) {
+export type ComparisonMode = 'mes_anterior' | 'anio_anterior';
+
+export function useComparativeData(
+  selectedMonth: number,
+  selectedYear: number,
+  filters: ComparativeFilters,
+  comparisonMode: ComparisonMode = 'mes_anterior'
+) {
    const { profile, role } = useAuth();
    
    // Calculate date ranges
@@ -76,16 +79,21 @@ async function fetchAllSalesWithPagination(
      return { start, end, daysInMonth: getDaysInMonth(start) };
    }, [selectedMonth, selectedYear]);
    
-   const previousPeriod = useMemo(() => {
-     const prevDate = subMonths(new Date(selectedYear, selectedMonth - 1), 1);
-     const start = startOfMonth(prevDate);
-     const end = endOfMonth(prevDate);
-     return { start, end, daysInMonth: getDaysInMonth(start) };
-   }, [selectedMonth, selectedYear]);
+  const previousPeriod = useMemo(() => {
+    let prevDate: Date;
+    if (comparisonMode === 'anio_anterior') {
+      prevDate = new Date(selectedYear - 1, selectedMonth - 1);
+    } else {
+      prevDate = subMonths(new Date(selectedYear, selectedMonth - 1), 1);
+    }
+    const start = startOfMonth(prevDate);
+    const end = endOfMonth(prevDate);
+    return { start, end, daysInMonth: getDaysInMonth(start) };
+  }, [selectedMonth, selectedYear, comparisonMode]);
    
    // Fetch sales data
    const { data: salesData, isLoading } = useQuery({
-     queryKey: ['comparative-sales', selectedMonth, selectedYear, filters, profile?.codigo_asesor, profile?.codigo_jefe, profile?.regional_id, role],
+     queryKey: ['comparative-sales', selectedMonth, selectedYear, filters, profile?.codigo_asesor, profile?.codigo_jefe, profile?.regional_id, role, comparisonMode],
      queryFn: async () => {
        const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
         const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');

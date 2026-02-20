@@ -51,7 +51,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
      {
        title: 'Variación Monto',
        value: `${isPositiveAmount ? '+' : ''}${kpis.variationPercent.toFixed(1)}%`,
-       subtitle: isPositiveAmount ? 'Incremento vs mes anterior' : 'Decremento vs mes anterior',
+        subtitle: isPositiveAmount ? `Incremento vs ${previousMonthLabel}` : `Decremento vs ${previousMonthLabel}`,
        icon: isPositiveAmount ? TrendingUp : TrendingDown,
        color: isPositiveAmount ? 'text-green-500' : 'text-red-500',
        bgColor: isPositiveAmount ? 'bg-green-500/10' : 'bg-red-500/10',
