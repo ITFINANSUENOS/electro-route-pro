@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { TimeSelect } from "@/components/programacion/TimeSelect";
 import { ProgramacionFilters } from "@/components/programacion/ProgramacionFilters";
+import { LocationPicker } from "@/components/programacion/LocationPicker";
 import { AsesorMultiSelect } from "@/components/programacion/AsesorMultiSelect";
 import { GroupedActivityCard, groupActivities, GroupedActivity } from "@/components/programacion/GroupedActivityCard";
 import { ActivityDetailDialog } from "@/components/programacion/ActivityDetailDialog";
@@ -482,19 +483,17 @@ export default function Programacion() {
                   </Select>
                 </div>
 
-                {/* Municipio/Lugar */}
-                <div className="space-y-2">
-                  <Label>Municipio / Lugar *</Label>
-                  <Input
-                    placeholder="Ej: Popayán Centro"
-                    value={newActivity.municipio}
-                    onChange={(e) => setNewActivity({ ...newActivity, municipio: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    <MapPin className="inline h-3 w-3 mr-1" />
-                    La integración con Google Maps estará disponible próximamente
-                  </p>
-                </div>
+                {/* Municipio/Lugar con buscador y mapa */}
+                <LocationPicker
+                  value={newActivity.municipio}
+                  onChange={(value, coords) => {
+                    setNewActivity(prev => ({
+                      ...prev,
+                      municipio: value,
+                      ...(coords ? { latitud: coords.lat, longitud: coords.lng } : {}),
+                    }));
+                  }}
+                />
 
                 {/* Horario - Improved UI */}
                 <div className="grid grid-cols-2 gap-4">
