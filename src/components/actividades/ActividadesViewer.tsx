@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search, CheckCircle, Navigation, Map as MapIcon } from 'lucide-react';
+import { Calendar, MapPin, Camera, Clock, User, Users, Filter, X, Building2, Search, CheckCircle, Navigation, Map as MapIcon, Image } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -733,149 +733,251 @@ export function ActividadesViewer() {
           )}
         </TabsContent>
       </Tabs>
-      <Dialog open={!!selectedActivity} onOpenChange={() => setSelectedActivity(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Detalle de Actividad
-            </DialogTitle>
-            <DialogDescription>
-              Información completa de la actividad y evidencias registradas
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedActivity && (
-            <ScrollArea className="max-h-[60vh]">
-              <div className="space-y-6 pr-4">
-                {/* Activity Info */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge className={activityColors[selectedActivity.programacion.tipo_actividad]}>
-                      {activityLabels[selectedActivity.programacion.tipo_actividad]}
+      <ActivityDetailDialog
+        selectedActivity={selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+        activityColors={activityColors}
+        activityLabels={activityLabels}
+        regionalesMap={regionalesMap}
+      />
+    </div>
+  );
+}
+
+// Activity Detail Dialog with Group Evidence
+function ActivityDetailDialog({
+  selectedActivity,
+  onClose,
+  activityColors,
+  activityLabels,
+  regionalesMap,
+}: {
+  selectedActivity: {
+    programacion: Programacion;
+    reportes: ReporteDiario[];
+    profiles: Profile[];
+  } | null;
+  onClose: () => void;
+  activityColors: Record<string, string>;
+  activityLabels: Record<string, string>;
+  regionalesMap: Map<string, string>;
+}) {
+  // Fetch group evidence for this activity
+  const { data: groupEvidence = [] } = useQuery({
+    queryKey: ['group-evidence-detail', selectedActivity?.programacion.fecha, selectedActivity?.programacion.tipo_actividad, selectedActivity?.programacion.municipio],
+    queryFn: async () => {
+      if (!selectedActivity) return [];
+      const prog = selectedActivity.programacion;
+      let query = dataService
+        .from('evidencia_grupal')
+        .select('*')
+        .eq('fecha', prog.fecha)
+        .eq('tipo_actividad', prog.tipo_actividad)
+        .eq('municipio', prog.municipio);
+
+      if (prog.nombre) {
+        query = query.eq('nombre_actividad', prog.nombre);
+      }
+
+      const { data, error } = await (query.order('created_at') as any);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedActivity && (selectedActivity.programacion.tipo_actividad === 'correria' || selectedActivity.programacion.tipo_actividad === 'punto'),
+  });
+
+  const isCorreriaOrPunto = selectedActivity && (selectedActivity.programacion.tipo_actividad === 'correria' || selectedActivity.programacion.tipo_actividad === 'punto');
+
+  const photoLabels: Record<string, string> = {
+    inicio_correria: 'Inicio del viaje',
+    instalacion_correria: 'Instalación en el punto',
+    cierre_correria: 'Cierre / Llegada',
+    apertura_punto: 'Apertura',
+    cierre_punto: 'Cierre',
+  };
+
+  return (
+    <Dialog open={!!selectedActivity} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Detalle de Actividad
+          </DialogTitle>
+          <DialogDescription>
+            Información completa de la actividad y evidencias registradas
+          </DialogDescription>
+        </DialogHeader>
+
+        {selectedActivity && (
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-6 pr-4">
+              {/* Activity Info */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className={activityColors[selectedActivity.programacion.tipo_actividad]}>
+                    {activityLabels[selectedActivity.programacion.tipo_actividad]}
+                  </Badge>
+                  {selectedActivity.profiles[0]?.regional_id && (
+                    <Badge variant="outline">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      {regionalesMap.get(selectedActivity.profiles[0].regional_id)}
                     </Badge>
-                    {selectedActivity.profiles[0]?.regional_id && (
-                      <Badge variant="outline">
-                        <Building2 className="h-3 w-3 mr-1" />
-                        {regionalesMap.get(selectedActivity.profiles[0].regional_id)}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {selectedActivity.programacion.nombre && (
-                    <h3 className="text-lg font-semibold">{selectedActivity.programacion.nombre}</h3>
                   )}
-
-                  <div className="grid gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{format(new Date(selectedActivity.programacion.fecha + 'T12:00:00'), 'EEEE d MMMM yyyy', { locale: es })}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedActivity.programacion.municipio}</span>
-                    </div>
-                    {selectedActivity.programacion.hora_inicio && selectedActivity.programacion.hora_fin && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedActivity.programacion.hora_inicio.slice(0, 5)} - {selectedActivity.programacion.hora_fin.slice(0, 5)}</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
-                {/* Participants */}
-                <div className="space-y-3">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Participantes ({selectedActivity.profiles.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedActivity.profiles.map((prof) => {
-                      const reporte = selectedActivity.reportes.find(r => r.user_id === prof.user_id);
-                      
-                      return (
-                        <div key={prof.id} className="p-3 rounded-lg border bg-card">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">{prof.nombre_completo}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {prof.tipo_asesor || 'Asesor'} • Código: {prof.codigo_asesor}
-                              </p>
-                            </div>
-                            {reporte ? (
-                              <Badge variant="default" className="bg-success">Registrado</Badge>
-                            ) : (
-                              <Badge variant="outline">Pendiente</Badge>
-                            )}
-                          </div>
-                          
-                          {reporte && (
-                            <div className="mt-3 pt-3 border-t space-y-2">
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <span className="text-muted-foreground">Consultas:</span>
-                                  <span className="ml-2 font-medium">{reporte.consultas || 0}</span>
-                                </div>
-                                <div>
-                                  <span className="text-muted-foreground">Solicitudes:</span>
-                                  <span className="ml-2 font-medium">{reporte.solicitudes || 0}</span>
-                                </div>
-                              </div>
-                              
-                              <div className="text-sm">
-                                <span className="text-muted-foreground">Hora de registro:</span>
-                                <span className="ml-2 font-medium">
-                                  {format(new Date(reporte.hora_registro), 'HH:mm:ss')}
-                                </span>
-                              </div>
+                {selectedActivity.programacion.nombre && (
+                  <h3 className="text-lg font-semibold">{selectedActivity.programacion.nombre}</h3>
+                )}
 
-                              {reporte.gps_latitud && reporte.gps_longitud && (
-                                <div className="space-y-2">
-                                  <div className="text-sm flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-success" />
-                                    <span>
-                                      {reporte.gps_latitud.toFixed(6)}, {reporte.gps_longitud.toFixed(6)}
-                                    </span>
-                                  </div>
-                                  <MapaUbicacion 
-                                    lat={reporte.gps_latitud}
-                                    lng={reporte.gps_longitud}
-                                    zoom={15}
-                                    height="150px"
-                                    popup={`${prof.nombre_completo} - ${format(new Date(reporte.hora_registro), 'HH:mm:ss')}`}
-                                  />
-                                </div>
-                              )}
-
-                              {reporte.foto_url && (
-                                <div className="mt-2">
-                                  <img 
-                                    src={reporte.foto_url} 
-                                    alt="Evidencia" 
-                                    className="rounded-lg max-h-48 object-cover"
-                                  />
-                                </div>
-                              )}
-
-                              {reporte.notas && (
-                                <div className="text-sm">
-                                  <span className="text-muted-foreground">Notas:</span>
-                                  <p className="mt-1 p-2 bg-muted rounded">{reporte.notas}</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(new Date(selectedActivity.programacion.fecha + 'T12:00:00'), 'EEEE d MMMM yyyy', { locale: es })}</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedActivity.programacion.municipio}</span>
+                  </div>
+                  {selectedActivity.programacion.hora_inicio && selectedActivity.programacion.hora_fin && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span>{selectedActivity.programacion.hora_inicio.slice(0, 5)} - {selectedActivity.programacion.hora_fin.slice(0, 5)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </ScrollArea>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+
+              {/* Group Evidence Photos */}
+              {isCorreriaOrPunto && groupEvidence.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Image className="h-4 w-4" />
+                    Fotos Grupales ({groupEvidence.length})
+                  </h4>
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                    {groupEvidence.map((ev: any) => (
+                      <div key={ev.id} className="p-3 rounded-lg border bg-card space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs">
+                            {photoLabels[ev.tipo_foto] || ev.tipo_foto}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(ev.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <img
+                          src={ev.foto_url}
+                          alt={photoLabels[ev.tipo_foto] || ev.tipo_foto}
+                          className="w-full h-32 object-cover rounded-md"
+                        />
+                        {ev.notas && (
+                          <p className="text-xs text-muted-foreground">{ev.notas}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isCorreriaOrPunto && groupEvidence.length === 0 && (
+                <div className="p-4 rounded-lg border border-dashed text-center">
+                  <Image className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Sin fotos grupales registradas</p>
+                </div>
+              )}
+
+              {/* Participants */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Participantes ({selectedActivity.profiles.length})
+                </h4>
+                <div className="space-y-2">
+                  {selectedActivity.profiles.map((prof) => {
+                    const reporte = selectedActivity.reportes.find(r => r.user_id === prof.user_id);
+                    
+                    return (
+                      <div key={prof.id} className="p-3 rounded-lg border bg-card">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{prof.nombre_completo}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {prof.tipo_asesor || 'Asesor'} • Código: {prof.codigo_asesor}
+                            </p>
+                          </div>
+                          {reporte ? (
+                            <Badge variant="default" className="bg-success">Registrado</Badge>
+                          ) : (
+                            <Badge variant="outline">Pendiente</Badge>
+                          )}
+                        </div>
+                        
+                        {reporte && (
+                          <div className="mt-3 pt-3 border-t space-y-2">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Consultas:</span>
+                                <span className="ml-2 font-medium">{reporte.consultas || 0}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Solicitudes:</span>
+                                <span className="ml-2 font-medium">{reporte.solicitudes || 0}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Hora de registro:</span>
+                              <span className="ml-2 font-medium">
+                                {format(new Date(reporte.hora_registro), 'HH:mm:ss')}
+                              </span>
+                            </div>
+
+                            {reporte.gps_latitud && reporte.gps_longitud && (
+                              <div className="space-y-2">
+                                <div className="text-sm flex items-center gap-2">
+                                  <MapPin className="h-4 w-4 text-success" />
+                                  <span>
+                                    {reporte.gps_latitud.toFixed(6)}, {reporte.gps_longitud.toFixed(6)}
+                                  </span>
+                                </div>
+                                <MapaUbicacion 
+                                  lat={reporte.gps_latitud}
+                                  lng={reporte.gps_longitud}
+                                  zoom={15}
+                                  height="150px"
+                                  popup={`${prof.nombre_completo} - ${format(new Date(reporte.hora_registro), 'HH:mm:ss')}`}
+                                />
+                              </div>
+                            )}
+
+                            {reporte.foto_url && (
+                              <div className="mt-2">
+                                <img 
+                                  src={reporte.foto_url} 
+                                  alt="Evidencia" 
+                                  className="rounded-lg max-h-48 object-cover"
+                                />
+                              </div>
+                            )}
+
+                            {reporte.notas && (
+                              <div className="text-sm">
+                                <span className="text-muted-foreground">Notas:</span>
+                                <p className="mt-1 p-2 bg-muted rounded">{reporte.notas}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
