@@ -39,8 +39,18 @@ async function fetchPaginated(
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await buildQuery(page, pageSize);
-    if (error) throw error;
+    let result: any;
+    try {
+      result = await buildQuery(page, pageSize);
+    } catch (err) {
+      console.error('fetchPaginated query error:', err);
+      break;
+    }
+    const { data, error } = result;
+    if (error) {
+      console.error('fetchPaginated data error:', error);
+      break;
+    }
     if (data && data.length > 0) {
       all = all.concat(data);
       hasMore = data.length === pageSize;
@@ -104,37 +114,42 @@ export function useComparativeData(
   const { data: salesData, isLoading } = useQuery({
     queryKey: ['comparative-sales', selectedMonth, selectedYear, filters, profile?.codigo_asesor, profile?.codigo_jefe, profile?.regional_id, role, comparisonMode],
     queryFn: async () => {
-      const currentStart = format(currentPeriod.start, 'yyyy-MM-dd');
-      const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');
-      const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
-      const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
+      try {
+        const currentStart = format(currentPeriod.start, 'yyyy-MM-dd');
+        const currentEnd = format(currentPeriod.end, 'yyyy-MM-dd');
+        const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
+        const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
 
-      const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta';
+        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta';
 
-      const [currentData, prevData] = await Promise.all([
-        fetchPaginated((page, pageSize) => {
-          let q = dataService
-            .from('ventas')
-            .select(selectCols)
-            .gte('fecha', currentStart)
-            .lte('fecha', currentEnd)
-            .neq('tipo_venta', 'OTROS')
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-          return applyFilters(q);
-        }),
-        fetchPaginated((page, pageSize) => {
-          let q = dataService
-            .from('ventas')
-            .select(selectCols)
-            .gte('fecha', prevStart)
-            .lte('fecha', prevEnd)
-            .neq('tipo_venta', 'OTROS')
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-          return applyFilters(q);
-        }),
-      ]);
+        const [currentData, prevData] = await Promise.all([
+          fetchPaginated((page, pageSize) => {
+            let q = dataService
+              .from('ventas')
+              .select(selectCols)
+              .gte('fecha', currentStart)
+              .lte('fecha', currentEnd)
+              .neq('tipo_venta', 'OTROS')
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+            return applyFilters(q);
+          }),
+          fetchPaginated((page, pageSize) => {
+            let q = dataService
+              .from('ventas')
+              .select(selectCols)
+              .gte('fecha', prevStart)
+              .lte('fecha', prevEnd)
+              .neq('tipo_venta', 'OTROS')
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+            return applyFilters(q);
+          }),
+        ]);
 
-      return { currentData, prevData };
+        return { currentData, prevData };
+      } catch (err) {
+        console.error('useComparativeData queryFn error:', err);
+        return { currentData: [], prevData: [] };
+      }
     },
     enabled: !!profile,
   });
