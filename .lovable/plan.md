@@ -1,87 +1,28 @@
 
 
-# Plan: Implementar IStorageService y corregir violacion arquitectonica
+## Mejoras para el despliegue publicado
 
-## Problema
+### Hallazgo sobre el icono "mi"
+El icono "mi" amarillo que aparece en la version publicada NO es parte de la aplicacion. Es un icono de una extension del navegador (posiblemente Xiaomi/Mi) que se superpone visualmente sobre el sidebar colapsado. El codigo fuente muestra correctamente la letra "E" en ambos entornos.
 
-El archivo `src/hooks/useGroupEvidence.ts` importa directamente `supabase` desde `@/integrations/supabase/client` para operaciones de storage (`upload` y `getPublicUrl`). Esto viola la arquitectura hexagonal donde solo los providers dentro de `src/services/providers/` deben importar el cliente directo.
+Para confirmarlo, puedes abrir la pagina publicada en modo incognito (Ctrl+Shift+N) y verificar que el icono "mi" desaparece.
 
-## Solucion
+### Mejoras recomendadas para el despliegue
 
-Crear la interfaz `IStorageService` que faltaba del plan original, implementar el provider de Supabase, el placeholder de AWS, exportarlo desde el factory, y migrar el hook.
+Aunque el icono no es un bug, hay mejoras pendientes en `index.html` que afectan la apariencia profesional del sitio publicado:
 
-## Archivos a modificar/crear
+1. **Actualizar titulo del documento**: Cambiar "Lovable App" por "Sistema E-COM - FinanSueños"
+2. **Actualizar meta tags**: Descripcion, og:title, og:description con informacion del sistema
+3. **Agregar favicon personalizado**: Reemplazar el favicon generico por uno con la marca E-COM
 
-### 1. Crear `src/services/storage.service.ts` (interfaz)
+### Detalle tecnico
 
-Definir la interfaz abstracta con los metodos usados en la app:
+**Archivo: `index.html`**
+- Cambiar `<title>` de "Lovable App" a "Sistema E-COM | FinanSueños"
+- Actualizar `meta description` a algo como "Sistema de gestion comercial E-COM"
+- Actualizar `og:title` y `og:description` con la misma informacion
+- Remover referencias a Lovable en meta tags de Twitter y OpenGraph
+- Opcionalmente agregar un `manifest.json` para PWA con icono personalizado
 
-- `from(bucket: string)` retorna un objeto con:
-  - `upload(path, file, options?)` - sube un archivo
-  - `getPublicUrl(path)` - obtiene URL publica
-  - `createSignedUrl(path, expiresIn)` - genera URL firmada (para bucket privado)
-  - `remove(paths)` - elimina archivos
-  - `download(path)` - descarga un archivo
-
-### 2. Crear `src/services/providers/supabase/storage.provider.ts`
-
-Implementacion que delega al cliente Supabase real. Este es el unico archivo de storage que importa `@/integrations/supabase/client`. Dado que el bucket `evidencia-fotos` ahora es privado, se usara `createSignedUrl` en lugar de `getPublicUrl`.
-
-### 3. Modificar `src/services/providers/aws/data.provider.ts`
-
-Agregar un export `AwsStorageProvider` (placeholder) que lanza errores "not implemented" para todos los metodos, siguiendo el mismo patron existente del `AwsDataProvider`.
-
-### 4. Modificar `src/services/index.ts`
-
-Agregar `storageService` al factory con el switch de providers, y exportarlo.
-
-### 5. Modificar `src/hooks/useGroupEvidence.ts`
-
-- Eliminar `import { supabase } from '@/integrations/supabase/client'`
-- Importar `storageService` desde `@/services`
-- Reemplazar `supabase.storage.from(...)` por `storageService.from(...)`
-- Usar `createSignedUrl` en lugar de `getPublicUrl` ya que el bucket es privado
-
-## Detalle tecnico
-
-### Interfaz IStorageService
-
-```typescript
-interface IStorageBucket {
-  upload(path: string, file: File, options?: { contentType?: string }): 
-    Promise<{ data: { path: string } | null; error: Error | null }>;
-  getPublicUrl(path: string): { data: { publicUrl: string } };
-  createSignedUrl(path: string, expiresIn: number): 
-    Promise<{ data: { signedUrl: string } | null; error: Error | null }>;
-  remove(paths: string[]): 
-    Promise<{ error: Error | null }>;
-  download(path: string): 
-    Promise<{ data: Blob | null; error: Error | null }>;
-}
-
-interface IStorageService {
-  from(bucket: string): IStorageBucket;
-}
-```
-
-### Cambio clave en useGroupEvidence
-
-Dado que el bucket `evidencia-fotos` se convirtio a privado en la migracion de seguridad reciente, el flujo cambia de `getPublicUrl` a `createSignedUrl`:
-
-```typescript
-// ANTES (violacion + bucket publico)
-import { supabase } from '@/integrations/supabase/client';
-const { data: uploadData } = await supabase.storage.from('evidencia-fotos').upload(...);
-const { data: { publicUrl } } = supabase.storage.from('evidencia-fotos').getPublicUrl(uploadData.path);
-
-// DESPUES (service layer + bucket privado)
-import { storageService } from '@/services';
-const { data: uploadData } = await storageService.from('evidencia-fotos').upload(...);
-const { data: signedData } = await storageService.from('evidencia-fotos').createSignedUrl(uploadData.path, 3600);
-const photoUrl = signedData?.signedUrl;
-```
-
-### Verificacion final
-
-Buscar `from '@/integrations/supabase/client'` en `src/` excluyendo `src/services/providers/` debe dar 0 resultados.
+Estos cambios son cosmeticos pero importantes para que la aplicacion publicada se vea profesional cuando se comparte el enlace o aparece en pestañas del navegador.
 
