@@ -311,28 +311,23 @@ export default function CargarVentasTab() {
       setUploadProgress(15);
       setUploadStatus('Verificando cargas anteriores...');
 
-      // Check previous record count for this period
+      // Check previous record count for THIS specific target period (month/year)
       const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
-      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-31`;
+      const lastDay = new Date(targetPeriod.year, targetPeriod.month, 0).getDate();
+      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-      // We'll check previous count from carga_archivos history instead
-
-      // Get previous count from the response headers or use a count query
-      const { data: prevCountResult } = await (dataService.rpc('', {}) as any).catch(() => ({ data: null }));
-      
-      // Simpler approach: just query count
       let previousRecordCount = 0;
       try {
-        const { data: prevRecords } = await (dataService
-          .from('carga_archivos')
-          .select('registros_procesados')
-          .eq('tipo', 'ventas')
-          .eq('estado', 'completado')
-          .order('created_at', { ascending: false })
-          .limit(1) as any);
+        // Query actual ventas count for the target month - not the last global upload
+        // Use head:true with count to avoid fetching rows (bypasses 1000 row limit)
+        const countQuery = dataService.from('ventas') as any;
+        const { count: ventasCount } = await countQuery
+          .select('id', { count: 'exact', head: true })
+          .gte('fecha', monthStart)
+          .lte('fecha', monthEnd);
         
-        if (prevRecords?.[0]?.registros_procesados) {
-          previousRecordCount = prevRecords[0].registros_procesados;
+        if (ventasCount && ventasCount > 0) {
+          previousRecordCount = ventasCount;
         }
       } catch {
         // Ignore error
