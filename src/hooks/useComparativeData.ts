@@ -30,6 +30,17 @@ export interface ComparativeKPIs {
   comparedDays: number;
 }
 
+export interface SalesByTypeEntry {
+  tipo: string;
+  amount: number;
+  count: number;
+}
+
+export interface SalesByTypeData {
+  current: SalesByTypeEntry[];
+  previous: SalesByTypeEntry[];
+}
+
 async function fetchPaginated(
   buildQuery: (page: number, pageSize: number) => any
 ): Promise<any[]> {
@@ -183,7 +194,7 @@ export function useComparativeData(
 
   // Process data into daily aggregates
   const processedData = useMemo(() => {
-    if (!salesData || !profilesData) return { daily: [], kpis: null };
+    if (!salesData || !profilesData) return { daily: [], kpis: null, salesByType: null };
 
     const validCodigos = filters.tipoAsesor.length > 0
       ? new Set(profilesData.map((p: any) => p.codigo_asesor))
@@ -199,6 +210,10 @@ export function useComparativeData(
     const currentUniqueSales = new Map<string, Set<number>>();
     const previousUniqueSales = new Map<string, Set<number>>();
 
+    // Aggregate by tipo_venta
+    const currentByType = new Map<string, { amount: number; count: number }>();
+    const previousByType = new Map<string, { amount: number; count: number }>();
+
     // Process current period
     salesData.currentData.forEach((sale: any) => {
       if (validCodigos && !validCodigos.has(sale.codigo_asesor)) return;
@@ -212,6 +227,12 @@ export function useComparativeData(
         currentUniqueSales.get(clientId)!.add(day);
         entry.currentCount += 1;
       }
+      // By type
+      const tipo = sale.tipo_venta || 'SIN TIPO';
+      if (!currentByType.has(tipo)) currentByType.set(tipo, { amount: 0, count: 0 });
+      const t = currentByType.get(tipo)!;
+      t.amount += sale.vtas_ant_i || 0;
+      t.count += 1;
     });
 
     // Process previous period
@@ -227,6 +248,12 @@ export function useComparativeData(
         previousUniqueSales.get(clientId)!.add(day);
         entry.previousCount += 1;
       }
+      // By type
+      const tipo = sale.tipo_venta || 'SIN TIPO';
+      if (!previousByType.has(tipo)) previousByType.set(tipo, { amount: 0, count: 0 });
+      const t = previousByType.get(tipo)!;
+      t.amount += sale.vtas_ant_i || 0;
+      t.count += 1;
     });
 
     const daily = Array.from(dailyMap.values()).sort((a, b) => a.day - b.day);
@@ -261,12 +288,18 @@ export function useComparativeData(
       comparedDays: lastDayWithCurrentData,
     };
 
-    return { daily, kpis };
+    const salesByType: SalesByTypeData = {
+      current: Array.from(currentByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
+      previous: Array.from(previousByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
+    };
+
+    return { daily, kpis, salesByType };
   }, [salesData, profilesData, currentPeriod, previousPeriod, filters.tipoAsesor]);
 
   return {
     dailyData: processedData.daily,
     kpis: processedData.kpis,
+    salesByType: processedData.salesByType,
     isLoading,
     currentPeriod,
     previousPeriod,
