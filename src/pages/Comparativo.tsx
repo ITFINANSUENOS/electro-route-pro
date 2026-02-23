@@ -14,7 +14,8 @@ import { Label } from '@/components/ui/label';
  import { ComparativeFilters } from '@/components/comparativo/ComparativeFilters';
  import { ComparativeChart } from '@/components/comparativo/ComparativeChart';
  import { ComparativeKPICards } from '@/components/comparativo/ComparativeKPICards';
- import { ComparativeTable } from '@/components/comparativo/ComparativeTable';
+import { ComparativeTable } from '@/components/comparativo/ComparativeTable';
+import { ComparativePieCharts } from '@/components/comparativo/ComparativePieCharts';
  import { useAuth } from '@/contexts/AuthContext';
  
  export default function Comparativo() {
@@ -37,7 +38,7 @@ import { Label } from '@/components/ui/label';
      regionalIds: [],
    });
  
-  const { dailyData, kpis, isLoading, currentPeriod, previousPeriod } = useComparativeData(
+  const { dailyData, kpis, salesByType, isLoading, currentPeriod, previousPeriod } = useComparativeData(
     selectedPeriod.mes,
     selectedPeriod.anio,
     filters,
@@ -173,14 +174,23 @@ import { Label } from '@/components/ui/label';
          </CardContent>
        </Card>
  
-       {/* Table */}
-       {!isLoading && (
-         <ComparativeTable
-           data={dailyData}
-           currentMonthLabel={currentMonthLabel}
-           previousMonthLabel={previousMonthLabel}
-         />
-       )}
+        {/* Pie Charts by Type */}
+        {!isLoading && salesByType && (
+          <ComparativePieCharts
+            data={salesByType}
+            currentMonthLabel={currentMonthLabel}
+            previousMonthLabel={previousMonthLabel}
+          />
+        )}
+
+        {/* Table */}
+        {!isLoading && (
+          <ComparativeTable
+            data={dailyData}
+            currentMonthLabel={currentMonthLabel}
+            previousMonthLabel={previousMonthLabel}
+          />
+        )}
      </motion.div>
    );
  }
