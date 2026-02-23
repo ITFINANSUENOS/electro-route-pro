@@ -36,9 +36,17 @@ export interface SalesByTypeEntry {
   count: number;
 }
 
+export interface SalesByTypeBreakdownEntry {
+  formaPago: string;
+  amount: number;
+  count: number;
+}
+
 export interface SalesByTypeData {
   current: SalesByTypeEntry[];
   previous: SalesByTypeEntry[];
+  currentBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
+  previousBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
 }
 
 async function fetchPaginated(
@@ -131,7 +139,7 @@ export function useComparativeData(
         const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
         const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
 
-        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta';
+        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta, forma_pago';
 
         const [currentData, prevData] = await Promise.all([
           fetchPaginated((page, pageSize) => {
@@ -214,6 +222,10 @@ export function useComparativeData(
     const currentByType = new Map<string, { amount: number; count: number }>();
     const previousByType = new Map<string, { amount: number; count: number }>();
 
+    // Breakdown by forma_pago within each tipo_venta
+    const currentBreakdownMap = new Map<string, Map<string, { amount: number; count: number }>>();
+    const previousBreakdownMap = new Map<string, Map<string, { amount: number; count: number }>>();
+
     // Process current period
     salesData.currentData.forEach((sale: any) => {
       if (validCodigos && !validCodigos.has(sale.codigo_asesor)) return;
@@ -233,6 +245,14 @@ export function useComparativeData(
       const t = currentByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
       t.count += 1;
+      // Breakdown by forma_pago
+      const fp = sale.forma_pago || 'Sin forma';
+      if (!currentBreakdownMap.has(tipo)) currentBreakdownMap.set(tipo, new Map());
+      const bm = currentBreakdownMap.get(tipo)!;
+      if (!bm.has(fp)) bm.set(fp, { amount: 0, count: 0 });
+      const bf = bm.get(fp)!;
+      bf.amount += sale.vtas_ant_i || 0;
+      bf.count += 1;
     });
 
     // Process previous period
@@ -254,6 +274,14 @@ export function useComparativeData(
       const t = previousByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
       t.count += 1;
+      // Breakdown by forma_pago
+      const fp = sale.forma_pago || 'Sin forma';
+      if (!previousBreakdownMap.has(tipo)) previousBreakdownMap.set(tipo, new Map());
+      const bm = previousBreakdownMap.get(tipo)!;
+      if (!bm.has(fp)) bm.set(fp, { amount: 0, count: 0 });
+      const bf = bm.get(fp)!;
+      bf.amount += sale.vtas_ant_i || 0;
+      bf.count += 1;
     });
 
     const daily = Array.from(dailyMap.values()).sort((a, b) => a.day - b.day);
@@ -288,9 +316,25 @@ export function useComparativeData(
       comparedDays: lastDayWithCurrentData,
     };
 
+    // Build breakdown records
+    const currentBreakdown: Record<string, SalesByTypeBreakdownEntry[]> = {};
+    currentBreakdownMap.forEach((fpMap, tipo) => {
+      currentBreakdown[tipo] = Array.from(fpMap.entries())
+        .map(([formaPago, d]) => ({ formaPago, ...d }))
+        .sort((a, b) => b.amount - a.amount);
+    });
+    const previousBreakdown: Record<string, SalesByTypeBreakdownEntry[]> = {};
+    previousBreakdownMap.forEach((fpMap, tipo) => {
+      previousBreakdown[tipo] = Array.from(fpMap.entries())
+        .map(([formaPago, d]) => ({ formaPago, ...d }))
+        .sort((a, b) => b.amount - a.amount);
+    });
+
     const salesByType: SalesByTypeData = {
       current: Array.from(currentByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
       previous: Array.from(previousByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
+      currentBreakdown,
+      previousBreakdown,
     };
 
     return { daily, kpis, salesByType };
