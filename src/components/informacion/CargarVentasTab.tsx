@@ -474,7 +474,7 @@ export default function CargarVentasTab() {
     // Mark the carga as cancelled
     if (pendingUploadData?.cargaId) {
       await (dataService.from('carga_archivos')
-        .update({ estado: 'error', mensaje_error: 'Cancelado: archivo con menos registros que carga anterior' })
+        .update({ estado: 'cancelado', mensaje_error: 'Cancelado por el usuario' })
         .eq('id', pendingUploadData.cargaId) as any);
       refetch();
     }
@@ -760,6 +760,7 @@ export default function CargarVentasTab() {
                 <div className="flex items-center gap-2">
                   {item.estado === 'completado' ? <CheckCircle className="h-4 w-4 text-success" /> :
                    item.estado === 'error' ? <AlertCircle className="h-4 w-4 text-danger" /> :
+                   item.estado === 'cancelado' ? <AlertCircle className="h-4 w-4 text-muted-foreground" /> :
                    <Loader2 className="h-4 w-4 text-primary animate-spin" />}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{item.nombre_archivo}</p>
@@ -769,6 +770,7 @@ export default function CargarVentasTab() {
                 <div className="mt-2 text-xs">
                   {item.estado === 'completado' && <span className="text-success font-medium">{item.registros_procesados} registros</span>}
                   {item.estado === 'error' && <span className="text-danger font-medium">{item.mensaje_error}</span>}
+                  {item.estado === 'cancelado' && <span className="text-muted-foreground font-medium">Cancelado</span>}
                   {item.estado === 'procesando' && <span className="text-primary">Procesando...</span>}
                 </div>
               </div>
