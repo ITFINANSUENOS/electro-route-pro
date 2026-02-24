@@ -1198,49 +1198,50 @@ export default function DashboardLider() {
       className="space-y-4 sm:space-y-6"
     >
       {/* Header */}
-      <motion.div variants={item} className="flex flex-col gap-3">
+      <motion.div variants={item} className="space-y-2">
+        {/* Row 1: Welcome + Period */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
               ¡Bienvenido, {profile?.nombre_completo?.split(' ')[0] || 'Usuario'}!
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               {role && roleLabels[role]} • <span className="hidden sm:inline">{new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
               <span className="sm:hidden">{new Date().toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}</span>
             </p>
           </div>
+          <PeriodSelector
+            value={periodValue}
+            onChange={handlePeriodChange}
+            periods={availablePeriods}
+            isLoading={isLoadingPeriods}
+          />
         </div>
         
-        {/* All filters in a single row */}
-        <div className="flex flex-wrap items-center gap-2">
-          {isGlobalRole && (
-            <>
-              <RegionalMultiSelect
-                regionales={regionales}
-                selectedCodes={selectedRegionals}
-                onChange={setSelectedRegionals}
+        {/* Row 2: All filters inline */}
+        {(isGlobalRole || role === 'lider_zona') && (
+          <div className="flex flex-wrap items-center gap-2">
+            {isGlobalRole && (
+              <>
+                <RegionalMultiSelect
+                  regionales={regionales}
+                  selectedCodes={selectedRegionals}
+                  onChange={setSelectedRegionals}
+                />
+                <TipoAsesorMultiSelect
+                  selectedTypes={selectedTiposAsesor}
+                  onChange={setSelectedTiposAsesor}
+                />
+              </>
+            )}
+            <div className="ml-auto">
+              <MetaTypeToggle
+                value={selectedMetaType}
+                onChange={setSelectedMetaType}
               />
-              <TipoAsesorMultiSelect
-                selectedTypes={selectedTiposAsesor}
-                onChange={setSelectedTiposAsesor}
-              />
-            </>
-          )}
-          {(isGlobalRole || role === 'lider_zona') && (
-            <MetaTypeToggle
-              value={selectedMetaType}
-              onChange={setSelectedMetaType}
-            />
-          )}
-          <div className="ml-auto">
-            <PeriodSelector
-              value={periodValue}
-              onChange={handlePeriodChange}
-              periods={availablePeriods}
-              isLoading={isLoadingPeriods}
-            />
+            </div>
           </div>
-        </div>
+        )}
       </motion.div>
 
       {/* KPI Cards - Row 1: Ventas */}
