@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { TipoVentaKey, tiposVentaLabels } from './RankingTable';
+import { formatCurrencyFull as formatCurrencyFullUtil } from '@/utils/formatCurrency';
 import {
   PieChart,
   Pie,
@@ -51,14 +52,8 @@ interface InteractiveSalesChartProps {
   onTypeClick?: (tipo: TipoVentaKey) => void;
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+// Manual formatting - Intl.NumberFormat produces "millones de dólares" in some browsers
+const formatCurrency = (value: number) => formatCurrencyFullUtil(value);
 
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'hsl(var(--success))',

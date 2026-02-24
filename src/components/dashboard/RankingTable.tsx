@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatCurrencyFull as formatCurrencyFullUtil, formatCurrencyThousands as formatCurrencyThousandsUtil } from '@/utils/formatCurrency';
 
 export interface RankingAdvisor {
   codigo: string;
@@ -67,29 +68,9 @@ const tipoAsesorConfig: Record<string, { label: string; letter: string; bgColor:
   CORRETAJE: { label: 'Corretaje', letter: 'c', bgColor: 'bg-warning', textColor: 'text-warning-foreground' },
 };
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-// Format in thousands with K suffix for better visibility
-const formatCurrencyThousands = (value: number) => {
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (absValue >= 1_000_000) {
-    const millions = absValue / 1_000_000;
-    return `${sign}$${millions.toFixed(millions >= 100 ? 0 : millions >= 10 ? 1 : 1)}M`;
-  }
-  if (absValue >= 1000) {
-    const thousands = Math.round(absValue / 1000);
-    return `${sign}$${thousands.toLocaleString('es-CO')} mil`;
-  }
-  return `${sign}$${absValue.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
-};
+// Manual formatting - Intl.NumberFormat produces "millones de dólares" in some browsers
+const formatCurrency = (value: number) => formatCurrencyFullUtil(value);
+const formatCurrencyThousands = (value: number) => formatCurrencyThousandsUtil(value);
 
 type SortColumn = TipoVentaKey | 'total' | 'compliance' | null;
 type SortDirection = 'asc' | 'desc';

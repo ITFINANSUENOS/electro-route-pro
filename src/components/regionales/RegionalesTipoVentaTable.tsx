@@ -5,6 +5,7 @@ import { ShoppingCart } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { RegionalData } from '@/hooks/useRegionalesData';
+import { formatCurrencyFull } from '@/utils/formatCurrency';
 
 interface Props {
   data: RegionalData[];
@@ -20,7 +21,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+  return formatCurrencyFull(value);
 }
 
 function getComplianceColor(pct: number) {
