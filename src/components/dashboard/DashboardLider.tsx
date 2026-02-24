@@ -1195,7 +1195,7 @@ export default function DashboardLider() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="space-y-4 sm:space-y-6"
+      className="space-y-4 sm:space-y-6 overflow-x-hidden"
     >
       {/* Header */}
       <motion.div variants={item} className="space-y-2">
