@@ -1198,7 +1198,7 @@ export default function DashboardLider() {
       className="space-y-4 sm:space-y-6"
     >
       {/* Header */}
-      <motion.div variants={item} className="flex flex-col gap-3 sm:gap-4">
+      <motion.div variants={item} className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
@@ -1209,47 +1209,38 @@ export default function DashboardLider() {
               <span className="sm:hidden">{new Date().toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}</span>
             </p>
           </div>
-          
-          {/* Period Selector */}
-          <PeriodSelector
-            value={periodValue}
-            onChange={handlePeriodChange}
-            periods={availablePeriods}
-            isLoading={isLoadingPeriods}
-          />
         </div>
         
-        {/* Advanced Filters - Only for global roles */}
-        {isGlobalRole && (
-          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3 items-center justify-center">
-            <RegionalMultiSelect
-              regionales={regionales}
-              selectedCodes={selectedRegionals}
-              onChange={setSelectedRegionals}
-            />
-            
-            <TipoAsesorMultiSelect
-              selectedTypes={selectedTiposAsesor}
-              onChange={setSelectedTiposAsesor}
-            />
-            
-            {/* Meta Type Toggle - Available for lider_zona, coordinador_comercial, administrador */}
+        {/* All filters in a single row */}
+        <div className="flex flex-wrap items-center gap-2">
+          {isGlobalRole && (
+            <>
+              <RegionalMultiSelect
+                regionales={regionales}
+                selectedCodes={selectedRegionals}
+                onChange={setSelectedRegionals}
+              />
+              <TipoAsesorMultiSelect
+                selectedTypes={selectedTiposAsesor}
+                onChange={setSelectedTiposAsesor}
+              />
+            </>
+          )}
+          {(isGlobalRole || role === 'lider_zona') && (
             <MetaTypeToggle
               value={selectedMetaType}
               onChange={setSelectedMetaType}
             />
-          </div>
-        )}
-        
-        {/* Meta Type Toggle for lider_zona only (when not global role) */}
-        {role === 'lider_zona' && !isGlobalRole && (
-          <div className="flex justify-center">
-            <MetaTypeToggle
-              value={selectedMetaType}
-              onChange={setSelectedMetaType}
+          )}
+          <div className="ml-auto">
+            <PeriodSelector
+              value={periodValue}
+              onChange={handlePeriodChange}
+              periods={availablePeriods}
+              isLoading={isLoadingPeriods}
             />
           </div>
-        )}
+        </div>
       </motion.div>
 
       {/* KPI Cards - Row 1: Ventas */}

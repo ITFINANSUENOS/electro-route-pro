@@ -91,20 +91,20 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
           >
             <Card className="relative overflow-hidden">
               <CardContent className="p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground mb-1 truncate">
                       {card.title}
                     </p>
-                    <p className={cn("text-xl font-bold", card.color)}>
+                    <p className={cn("text-lg sm:text-xl font-bold", card.color)}>
                       {card.value}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1 truncate">
                       {card.subtitle}
                     </p>
                   </div>
-                  <div className={cn("p-2 rounded-lg", card.bgColor)}>
-                    <card.icon className={cn("h-5 w-5", card.color)} />
+                  <div className={cn("p-2 rounded-lg flex-shrink-0", card.bgColor)}>
+                    <card.icon className={cn("h-4 w-4", card.color)} />
                   </div>
                  </div>
               </CardContent>
