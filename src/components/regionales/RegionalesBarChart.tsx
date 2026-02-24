@@ -6,10 +6,10 @@ import { TipoVentaFilter } from './TipoVentaFilter';
 import type { RegionalData } from '@/hooks/useRegionalesData';
 
 const TIPOS_VENTA = [
-  { key: 'CONTADO', label: 'Contado', color: 'hsl(142, 76%, 42%)' },
-  { key: 'CREDICONTADO', label: 'CrediContado', color: 'hsl(38, 92%, 50%)' },
-  { key: 'CREDITO', label: 'Crédito', color: 'hsl(217, 91%, 50%)' },
-  { key: 'ALIADOS', label: 'Aliados', color: 'hsl(187, 85%, 43%)' },
+  { key: 'CONTADO', label: 'Contado', ventaColor: 'hsl(217, 91%, 35%)', metaColor: 'hsl(142, 76%, 32%)' },
+  { key: 'CREDICONTADO', label: 'CrediContado', ventaColor: 'hsl(217, 85%, 48%)', metaColor: 'hsl(142, 68%, 42%)' },
+  { key: 'CREDITO', label: 'Crédito', ventaColor: 'hsl(217, 78%, 60%)', metaColor: 'hsl(142, 60%, 54%)' },
+  { key: 'ALIADOS', label: 'Aliados', ventaColor: 'hsl(217, 70%, 72%)', metaColor: 'hsl(142, 52%, 66%)' },
 ];
 
 interface Props {
@@ -50,8 +50,8 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div className="bg-card border rounded-lg p-3 shadow-lg text-sm">
       <p className="font-semibold mb-1">{entry?.fullName || label}</p>
-      <p>Ventas: {formatFullCurrency(totalVentas)}</p>
-      <p>Meta: {formatFullCurrency(entry?.Meta || 0)}</p>
+      <p className="text-blue-600">Ventas: {formatFullCurrency(totalVentas)}</p>
+      <p className="text-green-600">Meta: {formatFullCurrency(entry?.metaTotal || 0)}</p>
       <p className="text-muted-foreground mt-1">Cantidad: {entry?.cantidadVentas}</p>
     </div>
   );
@@ -64,14 +64,20 @@ export function RegionalesBarChart({ data }: Props) {
   const activeTipos = tipoFilter.length > 0 ? tipoFilter : TIPOS_VENTA.map(t => t.key);
 
   const chartData = filtered.map(r => {
+    const totalVentas = activeTipos.reduce((s, k) => s + (r.desglose[k]?.valor || 0), 0);
     const row: any = {
       nombre: r.nombre.length > 12 ? r.nombre.substring(0, 12) + '…' : r.nombre,
       fullName: r.nombre,
-      Meta: r.meta,
+      metaTotal: r.meta,
       cantidadVentas: r.cantidadVentas,
     };
     TIPOS_VENTA.forEach(t => {
-      row[t.key] = activeTipos.includes(t.key) ? (r.desglose[t.key]?.valor || 0) : 0;
+      const val = activeTipos.includes(t.key) ? (r.desglose[t.key]?.valor || 0) : 0;
+      row[t.key] = val;
+      // Distribute meta proportionally by tipo de venta
+      row[`meta_${t.key}`] = totalVentas > 0 && activeTipos.includes(t.key)
+        ? (val / totalVentas) * r.meta
+        : activeTipos.includes(t.key) ? r.meta / activeTipos.length : 0;
     });
     return row;
   });
@@ -95,17 +101,26 @@ export function RegionalesBarChart({ data }: Props) {
             <YAxis tickFormatter={formatCurrency} tick={{ fontSize: 11 }} />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
-            {TIPOS_VENTA.filter(t => activeTipos.includes(t.key)).map((t, i) => (
+            {TIPOS_VENTA.filter(t => activeTipos.includes(t.key)).map((t, i, arr) => (
               <Bar
                 key={t.key}
                 dataKey={t.key}
-                name={t.label}
+                name={`${t.label} (Venta)`}
                 stackId="ventas"
-                fill={t.color}
-                radius={i === TIPOS_VENTA.filter(tv => activeTipos.includes(tv.key)).length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                fill={t.ventaColor}
+                radius={i === arr.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
               />
             ))}
-            <Bar dataKey="Meta" name="Meta" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[4, 4, 0, 0]} />
+            {TIPOS_VENTA.filter(t => activeTipos.includes(t.key)).map((t, i, arr) => (
+              <Bar
+                key={`meta_${t.key}`}
+                dataKey={`meta_${t.key}`}
+                name={`${t.label} (Meta)`}
+                stackId="metas"
+                fill={t.metaColor}
+                radius={i === arr.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              />
+            ))}
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
