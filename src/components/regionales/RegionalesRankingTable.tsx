@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Trophy, ArrowUpDown } from 'lucide-react';
+import { Trophy, ArrowUpDown, Filter, Check } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { TipoVentaFilter } from './TipoVentaFilter';
 import type { RegionalData } from '@/hooks/useRegionalesData';
 
 interface Props {
@@ -13,9 +12,22 @@ interface Props {
   metaType: 'comercial' | 'nacional';
 }
 
-type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas';
+type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas' | 'contado' | 'credicontado' | 'credito' | 'aliados';
+
+const TIPOS_VENTA = [
+  { value: 'CONTADO', label: 'Contado', shortLabel: 'Contado' },
+  { value: 'CREDICONTADO', label: 'Credi Contado', shortLabel: 'C. Contado' },
+  { value: 'CREDITO', label: 'Crédito', shortLabel: 'Crédito' },
+  { value: 'ALIADOS', label: 'Aliados', shortLabel: 'Aliados' },
+];
 
 function formatCurrency(value: number) {
+  if (Math.abs(value) >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1_000) {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+  }
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
@@ -31,14 +43,15 @@ function getProgressColor(pct: number) {
   return '[&>div]:bg-destructive';
 }
 
-const TIPOS_ALL = ['CONTADO', 'CREDITO', 'ALIADOS', 'CREDICONTADO'];
+function getTypeValue(r: RegionalData, tipo: string): number {
+  return r.desglose[tipo]?.valor || 0;
+}
 
-function filterByTipo(data: RegionalData[], tipos: string[]): RegionalData[] {
-  if (tipos.length === 0) return data; // all
+function computeFiltered(data: RegionalData[], activeTypes: string[]): RegionalData[] {
   return data.map(r => {
     let ventaTotal = 0;
     let cantidadVentas = 0;
-    tipos.forEach(t => {
+    activeTypes.forEach(t => {
       const d = r.desglose[t];
       if (d) {
         ventaTotal += d.valor;
@@ -50,12 +63,39 @@ function filterByTipo(data: RegionalData[], tipos: string[]): RegionalData[] {
   });
 }
 
+function getSortValue(r: RegionalData, key: SortKey): number {
+  switch (key) {
+    case 'contado': return getTypeValue(r, 'CONTADO');
+    case 'credicontado': return getTypeValue(r, 'CREDICONTADO');
+    case 'credito': return getTypeValue(r, 'CREDITO');
+    case 'aliados': return getTypeValue(r, 'ALIADOS');
+    default: return r[key];
+  }
+}
+
 export function RegionalesRankingTable({ data, metaType }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('cumplimiento');
-  const [tipoFilter, setTipoFilter] = useState<string[]>([]);
+  // All types active by default
+  const [activeTypes, setActiveTypes] = useState<string[]>(TIPOS_VENTA.map(t => t.value));
 
-  const filtered = filterByTipo(data, tipoFilter);
-  const sorted = [...filtered].sort((a, b) => b[sortKey] - a[sortKey]);
+  const allActive = activeTypes.length === TIPOS_VENTA.length;
+
+  const toggleType = (value: string) => {
+    if (activeTypes.includes(value)) {
+      const next = activeTypes.filter(v => v !== value);
+      // Don't allow deselecting all
+      if (next.length === 0) return;
+      setActiveTypes(next);
+    } else {
+      const next = [...activeTypes, value];
+      setActiveTypes(next);
+    }
+  };
+
+  const selectAll = () => setActiveTypes(TIPOS_VENTA.map(t => t.value));
+
+  const filtered = computeFiltered(data, activeTypes);
+  const sorted = [...filtered].sort((a, b) => getSortValue(b, sortKey) - getSortValue(a, sortKey));
 
   const SortButton = ({ col, label }: { col: SortKey; label: string }) => (
     <Button
@@ -72,23 +112,62 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            Ranking por Cumplimiento — Meta {metaType === 'comercial' ? 'Comercial' : 'Nacional'}
-          </CardTitle>
-          <TipoVentaFilter selected={tipoFilter} onChange={setTipoFilter} />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Ranking por Cumplimiento — Meta {metaType === 'comercial' ? 'Comercial' : 'Nacional'}
+            </CardTitle>
+          </div>
+          {/* Inline checkbox filter like advisor ranking */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />
+              Filtrar:
+            </div>
+            {TIPOS_VENTA.map(t => {
+              const isActive = activeTypes.includes(t.value);
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => toggleType(t.value)}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors border',
+                    isActive
+                      ? 'bg-primary/10 border-primary/30 text-primary'
+                      : 'bg-muted/50 border-transparent text-muted-foreground line-through'
+                  )}
+                >
+                  <Check className={cn('h-3 w-3', isActive ? 'opacity-100' : 'opacity-0')} />
+                  {t.label}
+                </button>
+              );
+            })}
+            {!allActive && (
+              <button
+                onClick={selectAll}
+                className="text-xs text-primary hover:underline ml-1"
+              >
+                Todos
+              </button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
-        <Table className="min-w-[600px]">
+        <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12 text-center">#</TableHead>
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>Regional</TableHead>
+              {TIPOS_VENTA.filter(t => activeTypes.includes(t.value)).map(t => (
+                <TableHead key={t.value} className="text-right">
+                  <SortButton col={t.value.toLowerCase() as SortKey} label={t.shortLabel} />
+                </TableHead>
+              ))}
               <TableHead className="text-right"><SortButton col="ventaTotal" label="Ventas" /></TableHead>
               <TableHead className="text-right"><SortButton col="meta" label="Meta" /></TableHead>
-              <TableHead className="w-40"><SortButton col="cumplimiento" label="Cumplimiento" /></TableHead>
+              <TableHead className="w-36"><SortButton col="cumplimiento" label="Cumplimiento" /></TableHead>
               <TableHead className="text-right"><SortButton col="cantidadVentas" label="Q" /></TableHead>
             </TableRow>
           </TableHeader>
@@ -97,7 +176,12 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
               <TableRow key={r.id}>
                 <TableCell className="text-center font-bold">{idx + 1}</TableCell>
                 <TableCell className="font-medium">{r.nombre}</TableCell>
-                <TableCell className="text-right text-sm">{formatCurrency(r.ventaTotal)}</TableCell>
+                {TIPOS_VENTA.filter(t => activeTypes.includes(t.value)).map(t => (
+                  <TableCell key={t.value} className="text-right text-sm text-muted-foreground">
+                    {formatCurrency(getTypeValue(r, t.value))}
+                  </TableCell>
+                ))}
+                <TableCell className="text-right text-sm font-medium">{formatCurrency(r.ventaTotal)}</TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">{formatCurrency(r.meta)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -112,7 +196,7 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
             ))}
             {sorted.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8 + activeTypes.length} className="text-center py-8 text-muted-foreground">
                   No hay datos disponibles
                 </TableCell>
               </TableRow>
