@@ -589,88 +589,83 @@ export default function CargarVentasTab() {
         isLoading={isClosingPeriod}
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Historic Mode Selector - only for admin/coordinador */}
-        {canUseHistoricMode && (
-          <div className="lg:col-span-3">
-            <Card className="border-dashed">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="historic-mode"
-                      checked={historicMode}
-                      onCheckedChange={setHistoricMode}
-                    />
-                    <Label htmlFor="historic-mode" className="flex items-center gap-2 cursor-pointer">
-                      <History className="h-4 w-4" />
-                      Modo Histórico
-                    </Label>
-                  </div>
-                  {historicMode && (
-                    <div className="flex items-center gap-2">
-                      <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MONTH_NAMES.map((name, idx) => (
-                            <SelectItem key={idx} value={String(idx + 1)}>{name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-                        <SelectTrigger className="w-[100px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {AVAILABLE_YEARS.map((y) => (
-                            <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Top bar: Historic mode + Period status in a single row */}
+        <div className="lg:col-span-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Historic Mode Toggle */}
+          {canUseHistoricMode && (
+            <div className="flex items-center gap-3 border border-dashed rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="historic-mode"
+                  checked={historicMode}
+                  onCheckedChange={setHistoricMode}
+                  className="scale-90"
+                />
+                <Label htmlFor="historic-mode" className="flex items-center gap-1.5 cursor-pointer text-xs font-medium">
+                  <History className="h-3.5 w-3.5" />
+                  Histórico
+                </Label>
+              </div>
+              {historicMode && (
+                <div className="flex items-center gap-1.5">
+                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
+                    <SelectTrigger className="w-[110px] h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTH_NAMES.map((name, idx) => (
+                        <SelectItem key={idx} value={String(idx + 1)}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                    <SelectTrigger className="w-[80px] h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_YEARS.map((y) => (
+                        <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Period Status Alert */}
-        <div className="lg:col-span-3">
-          {historicMode && canUseHistoricMode ? (
-            <Alert className="border-warning bg-warning/10">
-              <History className="h-4 w-4 text-warning" />
-              <AlertTitle className="text-warning">Modo Histórico</AlertTitle>
-              <AlertDescription>
-                Cargando datos para <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong>. 
-                Los datos existentes de este período serán reemplazados.
-              </AlertDescription>
-            </Alert>
-          ) : periodClosed ? (
-            <Alert variant="destructive">
-              <Lock className="h-4 w-4" />
-              <AlertTitle>Período Cerrado</AlertTitle>
-              <AlertDescription>
-                El período de {getMonthName(targetPeriod.month)} {targetPeriod.year} ya fue cerrado y no acepta más cargas de ventas.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert>
-              <CalendarCheck className="h-4 w-4" />
-              <AlertTitle className="flex items-center gap-2">
-                Período Activo: {getMonthName(targetPeriod.month)} {targetPeriod.year}
-                <Badge variant="secondary">{targetPeriod.isClosingDay ? 'Día de cierre' : 'Abierto'}</Badge>
-              </AlertTitle>
-              <AlertDescription>
-                {targetPeriod.isClosingDay 
-                  ? `Hoy es el día de cierre. Al cargar un archivo, se te preguntará si es el resultado final de ${getMonthName(targetPeriod.month)}.`
-                  : `Los archivos cargados se asignarán automáticamente a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
-                }
-              </AlertDescription>
-            </Alert>
+              )}
+            </div>
           )}
+
+          {/* Period Status - compact inline */}
+          <div className="flex-1">
+            {historicMode && canUseHistoricMode ? (
+              <Alert className="border-warning bg-warning/10 py-2">
+                <History className="h-4 w-4 text-warning" />
+                <AlertTitle className="text-warning text-sm">Modo Histórico — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</AlertTitle>
+                <AlertDescription className="text-xs">
+                  Los datos existentes de este período serán reemplazados.
+                </AlertDescription>
+              </Alert>
+            ) : periodClosed ? (
+              <Alert variant="destructive" className="py-2">
+                <Lock className="h-4 w-4" />
+                <AlertTitle className="text-sm">Período Cerrado — {getMonthName(targetPeriod.month)} {targetPeriod.year}</AlertTitle>
+                <AlertDescription className="text-xs">No acepta más cargas de ventas.</AlertDescription>
+              </Alert>
+            ) : (
+              <Alert className="py-2">
+                <CalendarCheck className="h-4 w-4" />
+                <AlertTitle className="flex items-center gap-2 text-sm">
+                  Período Activo: {getMonthName(targetPeriod.month)} {targetPeriod.year}
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{targetPeriod.isClosingDay ? 'Día de cierre' : 'Abierto'}</Badge>
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  {targetPeriod.isClosingDay 
+                    ? `Día de cierre. Se preguntará si es el resultado final.`
+                    : `Archivos se asignarán a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
+                  }
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </div>
 
         <Card className="card-elevated lg:col-span-2">

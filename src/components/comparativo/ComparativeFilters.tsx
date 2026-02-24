@@ -176,17 +176,17 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
    }
  
    return (
-     <div className="flex flex-wrap items-center gap-3">
+     <div className="flex flex-wrap items-center gap-2">
        {/* Regional Filter - Global roles only */}
       {isGlobalRole && regionales && (
         <Popover open={regionalOpen} onOpenChange={setRegionalOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="w-[180px] justify-between bg-card">
-              <div className="flex items-center gap-2 truncate">
-                <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+              <div className="flex items-center gap-1.5 truncate">
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate">
                   {filters.regionalIds.length === 0
-                    ? 'Todas las regionales'
+                    ? 'Todas las reg.'
                     : filters.regionalIds.length === 1
                     ? regionales.find(r => r.id === filters.regionalIds[0])?.nombre
                     : `${filters.regionalIds.length} regionales`}
@@ -242,10 +242,10 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {/* Tipo Venta Filter */}
        <Popover open={tipoVentaOpen} onOpenChange={setTipoVentaOpen}>
          <PopoverTrigger asChild>
-           <Button variant="outline" className="w-[160px] justify-between bg-card">
-             <span className="truncate">
-               {filters.tipoVenta.length === 0
-                 ? 'Tipo de Venta'
+            <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+              <span className="truncate">
+                {filters.tipoVenta.length === 0
+                  ? 'Tipo Venta'
                  : filters.tipoVenta.length === 1
                  ? TIPOS_VENTA.find(t => t.value === filters.tipoVenta[0])?.label
                  : `${filters.tipoVenta.length} tipos`}
@@ -276,11 +276,11 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {(isGlobalRole || isLeader) && jefes && (
           <Popover open={jefeOpen} onOpenChange={(open) => { setJefeOpen(open); if (!open) setJefeSearch(''); }}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[180px] justify-between bg-card">
-                <span className="truncate">
-                  {filters.codigoJefe
-                    ? jefes.find(j => j.codigo === filters.codigoJefe)?.nombre || 'Jefe'
-                    : 'Jefe de Ventas'}
+              <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+                 <span className="truncate">
+                   {filters.codigoJefe
+                     ? jefes.find(j => j.codigo === filters.codigoJefe)?.nombre || 'Jefe'
+                     : 'Jefe de Ventas'}
                 </span>
                 <ChevronDown className="h-4 w-4 opacity-50" />
               </Button>
@@ -339,10 +339,10 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {asesores && asesores.length > 0 && (
           <Popover open={asesorOpen} onOpenChange={(open) => { setAsesorOpen(open); if (!open) setAsesorSearch(''); }}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[180px] justify-between bg-card">
-                <span className="truncate">
-                  {filters.codigosAsesor.length === 0
-                    ? 'Asesores'
+              <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+                 <span className="truncate">
+                   {filters.codigosAsesor.length === 0
+                     ? 'Asesores'
                     : `${filters.codigosAsesor.length} seleccionados`}
                 </span>
                 <ChevronDown className="h-4 w-4 opacity-50" />

@@ -112,18 +112,15 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              Ranking por Cumplimiento — Meta {metaType === 'comercial' ? 'Comercial' : 'Nacional'}
-            </CardTitle>
-          </div>
-          {/* Inline checkbox filter like advisor ranking */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            Ranking por Cumplimiento — Meta {metaType === 'comercial' ? 'Comercial' : 'Nacional'}
+          </CardTitle>
+          {/* Inline checkbox filter */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Filter className="h-3.5 w-3.5" />
-              Filtrar:
             </div>
             {TIPOS_VENTA.map(t => {
               const isActive = activeTypes.includes(t.value);
