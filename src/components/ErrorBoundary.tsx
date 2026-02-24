@@ -36,6 +36,12 @@ export class ErrorBoundary extends React.Component<
             <p className="text-sm text-muted-foreground">
               Ocurrió un error inesperado. Por favor recarga la página.
             </p>
+            {this.state.error && (
+              <details className="text-left text-xs text-muted-foreground bg-muted/50 rounded-md p-3 max-h-40 overflow-auto">
+                <summary className="cursor-pointer font-medium">Detalle del error</summary>
+                <pre className="mt-2 whitespace-pre-wrap break-words">{this.state.error.message}</pre>
+              </details>
+            )}
             <button
               onClick={this.handleReload}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
