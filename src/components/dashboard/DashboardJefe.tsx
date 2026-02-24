@@ -674,7 +674,7 @@ export default function DashboardJefe() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="space-y-4 sm:space-y-6"
+      className="space-y-4 sm:space-y-6 overflow-x-hidden"
     >
       {/* Header */}
       <motion.div variants={item} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

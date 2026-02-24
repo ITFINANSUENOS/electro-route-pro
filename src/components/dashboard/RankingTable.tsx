@@ -217,7 +217,7 @@ export function RankingTable({
   }, [filteredByTipoAsesor]);
 
   return (
-    <Card className={`card-elevated transition-all duration-300 ${isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
+    <Card className={`card-elevated transition-all duration-300 overflow-hidden ${isMaximized ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
       {/* Backdrop when maximized */}
       {isMaximized && (
         <div 
