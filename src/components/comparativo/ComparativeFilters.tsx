@@ -181,7 +181,7 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
       {isGlobalRole && regionales && (
         <Popover open={regionalOpen} onOpenChange={setRegionalOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+            <Button variant="outline" className="h-9 px-3 justify-between bg-card text-sm" size="sm">
               <div className="flex items-center gap-1.5 truncate">
                 <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate">
@@ -242,7 +242,7 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {/* Tipo Venta Filter */}
        <Popover open={tipoVentaOpen} onOpenChange={setTipoVentaOpen}>
          <PopoverTrigger asChild>
-            <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+            <Button variant="outline" className="h-9 px-3 justify-between bg-card text-sm" size="sm">
               <span className="truncate">
                 {filters.tipoVenta.length === 0
                   ? 'Tipo Venta'
@@ -276,7 +276,7 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {(isGlobalRole || isLeader) && jefes && (
           <Popover open={jefeOpen} onOpenChange={(open) => { setJefeOpen(open); if (!open) setJefeSearch(''); }}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+              <Button variant="outline" className="h-9 px-3 justify-between bg-card text-sm" size="sm">
                  <span className="truncate">
                    {filters.codigoJefe
                      ? jefes.find(j => j.codigo === filters.codigoJefe)?.nombre || 'Jefe'
@@ -339,7 +339,7 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
        {asesores && asesores.length > 0 && (
           <Popover open={asesorOpen} onOpenChange={(open) => { setAsesorOpen(open); if (!open) setAsesorSearch(''); }}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="h-8 px-2.5 justify-between bg-card text-xs" size="sm">
+              <Button variant="outline" className="h-9 px-3 justify-between bg-card text-sm" size="sm">
                  <span className="truncate">
                    {filters.codigosAsesor.length === 0
                      ? 'Asesores'

@@ -76,7 +76,7 @@ export function TipoAsesorMultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("h-8 px-2.5 justify-between bg-card text-xs", className)}
+          className={cn("h-9 px-3 justify-between bg-card text-sm", className)}
           size="sm"
         >
           <div className="flex items-center gap-1.5 truncate">
