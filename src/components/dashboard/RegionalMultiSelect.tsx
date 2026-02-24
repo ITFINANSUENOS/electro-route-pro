@@ -73,7 +73,7 @@ export function RegionalMultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full xs:w-[200px] justify-between bg-card text-sm", className)}
+          className={cn("h-9 px-3 justify-between bg-card text-sm", className)}
         >
           <div className="flex items-center gap-2 truncate">
             <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
