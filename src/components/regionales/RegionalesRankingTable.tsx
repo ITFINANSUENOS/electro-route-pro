@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { RegionalData } from '@/hooks/useRegionalesData';
+import { formatCurrencyShort } from '@/utils/formatCurrency';
 
 interface Props {
   data: RegionalData[];
@@ -21,14 +22,9 @@ const TIPOS_VENTA = [
   { value: 'ALIADOS', label: 'Aliados', shortLabel: 'Aliados' },
 ];
 
+// Use manual formatting - Intl.NumberFormat produces "millones de dólares" in some browsers
 function formatCurrency(value: number) {
-  if (Math.abs(value) >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (Math.abs(value) >= 1_000) {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
-  }
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+  return formatCurrencyShort(value);
 }
 
 function getComplianceColor(pct: number) {

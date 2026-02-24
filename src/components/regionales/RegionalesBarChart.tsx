@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { BarChart3 } from 'lucide-react';
 import { TipoVentaFilter } from './TipoVentaFilter';
 import type { RegionalData } from '@/hooks/useRegionalesData';
+import { formatCurrencyFull as formatCurrencyFullImported } from '@/utils/formatCurrency';
 
 // Order: bottom (darkest) to top (lightest)
 const TIPOS_VENTA = [
@@ -24,7 +25,7 @@ function formatCurrency(value: number) {
 }
 
 function formatFullCurrency(value: number) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(value);
+  return formatCurrencyFullImported(value);
 }
 
 function filterByTipo(data: RegionalData[], tipos: string[]) {

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { getMonthName } from '@/hooks/usePeriodSelector';
 import { TipoVentaFilter } from './TipoVentaFilter';
 import type { RegionalHistorico } from '@/hooks/useRegionalesData';
+import { formatCurrencyFull } from '@/utils/formatCurrency';
 
 interface Props {
   data: RegionalHistorico[];
@@ -28,7 +29,7 @@ function CustomTooltip({ active, payload, label }: any) {
       <p className="font-semibold mb-1">{label}</p>
       {payload.map((p: any, i: number) => (
         <p key={i} style={{ color: p.color }}>
-          {p.name}: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(p.value)}
+          {p.name}: {formatCurrencyFull(p.value)}
           {p.payload?.[`${p.dataKey}_count`] != null && (
             <span className="text-muted-foreground ml-1">(Q: {p.payload[`${p.dataKey}_count`]})</span>
           )}
