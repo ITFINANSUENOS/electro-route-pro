@@ -9,6 +9,7 @@ import { RegionalesBarChart } from '@/components/regionales/RegionalesBarChart';
 import { RegionalesTipoVentaTable } from '@/components/regionales/RegionalesTipoVentaTable';
 import { RegionalesHistoricoChart } from '@/components/regionales/RegionalesHistoricoChart';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChartErrorBoundary } from '@/components/ChartErrorBoundary';
 
 export default function Regionales() {
   const [metaType, setMetaType] = useState<MetaType>('comercial');
@@ -58,22 +59,30 @@ export default function Regionales() {
       ) : (
         <div className="space-y-6">
           {/* Section 1: Ranking */}
-          <RegionalesRankingTable data={ranking} metaType={metaType} />
+          <ChartErrorBoundary>
+            <RegionalesRankingTable data={ranking} metaType={metaType} />
+          </ChartErrorBoundary>
 
           {/* Section 2: Bar Chart */}
-          <RegionalesBarChart data={ranking} />
+          <ChartErrorBoundary>
+            <RegionalesBarChart data={ranking} />
+          </ChartErrorBoundary>
 
           {/* Section 3: Tipo de Venta */}
-          <RegionalesTipoVentaTable data={ranking} metaNacionalByRegional={metaNacionalByRegional} />
+          <ChartErrorBoundary>
+            <RegionalesTipoVentaTable data={ranking} metaNacionalByRegional={metaNacionalByRegional} />
+          </ChartErrorBoundary>
 
           {/* Section 4: Historico */}
-          <RegionalesHistoricoChart
-            data={historico}
-            currentMonth={selectedPeriod.mes}
-            currentYear={selectedPeriod.anio}
-            prevMonth={prevMonth}
-            prevYear={prevYear}
-          />
+          <ChartErrorBoundary>
+            <RegionalesHistoricoChart
+              data={historico}
+              currentMonth={selectedPeriod.mes}
+              currentYear={selectedPeriod.anio}
+              prevMonth={prevMonth}
+              prevYear={prevYear}
+            />
+          </ChartErrorBoundary>
         </div>
       )}
     </div>
