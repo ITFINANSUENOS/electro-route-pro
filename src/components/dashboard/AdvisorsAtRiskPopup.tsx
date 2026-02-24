@@ -84,7 +84,7 @@ export function AdvisorsAtRiskPopup({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh]">
+      <DialogContent className="max-w-2xl max-h-[85vh] w-[calc(100%-1rem)] sm:w-full">
         <DialogHeader className="pr-8">
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="flex items-center gap-2">
@@ -133,87 +133,48 @@ export function AdvisorsAtRiskPopup({
                       onClick={() => setSelectedAdvisor(isExpanded ? null : advisor.codigo)}
                     >
                       {/* Header Row */}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm sm:text-base truncate">{advisor.nombre}</span>
-                            {/* Tipo Asesor Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-xs sm:text-sm truncate max-w-[160px] sm:max-w-none">{advisor.nombre}</span>
                             <Badge 
                               variant="outline" 
-                              className={`text-[10px] px-1.5 py-0 h-5 ${tipoAsesorColors[tipoAsesor] || 'bg-muted'}`}
+                              className={`text-[10px] px-1.5 py-0 h-5 flex-shrink-0 ${tipoAsesorColors[tipoAsesor] || 'bg-muted'}`}
                             >
                               {tipoAsesorLabels[tipoAsesor] || tipoAsesor}
                             </Badge>
-                            {/* Regional Badge - Only for coordinador/admin */}
                             {showRegional && advisor.regional && (
                               <Badge 
                                 variant="outline" 
-                                className="text-[10px] px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground border-muted"
+                                className="text-[10px] px-1.5 py-0 h-5 bg-muted/50 text-muted-foreground border-muted flex-shrink-0"
                               >
                                 {advisor.regional}
                               </Badge>
                             )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground flex-shrink-0 cursor-help" />
+                                <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 cursor-help" />
                               </TooltipTrigger>
                               <TooltipContent side="top" className="max-w-xs p-3 bg-popover border shadow-lg">
-                                <p className="text-xs font-medium mb-2">Desglose por tipo de venta:</p>
-                                <div className="space-y-1.5">
-                                  {ALL_SALE_TYPES.map(tipo => {
-                                    const value = advisor.byType[tipo] || 0;
-                                    const meta = advisor.metaByType?.[tipo] || 0;
-                                    const typeCompliance = meta > 0 ? ((value / meta) * 100).toFixed(1) : 0;
-                                    return (
-                                      <div key={tipo} className="flex items-center justify-between gap-3 text-xs">
-                                        <span className={`px-1.5 py-0.5 rounded ${tiposVentaColors[tipo] || 'bg-muted'}`}>
-                                          {tiposVentaLabels[tipo] || tipo}
-                                        </span>
-                                        <div className="text-right">
-                                          <span className="font-medium">{formatCurrency(value)}</span>
-                                          {meta > 0 && (
-                                            <span className={`ml-2 ${
-                                              Number(typeCompliance) >= 80 ? 'text-success' :
-                                              Number(typeCompliance) >= 50 ? 'text-warning' :
-                                              'text-danger'
-                                            }`}>
-                                              ({typeCompliance}%)
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                {advisor.metaByType && Object.keys(advisor.metaByType).length > 0 && (
-                                  <div className="mt-2 pt-2 border-t border-border">
-                                    <p className="text-xs text-muted-foreground">Metas por tipo:</p>
-                                    {ALL_SALE_TYPES.filter(tipo => (advisor.metaByType?.[tipo] || 0) > 0).map(tipo => (
-                                      <div key={tipo} className="flex justify-between text-xs mt-1">
-                                        <span>{tiposVentaLabels[tipo] || tipo}:</span>
-                                        <span className="text-muted-foreground">{formatCurrency(advisor.metaByType?.[tipo] || 0)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+...
                               </TooltipContent>
                             </Tooltip>
                           </div>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
                             <span>Actual: {formatCurrency(advisor.total)}</span>
                             <span>•</span>
                             <span>Meta: {formatCurrency(advisor.meta)}</span>
                           </div>
                         </div>
                         
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <StatusBadge 
                             status={advisor.compliance < 50 ? 'danger' : 'warning'} 
                             label={`${advisor.compliance.toFixed(1)}%`} 
                             size="sm" 
                           />
-                          <span className="text-[10px] text-muted-foreground">
-                            Proyección: {advisor.projectedCompliance.toFixed(1)}%
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            Proy: {advisor.projectedCompliance.toFixed(1)}%
                           </span>
                         </div>
                       </div>
