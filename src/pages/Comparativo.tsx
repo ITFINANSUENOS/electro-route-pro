@@ -62,17 +62,19 @@ import { ComparativePieCharts } from '@/components/comparativo/ComparativePieCha
        className="space-y-6"
      >
        {/* Header */}
-       <div className="flex flex-col gap-4">
-         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-           <div>
-             <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-               <BarChart3 className="h-8 w-8 text-secondary" />
-               Comparativo
-             </h1>
-              <p className="text-muted-foreground mt-1">
-                Compara el rendimiento de ventas día a día entre períodos ({comparisonLabel})
-              </p>
-           </div>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <BarChart3 className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">Comparativo</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                  Ventas día a día entre períodos ({comparisonLabel})
+                </p>
+              </div>
+            </div>
           <div className="flex items-center gap-3">
             {/* Comparison mode toggle */}
             <div className="flex items-center rounded-lg border border-border overflow-hidden">

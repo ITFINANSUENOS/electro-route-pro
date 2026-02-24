@@ -15,15 +15,15 @@ export default function Informacion() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <Settings className="h-8 w-8 text-secondary" />
-            Información
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gestiona la carga de ventas y metas del equipo comercial
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Settings className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Información</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Gestiona ventas y metas del equipo comercial</p>
+          </div>
         </div>
       </div>
 

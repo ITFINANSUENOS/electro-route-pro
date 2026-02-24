@@ -112,7 +112,7 @@ function PieSection({
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex flex-col gap-2 text-sm max-h-[200px] overflow-y-auto flex-1">
+        <div className="flex flex-col gap-2 text-sm flex-1">
           {entries.map((entry, i) => {
             const pct = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
             return (
