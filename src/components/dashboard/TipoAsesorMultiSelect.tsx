@@ -76,13 +76,14 @@ export function TipoAsesorMultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full xs:w-[180px] justify-between bg-card text-sm", className)}
+          className={cn("h-8 px-2.5 justify-between bg-card text-xs", className)}
+          size="sm"
         >
-          <div className="flex items-center gap-2 truncate">
-            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex items-center gap-1.5 truncate">
+            <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate">{getDisplayText()}</span>
           </div>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">
