@@ -43,6 +43,7 @@ export interface RankingAdvisor {
   salesCountByType?: Record<string, number>;
   metaByType?: Record<string, number>;  // Meta per sale type for compliance calculation
   isGerencia?: boolean; // Flag to identify GERENCIA entries (not counted as advisors)
+  activo?: boolean; // Whether the advisor is currently active
 }
 
 export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'ALIADOS';
@@ -423,8 +424,13 @@ export function RankingTable({
                         </TableCell>
                       )}
                       <TableCell className="font-medium">
-                        <span className="block whitespace-nowrap">
+                        <span className={`block whitespace-nowrap ${advisor.activo === false ? 'text-muted-foreground opacity-60' : ''}`}>
                           {advisor.nombre}
+                          {advisor.activo === false && (
+                            <span className="ml-2 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              Inactivo
+                            </span>
+                          )}
                         </span>
                       </TableCell>
                       {/* Dynamic columns for selected sale types */}

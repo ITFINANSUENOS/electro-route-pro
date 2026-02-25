@@ -179,8 +179,7 @@ export function useComparativeData(
     queryFn: async () => {
       let query = dataService
         .from('profiles')
-        .select('codigo_asesor, tipo_asesor, regional_id')
-        .eq('activo', true)
+        .select('codigo_asesor, tipo_asesor, regional_id, activo')
         .not('codigo_asesor', 'is', null);
 
       if (role === 'lider_zona' && profile?.regional_id) {

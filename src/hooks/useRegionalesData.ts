@@ -93,12 +93,11 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     queryFn: async () => {
       const { data, error } = await (dataService
         .from('profiles')
-        .select('codigo_asesor, regional_id')
-        .eq('activo', true)
+        .select('codigo_asesor, regional_id, activo')
         .not('codigo_asesor', 'is', null)
         .not('regional_id', 'is', null) as any);
       if (error) throw error;
-      return data as Array<{ codigo_asesor: string; regional_id: string }>;
+      return data as Array<{ codigo_asesor: string; regional_id: string; activo: boolean }>;
     },
   });
 
