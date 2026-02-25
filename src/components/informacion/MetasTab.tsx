@@ -21,6 +21,7 @@ import { calculateMetaQuantity, MetaQuantityResult } from '@/utils/calculateMeta
 import { importMetasCSV } from '@/utils/importMetasCSV';
 import { usePeriodSelector, formatPeriodLabel } from '@/hooks/usePeriodSelector';
 import { PeriodSelector } from '@/components/dashboard/PeriodSelector';
+import { MetaTypeToggle, MetaType } from '@/components/dashboard/MetaTypeToggle';
 import {
   Dialog,
   DialogContent,
@@ -74,6 +75,7 @@ export default function MetasTab() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedMetaCategoria, setSelectedMetaCategoria] = useState<'comercial' | 'nacional'>('comercial');
+  const [viewMetaType, setViewMetaType] = useState<MetaType>('comercial');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -95,12 +97,11 @@ export default function MetasTab() {
   const currentMonth = selectedPeriod.mes;
   const currentYear = selectedPeriod.anio;
 
-  // Fetch metas with advisor info
+  // Fetch metas with advisor info - filtered by viewMetaType
   const { data: metas, isLoading } = useQuery({
-    queryKey: ['metas', currentMonth, currentYear],
+    queryKey: ['metas', currentMonth, currentYear, viewMetaType],
     queryFn: async () => {
       // Paginate to avoid 1000-row Supabase limit
-      // (126 advisors × 4 types × 2 categories = 1008+ rows)
       const pageSize = 1000;
       let allData: MetaData[] = [];
       let page = 0;
@@ -112,6 +113,7 @@ export default function MetasTab() {
           .select('*')
           .eq('mes', currentMonth)
           .eq('anio', currentYear)
+          .eq('tipo_meta_categoria', viewMetaType)
           .range(page * pageSize, (page + 1) * pageSize - 1) as any);
         
         if (error) throw error;
@@ -440,6 +442,16 @@ export default function MetasTab() {
           )}
         </div>
       )}
+
+      {/* Meta Type Toggle + Summary Cards */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Mostrando: Meta {viewMetaType === 'comercial' ? 'Comercial' : 'Nacional'}
+        </h3>
+        {(role === 'administrador' || role === 'coordinador_comercial' || role === 'lider_zona') && (
+          <MetaTypeToggle value={viewMetaType} onChange={setViewMetaType} />
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
