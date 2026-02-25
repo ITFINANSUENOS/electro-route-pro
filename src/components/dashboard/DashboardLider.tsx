@@ -712,23 +712,34 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
     
-    const advisorCodesInScope = new Set<string>();
-    (profiles || []).forEach(p => {
-      if (!p.codigo_asesor) return;
-      if (p.codigo_asesor === '00001') return;
-      
-      if (isProfileInScope(p)) {
-        advisorCodesInScope.add(normalizeForMeta(p.codigo_asesor));
-        advisorCodesInScope.add(p.codigo_asesor); // Also add original
-      }
-    });
+    // When global scope with no regional filter active, sum ALL metas directly
+    // This avoids excluding advisors who have metas but no profile record
+    const isUnfilteredGlobalScope = isGlobalRole && selectedRegionalIds.size === 0;
     
-    const totalMeta = (metasData || [])
-      .filter(m => {
-        const normalizedCode = normalizeForMeta(m.codigo_asesor);
-        return advisorCodesInScope.has(normalizedCode) || advisorCodesInScope.has(m.codigo_asesor);
-      })
-      .reduce((sum, m) => sum + m.valor_meta, 0);
+    let totalMeta: number;
+    if (isUnfilteredGlobalScope) {
+      // Sum all metas directly — no profile-based filtering needed
+      totalMeta = (metasData || []).reduce((sum, m) => sum + m.valor_meta, 0);
+    } else {
+      // Build scope set from profiles for filtered view
+      const advisorCodesInScope = new Set<string>();
+      (profiles || []).forEach(p => {
+        if (!p.codigo_asesor) return;
+        if (p.codigo_asesor === '00001') return;
+        
+        if (isProfileInScope(p)) {
+          advisorCodesInScope.add(normalizeForMeta(p.codigo_asesor));
+          advisorCodesInScope.add(p.codigo_asesor);
+        }
+      });
+      
+      totalMeta = (metasData || [])
+        .filter(m => {
+          const normalizedCode = normalizeForMeta(m.codigo_asesor);
+          return advisorCodesInScope.has(normalizedCode) || advisorCodesInScope.has(m.codigo_asesor);
+        })
+        .reduce((sum, m) => sum + m.valor_meta, 0);
+    }
 
     // Count unique advisors with sales (excluding GERENCIA/GENERAL entries)
     const advisorsWithSales = new Set(
@@ -770,7 +781,7 @@ export default function DashboardLider() {
     
     const codes = new Set<string>();
     (profiles || []).forEach(p => {
-      if (!p.activo || !p.codigo_asesor) return;
+      if (!p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       
       if (isProfileInScope(p)) {
@@ -782,6 +793,7 @@ export default function DashboardLider() {
   }, [profiles, role, profile?.regional_id, isGlobalRole, selectedRegionalIds, regionales]);
 
   // Calculate budget vs executed by type - FILTER by advisors in scope
+  const isUnfilteredGlobal = isGlobalRole && selectedRegionalIds.size === 0;
   const budgetVsExecuted = useMemo(() => {
     if (!metasData || !advancedFilteredSales) return [];
 
@@ -793,10 +805,11 @@ export default function DashboardLider() {
     const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
-      // Filter metas by advisors in scope
+      // For unfiltered global scope, include ALL metas (no profile-based filter)
       const presupuesto = metasData
         .filter(m => {
           if (m.tipo_meta !== tipo.toLowerCase()) return false;
+          if (isUnfilteredGlobal) return true;
           const normalizedCode = normalizeForMeta(m.codigo_asesor);
           return advisorCodesInScopeForMetas.has(normalizedCode) || advisorCodesInScopeForMetas.has(m.codigo_asesor);
         })
@@ -812,7 +825,7 @@ export default function DashboardLider() {
         ejecutado: ejecutado / 1000000,
       };
     });
-  }, [metasData, advancedFilteredSales, advisorCodesInScopeForMetas]);
+  }, [metasData, advancedFilteredSales, advisorCodesInScopeForMetas, isUnfilteredGlobal]);
 
   // Calculate metas by tipo_asesor - FILTER by advisors in scope
   const metasByTipoAsesor = useMemo(() => {
@@ -838,16 +851,18 @@ export default function DashboardLider() {
     
     metasData.forEach(m => {
       const normalizedCode = normalizeCode(m.codigo_asesor);
-      // Only include if advisor is in scope
-      if (!advisorCodesInScopeForMetas.has(normalizedCode) && !advisorCodesInScopeForMetas.has(m.codigo_asesor)) {
-        return;
+      // Only filter by scope when regional filter is active
+      if (!isUnfilteredGlobal) {
+        if (!advisorCodesInScopeForMetas.has(normalizedCode) && !advisorCodesInScopeForMetas.has(m.codigo_asesor)) {
+          return;
+        }
       }
       const tipo = codigoToTipo.get(normalizedCode) || codigoToTipo.get(m.codigo_asesor) || 'EXTERNO';
       metasTotals[tipo] = (metasTotals[tipo] || 0) + m.valor_meta;
     });
     
     return metasTotals;
-  }, [metasData, profiles, advisorCodesInScopeForMetas]);
+  }, [metasData, profiles, advisorCodesInScopeForMetas, isUnfilteredGlobal]);
 
   // Calculate unique sales counts using the advanced grouping logic
   const salesCountData = useSalesCount(
