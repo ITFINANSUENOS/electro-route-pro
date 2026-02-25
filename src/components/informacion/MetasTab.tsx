@@ -46,6 +46,7 @@ interface ProfileWithRegional {
   nombre_completo: string;
   tipo_asesor: string | null;
   regional_id: string | null;
+  activo: boolean | null;
 }
 
 const tiposVenta = [
@@ -115,7 +116,7 @@ export default function MetasTab() {
     queryFn: async () => {
       const { data, error } = await (dataService
         .from('profiles')
-        .select('codigo_asesor, nombre_completo, tipo_asesor, regional_id') as any);
+        .select('codigo_asesor, nombre_completo, tipo_asesor, regional_id, activo') as any);
       
       if (error) throw error;
       return data as ProfileWithRegional[];
@@ -588,8 +589,15 @@ export default function MetasTab() {
                           )}
                         </td>
                         <td className="py-4 px-4">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{getAdvisorName(codigoAsesor)}</span>
+                          <div className={`flex flex-col ${advisorInfo?.activo === false ? 'opacity-60' : ''}`}>
+                            <span className="font-medium">
+                              {getAdvisorName(codigoAsesor)}
+                              {advisorInfo?.activo === false && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  Inactivo
+                                </span>
+                              )}
+                            </span>
                             {advisorInfo?.tipo_asesor && (
                               <Badge variant="outline" className="w-fit text-xs mt-1">
                                 {advisorInfo.tipo_asesor}

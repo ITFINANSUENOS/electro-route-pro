@@ -129,9 +129,8 @@ export default function DashboardJefe() {
       if (!codigoJefe) return [];
       const { data, error } = await (dataService
         .from('profiles')
-        .select('codigo_asesor, nombre_completo, tipo_asesor, cedula')
+        .select('codigo_asesor, nombre_completo, tipo_asesor, cedula, activo')
         .eq('codigo_jefe', codigoJefe)
-        .eq('activo', true)
         .not('codigo_asesor', 'is', null) as any);
       if (error) throw error;
       return data || [];
@@ -320,6 +319,7 @@ export default function DashboardJefe() {
           nombre: sale.asesor_nombre || advisor, 
           tipoAsesor: profileMatch?.tipo_asesor || 'EXTERNO',
           cedula: profileMatch?.cedula || '',
+          activo: profileMatch?.activo !== false,
           total: 0,
           byType: {} as Record<string, number>
         };
@@ -328,11 +328,11 @@ export default function DashboardJefe() {
       const tipo = sale.tipo_venta || 'OTRO';
       acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
-    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; total: number; byType: Record<string, number> }>);
+    }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; activo: boolean; total: number; byType: Record<string, number> }>);
 
     // Merge active team profiles that have NO sales so they appear with 0
     (teamProfiles || []).forEach(p => {
-      if (!p.activo || !p.codigo_asesor) return;
+      if (!p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       if (!byAdvisorMap[p.codigo_asesor]) {
         byAdvisorMap[p.codigo_asesor] = {
@@ -340,6 +340,7 @@ export default function DashboardJefe() {
           nombre: p.nombre_completo || p.codigo_asesor,
           tipoAsesor: p.tipo_asesor || 'EXTERNO',
           cedula: p.cedula || '',
+          activo: p.activo !== false,
           total: 0,
           byType: {},
         };

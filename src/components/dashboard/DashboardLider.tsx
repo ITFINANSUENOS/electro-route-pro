@@ -620,7 +620,7 @@ export default function DashboardLider() {
     // but they will be excluded from the advisor COUNT
     // Merge active profiles that have NO sales into byAdvisorMap so they appear with 0
     (profiles || []).forEach(p => {
-      if (!p.activo || !p.codigo_asesor) return;
+      if (!p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       if (!isProfileInScope(p)) return;
       
@@ -638,6 +638,12 @@ export default function DashboardLider() {
           byType: {},
           isGerencia: false,
         };
+      }
+      // Tag with activo status
+      if (byAdvisorMap[normalized] && p.activo === false) {
+        (byAdvisorMap[normalized] as any).activo = false;
+      } else if (byAdvisorMap[normalized] && !('activo' in byAdvisorMap[normalized])) {
+        (byAdvisorMap[normalized] as any).activo = true;
       }
     });
 
@@ -662,6 +668,7 @@ export default function DashboardLider() {
           total: a.total,
           meta: totalMeta,
           metaByType,
+          activo: (a as any).activo !== false,
         };
       })
       .sort((a, b) => b.total - a.total);
@@ -707,7 +714,7 @@ export default function DashboardLider() {
     
     const advisorCodesInScope = new Set<string>();
     (profiles || []).forEach(p => {
-      if (!p.activo || !p.codigo_asesor) return;
+      if (!p.codigo_asesor) return;
       if (p.codigo_asesor === '00001') return;
       
       if (isProfileInScope(p)) {
