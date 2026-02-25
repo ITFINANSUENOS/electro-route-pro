@@ -99,14 +99,31 @@ export default function MetasTab() {
   const { data: metas, isLoading } = useQuery({
     queryKey: ['metas', currentMonth, currentYear],
     queryFn: async () => {
-      const { data, error } = await (dataService
-        .from('metas')
-        .select('*')
-        .eq('mes', currentMonth)
-        .eq('anio', currentYear) as any);
-      
-      if (error) throw error;
-      return data as MetaData[];
+      // Paginate to avoid 1000-row Supabase limit
+      // (126 advisors × 4 types × 2 categories = 1008+ rows)
+      const pageSize = 1000;
+      let allData: MetaData[] = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await (dataService
+          .from('metas')
+          .select('*')
+          .eq('mes', currentMonth)
+          .eq('anio', currentYear)
+          .range(page * pageSize, (page + 1) * pageSize - 1) as any);
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allData;
     },
   });
 
