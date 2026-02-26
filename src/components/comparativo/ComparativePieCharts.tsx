@@ -222,12 +222,13 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
           {/* Variation column */}
           <div className="hidden md:flex flex-col border-l border-border pl-4 min-w-[90px]">
             <h3 className="text-sm font-semibold text-foreground text-center mb-3">Var. %</h3>
-            <div className="flex flex-col gap-2">
+            <div className="flex items-center">
+              <div className="flex flex-col gap-2">
                 {variations.map((v, i) => {
                   const isPositive = v > 0;
                   const isZero = v === 0;
                   return (
-                    <div key={i} className="flex items-center gap-1.5 h-[40px]">
+                    <div key={i} className="flex items-center gap-1.5 py-[7px]">
                       {isZero ? (
                         <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                       ) : isPositive ? (
@@ -262,6 +263,7 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
                 </div>
               </div>
             </div>
+          </div>
         </div>
       </CardContent>
     </Card>
