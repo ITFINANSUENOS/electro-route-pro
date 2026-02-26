@@ -32,9 +32,9 @@ interface KpiCardProps {
   onDownload?: () => void;
 }
 
-const KpiCardInner = React.forwardRef<HTMLDivElement, KpiCardProps>(
+const KpiCardInner = React.forwardRef<HTMLDivElement, KpiCardProps & { [key: string]: any }>(
   function KpiCardInner(
-    { title, value, subtitle, icon: Icon, trend, status, className, onClick, onDownload, tooltipItems, tooltipTitle },
+    { title, value, subtitle, icon: Icon, trend, status, className, onClick, onDownload, tooltipItems, tooltipTitle, ...rest },
     ref,
   ) {
     const statusColors = {
@@ -55,6 +55,7 @@ const KpiCardInner = React.forwardRef<HTMLDivElement, KpiCardProps>(
         animate={{ opacity: 1, y: 0 }}
         whileHover={{ y: -2 }}
         onClick={onClick}
+        {...rest}
         className={cn(
           'kpi-card overflow-hidden relative',
           status && statusColors[status],
