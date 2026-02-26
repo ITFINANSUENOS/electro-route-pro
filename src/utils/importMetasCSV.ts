@@ -27,21 +27,10 @@ function parseCurrency(value: string): number {
   
   const trimmed = value.trim();
   
-  // Check if it's a negative number with decimal (like -55.749)
-  // These have only one dot and are small numbers (typically < 1000)
-  const isNegativeDecimal = trimmed.startsWith('-') && 
-    (trimmed.match(/\./g) || []).length === 1 && 
-    Math.abs(parseFloat(trimmed)) < 1000;
-  
-  if (isNegativeDecimal) {
-    // Parse directly as decimal number
-    const num = parseFloat(trimmed);
-    return isNaN(num) ? 0 : num;
-  }
-  
-  // Remove $ symbol, spaces, and dots (thousand separators)
-  const cleaned = trimmed.replace(/[$\s.]/g, '').replace(',', '.');
-  const num = parseFloat(cleaned);
+  // Remove everything except digits and minus sign
+  // Colombian format uses dots as thousand separators: $ 4.500.000
+  const cleaned = trimmed.replace(/[^0-9\-]/g, '');
+  const num = parseInt(cleaned, 10);
   return isNaN(num) ? 0 : num;
 }
 
@@ -169,15 +158,30 @@ export async function importMetasCSV(
   // Get current user
   const { data: { user } } = await dataService.auth.getUser();
 
-  // Get existing metas total before deletion (for history)
-  const { data: existingMetas } = await (dataService
-    .from('metas')
-    .select('valor_meta')
-    .eq('mes', mes)
-    .eq('anio', anio) as any);
+  // Get existing metas total before deletion (for history) - ONLY for this category, with pagination
+  let allExistingMetas: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+  while (hasMore) {
+    const { data } = await (dataService
+      .from('metas')
+      .select('valor_meta')
+      .eq('mes', mes)
+      .eq('anio', anio)
+      .eq('tipo_meta_categoria', tipoMetaCategoria)
+      .range(page * pageSize, (page + 1) * pageSize - 1) as any);
+    if (data && data.length > 0) {
+      allExistingMetas = [...allExistingMetas, ...data];
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
 
-  const montoTotalAnterior = existingMetas?.reduce((sum, m) => sum + m.valor_meta, 0) || 0;
-  const registrosAnteriores = existingMetas?.length || 0;
+  const montoTotalAnterior = allExistingMetas.reduce((sum: number, m: any) => sum + m.valor_meta, 0);
+  const registrosAnteriores = allExistingMetas.length;
 
   // Delete existing metas for this period AND tipo_meta_categoria
   const { error: deleteError } = await (dataService
@@ -236,6 +240,7 @@ export async function importMetasCSV(
         monto_total_anterior: montoTotalAnterior,
         monto_total_nuevo: montoTotalNuevo,
         modificado_por: (user as any)?.id || null,
+        tipo_meta_categoria: tipoMetaCategoria,
         notas: registrosAnteriores > 0 
           ? `Reemplazo de ${registrosAnteriores} metas ${tipoMetaCategoria.toUpperCase()} por ${inserted} nuevas`
           : `Carga inicial de ${inserted} metas ${tipoMetaCategoria.toUpperCase()}`,

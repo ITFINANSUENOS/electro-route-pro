@@ -723,7 +723,9 @@ export default function MetasTab() {
             <CollapsibleContent>
               <CardContent className="pt-0">
                 <div className="space-y-3">
-                  {historialMetas.map((item) => (
+                  {historialMetas.map((item) => {
+                    const categoria = item.tipo_meta_categoria || 'comercial';
+                    return (
                     <div
                       key={item.id}
                       className="p-3 rounded-lg border bg-muted/30"
@@ -732,9 +734,14 @@ export default function MetasTab() {
                         <span className="text-sm font-medium">
                           {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: es })}
                         </span>
-                        <Badge variant={item.accion === 'carga_masiva' ? 'default' : 'secondary'}>
-                          {item.accion === 'carga_masiva' ? 'Carga inicial' : 'Corrección'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={categoria === 'comercial' ? 'default' : 'outline'}>
+                            {categoria === 'comercial' ? 'Comercial' : 'Nacional'}
+                          </Badge>
+                          <Badge variant={item.accion === 'carga_masiva' ? 'default' : 'secondary'}>
+                            {item.accion === 'carga_masiva' ? 'Carga inicial' : 'Corrección'}
+                          </Badge>
+                        </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {getUserName(item.modificado_por)} • {item.registros_afectados} metas
@@ -753,7 +760,8 @@ export default function MetasTab() {
                         </p>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </CollapsibleContent>
