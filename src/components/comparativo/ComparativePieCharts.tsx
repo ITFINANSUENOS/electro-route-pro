@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PieChart as PieChartIcon, ChevronLeft } from 'lucide-react';
+import { PieChart as PieChartIcon, ChevronLeft, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { SalesByTypeData } from '@/hooks/useComparativeData';
 
 interface ComparativePieChartsProps {
@@ -165,6 +166,22 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
     return breakdown.map(e => ({ name: e.formaPago, key: e.formaPago, value: e.amount, count: e.count }));
   }, [data, selectedType]);
 
+  // Compute variations aligned to currentEntries order
+  const variations = useMemo(() => {
+    return currentEntries.map(cur => {
+      const prev = previousEntries.find(p => p.key === cur.key);
+      const prevVal = prev?.value ?? 0;
+      if (prevVal === 0) return cur.value > 0 ? 100 : 0;
+      return ((cur.value - prevVal) / Math.abs(prevVal)) * 100;
+    });
+  }, [currentEntries, previousEntries]);
+
+  const totalCurrent = currentEntries.reduce((s, e) => s + e.value, 0);
+  const totalPrevious = previousEntries.reduce((s, e) => s + e.value, 0);
+  const totalVariation = totalPrevious !== 0
+    ? ((totalCurrent - totalPrevious) / Math.abs(totalPrevious)) * 100
+    : totalCurrent > 0 ? 100 : 0;
+
   const handleSliceClick = (key: string) => {
     if (!selectedType) setSelectedType(key);
   };
@@ -202,6 +219,52 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
             isBreakdown={!!selectedType}
             onSliceClick={!selectedType ? handleSliceClick : undefined}
           />
+          {/* Variation column */}
+          <div className="hidden md:flex flex-col border-l border-border pl-4 min-w-[90px]">
+            <h3 className="text-sm font-semibold text-foreground text-center mb-3">Var. %</h3>
+            {/* Spacer matching pie chart height so variations align with legend */}
+            <div className="h-[160px]" />
+            <div className="flex flex-col gap-2">
+                {variations.map((v, i) => {
+                  const isPositive = v > 0;
+                  const isZero = v === 0;
+                  return (
+                    <div key={i} className="flex items-center gap-1.5 h-[40px]">
+                      {isZero ? (
+                        <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : isPositive ? (
+                        <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                      )}
+                      <span className={cn(
+                        "text-sm font-semibold",
+                        isZero ? "text-muted-foreground" : isPositive ? "text-green-500" : "text-red-500"
+                      )}>
+                        {isPositive ? '+' : ''}{v.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+                {/* Total variation */}
+                <div className="border-t border-border pt-1 mt-1 flex items-center gap-1.5">
+                  {totalVariation === 0 ? (
+                    <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : totalVariation > 0 ? (
+                    <TrendingUp className="h-3.5 w-3.5 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                  )}
+                  <span className={cn(
+                    "text-sm font-semibold",
+                    totalVariation === 0 ? "text-muted-foreground" : totalVariation > 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {totalVariation > 0 ? '+' : ''}{totalVariation.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
