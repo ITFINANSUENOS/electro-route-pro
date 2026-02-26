@@ -285,6 +285,7 @@ export type Database = {
           monto_total_nuevo: number | null
           notas: string | null
           registros_afectados: number
+          tipo_meta_categoria: string
         }
         Insert: {
           accion?: string
@@ -297,6 +298,7 @@ export type Database = {
           monto_total_nuevo?: number | null
           notas?: string | null
           registros_afectados?: number
+          tipo_meta_categoria?: string
         }
         Update: {
           accion?: string
@@ -309,6 +311,7 @@ export type Database = {
           monto_total_nuevo?: number | null
           notas?: string | null
           registros_afectados?: number
+          tipo_meta_categoria?: string
         }
         Relationships: []
       }
