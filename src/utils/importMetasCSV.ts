@@ -19,19 +19,34 @@ function sanitizeCSVField(value: string): string {
 
 /**
  * Parse Colombian currency format: " $ 15.000.000 " -> 15000000
- * Also handles negative values like -55.749 (with decimal point)
- * and values with decimals like 29.221.444 (thousands separators)
+ * Supports optional decimal comma: " $ 2.590.909,09 " -> 2590909.09 -> Math.round -> 2590909
+ * Colombian format: dots = thousand separators, comma = decimal separator
  */
 function parseCurrency(value: string): number {
   if (!value?.trim()) return 0;
   
   const trimmed = value.trim();
   
-  // Remove everything except digits and minus sign
-  // Colombian format uses dots as thousand separators: $ 4.500.000
-  const cleaned = trimmed.replace(/[^0-9\-]/g, '');
-  const num = parseInt(cleaned, 10);
-  return isNaN(num) ? 0 : num;
+  // Remove currency symbol, spaces, and any non-numeric chars except dots, commas, minus
+  let cleaned = trimmed.replace(/[^0-9.,\-]/g, '');
+  
+  // Colombian format: dots are thousands separators, comma is decimal
+  // Check if there's a comma (decimal separator)
+  const commaIdx = cleaned.lastIndexOf(',');
+  
+  if (commaIdx !== -1) {
+    // Has decimal comma: remove dots (thousands), replace comma with dot (decimal)
+    const intPart = cleaned.substring(0, commaIdx).replace(/\./g, '');
+    const decPart = cleaned.substring(commaIdx + 1);
+    cleaned = intPart + '.' + decPart;
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : Math.round(num);
+  } else {
+    // No comma: dots are thousands separators, remove them
+    cleaned = cleaned.replace(/\./g, '');
+    const num = parseInt(cleaned, 10);
+    return isNaN(num) ? 0 : num;
+  }
 }
 
 /**
