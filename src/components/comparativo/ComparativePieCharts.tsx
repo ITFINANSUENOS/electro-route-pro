@@ -222,8 +222,6 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
           {/* Variation column */}
           <div className="hidden md:flex flex-col border-l border-border pl-4 min-w-[90px]">
             <h3 className="text-sm font-semibold text-foreground text-center mb-3">Var. %</h3>
-            {/* Spacer matching pie chart height so variations align with legend */}
-            <div className="h-[160px]" />
             <div className="flex flex-col gap-2">
                 {variations.map((v, i) => {
                   const isPositive = v > 0;
@@ -264,7 +262,6 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </CardContent>
     </Card>
