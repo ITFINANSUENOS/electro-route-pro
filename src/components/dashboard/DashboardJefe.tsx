@@ -298,7 +298,8 @@ export default function DashboardJefe() {
     // Group by tipo_venta
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
-        const type = sale.tipo_venta || 'OTRO';
+        const typeRaw = sale.tipo_venta || 'OTRO';
+        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : typeRaw;
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
@@ -325,7 +326,8 @@ export default function DashboardJefe() {
         };
       }
       acc[advisor].total += sale.vtas_ant_i || 0;
-      const tipo = sale.tipo_venta || 'OTRO';
+      const tipoRaw = sale.tipo_venta || 'OTRO';
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
       acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; activo: boolean; total: number; byType: Record<string, number> }>);
