@@ -139,7 +139,7 @@ export function useComparativeData(
         const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
         const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
 
-        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta, forma_pago';
+        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta, forma_pago, forma1_pago';
 
         const [currentData, prevData] = await Promise.all([
           fetchPaginated((page, pageSize) => {
@@ -199,10 +199,29 @@ export function useComparativeData(
     enabled: !!profile,
   });
 
+  // Fetch formas_pago reference table for descriptive names
+  const { data: formasPagoData } = useQuery({
+    queryKey: ['comparative-formas-pago'],
+    queryFn: async () => {
+      const { data, error } = await dataService
+        .from('formas_pago')
+        .select('codigo, nombre, tipo_venta')
+        .eq('activo', true);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 30, // 30 min cache
+  });
+
   // Process data into daily aggregates
   const processedData = useMemo(() => {
-    if (!salesData || !profilesData) return { daily: [], kpis: null, salesByType: null };
+    if (!salesData || !profilesData || !formasPagoData) return { daily: [], kpis: null, salesByType: null };
 
+    // Build payment method name lookup
+    const paymentNameMap = new Map<string, string>();
+    formasPagoData.forEach((fp: any) => {
+      paymentNameMap.set(fp.codigo.toUpperCase(), fp.nombre);
+    });
     const validCodigos = filters.tipoAsesor.length > 0
       ? new Set(profilesData.map((p: any) => p.codigo_asesor))
       : null;
@@ -244,12 +263,13 @@ export function useComparativeData(
       const t = currentByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
       t.count += 1;
-      // Breakdown by forma_pago
-      const fp = sale.forma_pago || 'Sin forma';
+      // Breakdown by forma_pago (using forma1_pago + lookup)
+      const fpCode = (sale.forma1_pago || sale.forma_pago || 'Sin forma').toUpperCase();
+      const fpName = paymentNameMap.get(fpCode) || fpCode;
       if (!currentBreakdownMap.has(tipo)) currentBreakdownMap.set(tipo, new Map());
       const bm = currentBreakdownMap.get(tipo)!;
-      if (!bm.has(fp)) bm.set(fp, { amount: 0, count: 0 });
-      const bf = bm.get(fp)!;
+      if (!bm.has(fpName)) bm.set(fpName, { amount: 0, count: 0 });
+      const bf = bm.get(fpName)!;
       bf.amount += sale.vtas_ant_i || 0;
       bf.count += 1;
     });
@@ -273,12 +293,13 @@ export function useComparativeData(
       const t = previousByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
       t.count += 1;
-      // Breakdown by forma_pago
-      const fp = sale.forma_pago || 'Sin forma';
+      // Breakdown by forma_pago (using forma1_pago + lookup)
+      const fpCode = (sale.forma1_pago || sale.forma_pago || 'Sin forma').toUpperCase();
+      const fpName = paymentNameMap.get(fpCode) || fpCode;
       if (!previousBreakdownMap.has(tipo)) previousBreakdownMap.set(tipo, new Map());
       const bm = previousBreakdownMap.get(tipo)!;
-      if (!bm.has(fp)) bm.set(fp, { amount: 0, count: 0 });
-      const bf = bm.get(fp)!;
+      if (!bm.has(fpName)) bm.set(fpName, { amount: 0, count: 0 });
+      const bf = bm.get(fpName)!;
       bf.amount += sale.vtas_ant_i || 0;
       bf.count += 1;
     });
@@ -337,7 +358,7 @@ export function useComparativeData(
     };
 
     return { daily, kpis, salesByType };
-  }, [salesData, profilesData, currentPeriod, previousPeriod, filters.tipoAsesor]);
+  }, [salesData, profilesData, formasPagoData, currentPeriod, previousPeriod, filters.tipoAsesor]);
 
   return {
     dailyData: processedData.daily,
