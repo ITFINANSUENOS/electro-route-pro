@@ -511,7 +511,8 @@ export default function DashboardLider() {
     // Group by tipo_venta - use net values (SUM, not ABS) to account for returns
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
-        const type = sale.tipo_venta || 'OTRO';
+        const typeRaw = sale.tipo_venta || 'OTRO';
+        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : typeRaw;
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
@@ -609,7 +610,8 @@ export default function DashboardLider() {
         };
       }
       acc[uniqueKey].total += sale.vtas_ant_i || 0;
-      const tipo = sale.tipo_venta || 'OTRO';
+      const tipoRaw = sale.tipo_venta || 'OTRO';
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
       acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; regional?: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
