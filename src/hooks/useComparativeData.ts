@@ -238,8 +238,8 @@ export function useComparativeData(
         currentUniqueSales.get(clientId)!.add(day);
         entry.currentCount += 1;
       }
-      // By type
-      const tipo = sale.tipo_venta || 'SIN TIPO';
+      // By type (normalize CONVENIO → ALIADOS)
+      const tipo = (sale.tipo_venta === 'CONVENIO' ? 'ALIADOS' : sale.tipo_venta) || 'SIN TIPO';
       if (!currentByType.has(tipo)) currentByType.set(tipo, { amount: 0, count: 0 });
       const t = currentByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
@@ -267,8 +267,8 @@ export function useComparativeData(
         previousUniqueSales.get(clientId)!.add(day);
         entry.previousCount += 1;
       }
-      // By type
-      const tipo = sale.tipo_venta || 'SIN TIPO';
+      // By type (normalize CONVENIO → ALIADOS)
+      const tipo = (sale.tipo_venta === 'CONVENIO' ? 'ALIADOS' : sale.tipo_venta) || 'SIN TIPO';
       if (!previousByType.has(tipo)) previousByType.set(tipo, { amount: 0, count: 0 });
       const t = previousByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
