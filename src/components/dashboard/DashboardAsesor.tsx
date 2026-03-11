@@ -67,15 +67,13 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
-  CREDICONTADO: 'hsl(var(--warning))',
-  CREDITO: 'hsl(var(--primary))',
+  FINANSUENOS: 'hsl(var(--primary))',
   ALIADOS: 'hsl(var(--secondary))',
 };
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
