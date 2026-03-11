@@ -113,34 +113,23 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         const baseRecord = sortedRecords[i];
         const baseDate = baseRecord.parsedDate!;
         const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-        const isBaseCredit = isCreditDocument(baseMcnClase);
-        const isBaseSale = isSaleDocument(baseMcnClase);
 
         const groupRecords: typeof sortedRecords = [baseRecord];
         processedIndices.add(i);
 
-        // Find related records for this sale
+        // Find related records: same customer + close date + same MCNCLASE
         for (let j = i + 1; j < sortedRecords.length; j++) {
           if (processedIndices.has(j)) continue;
 
           const candidateRecord = sortedRecords[j];
           const candidateDate = candidateRecord.parsedDate!;
           const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-          const isCandidateCredit = isCreditDocument(candidateMcnClase);
-          const isCandidateSale = isSaleDocument(candidateMcnClase);
 
-          // Check date proximity
           const dateDiff = daysDifference(baseDate, candidateDate);
           if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
 
-          // For credits: DV00 + FV00 can be grouped together
-          // For regular sales: must have same MCNCLASE
-          const canGroup = 
-            (isBaseCredit && isCandidateSale) || 
-            (isBaseSale && isCandidateCredit) ||
-            (baseMcnClase === candidateMcnClase);
-
-          if (canGroup) {
+          // Only group records with same MCNCLASE
+          if (baseMcnClase === candidateMcnClase) {
             groupRecords.push(candidateRecord);
             processedIndices.add(j);
           }
