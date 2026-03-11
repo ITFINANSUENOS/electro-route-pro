@@ -77,8 +77,7 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
-  CREDICONTADO: 'hsl(var(--warning))',
-  CREDITO: 'hsl(var(--primary))',
+  FINANSUENOS: 'hsl(var(--primary))',
   ALIADOS: 'hsl(var(--secondary))',
 };
 
