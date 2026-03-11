@@ -417,7 +417,7 @@ export default function CargarVentasTab() {
       cargaId = cargaRecord.id;
 
       // Send to edge function for reliable processing
-      await processUploadViaEdgeFunction(csvContent, cargaId);
+      await processUploadViaEdgeFunction(csvContent, cargaId, effectiveTarget.month, effectiveTarget.year);
 
     } catch (error) {
       console.error('Upload error:', error);
