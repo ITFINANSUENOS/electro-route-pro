@@ -202,7 +202,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
 
       const amount = sale.vtas_ant_i || 0;
       const rawTipo = sale.tipo_venta || 'OTROS';
-      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : (rawTipo === 'CREDITO' || rawTipo === 'CREDICONTADO') ? 'FINANSUENOS' : rawTipo;
       const isCurrent = sale.fecha >= currentStart && sale.fecha <= currentEnd;
       const isPrev = sale.fecha >= prevStart && sale.fecha <= prevEnd;
 
