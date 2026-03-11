@@ -1034,7 +1034,7 @@ export default function DashboardLider() {
       }
     });
 
-    const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
+    const SALE_TYPES = ['CONTADO', 'FINANSUENOS', 'ALIADOS'] as const;
 
     const dataForExport: RankingAdvisor[] = filteredRanking.map(advisor => {
       const tipoAsesor = advisor.tipoAsesor || 'EXTERNO';
