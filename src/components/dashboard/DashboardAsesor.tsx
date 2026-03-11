@@ -67,15 +67,13 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
-  CREDICONTADO: 'hsl(var(--warning))',
-  CREDITO: 'hsl(var(--primary))',
+  FINANSUENOS: 'hsl(var(--primary))',
   ALIADOS: 'hsl(var(--secondary))',
 };
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
@@ -368,7 +366,7 @@ export default function DashboardAsesor() {
   const budgetVsExecuted = useMemo(() => {
     if (!metaData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // Get advisor's meta for this tipo_venta
@@ -434,7 +432,7 @@ export default function DashboardAsesor() {
             <p className="font-semibold mb-2">Ventas por Tipo</p>
             <div className="space-y-2 text-sm">
               {complianceByType.map(t => {
-                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'Credi Contado' ? 'CREDICONTADO' : t.name === 'Crédito' ? 'CREDITO' : 'ALIADOS';
+                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'FinanSueños' ? 'FINANSUENOS' : 'ALIADOS';
                 const qtyData = salesCount.byType[typeKey];
                 return (
                   <div key={t.name} className="flex items-center justify-between gap-3">
@@ -474,7 +472,7 @@ export default function DashboardAsesor() {
             <p className="font-semibold mb-2">Cantidad por Tipo</p>
             <div className="space-y-2 text-sm">
               {complianceByType.map(t => {
-                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'Credi Contado' ? 'CREDICONTADO' : t.name === 'Crédito' ? 'CREDITO' : 'ALIADOS';
+                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'FinanSueños' ? 'FINANSUENOS' : 'ALIADOS';
                 const qtyData = salesCount.byType[typeKey];
                 return (
                   <div key={t.name} className="flex items-center justify-between gap-3">

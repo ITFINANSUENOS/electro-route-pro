@@ -58,16 +58,12 @@ function daysDifference(date1: Date, date2: Date): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// Check if a record is a credit-related document (FNZ/Finansueños)
-function isCreditDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'DV00';
-}
-
-// Check if a record is a sale document
-function isSaleDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'FV00';
+// Normalize tipo_venta: CONVENIO → ALIADOS, CREDITO/CREDICONTADO → FINANSUENOS
+function normalizeTipoVenta(tipo: string | null | undefined): string {
+  const normalized = (tipo || 'DESCONOCIDO').toUpperCase();
+  if (normalized === 'CONVENIO') return 'ALIADOS';
+  if (normalized === 'CREDITO' || normalized === 'CREDICONTADO') return 'FINANSUENOS';
+  return normalized;
 }
 
 /**
@@ -86,12 +82,6 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         byPaymentMethod: {},
       };
     }
-
-    // Normalize tipo_venta: CONVENIO → ALIADOS
-    const normalizeTipoVenta = (tipo: string | null | undefined): string => {
-      const normalized = (tipo || 'DESCONOCIDO').toUpperCase();
-      return normalized === 'CONVENIO' ? 'ALIADOS' : normalized;
-    };
 
     // Group records by customer and analyze for unique sales
     const customerRecords = new Map<string, SaleRecord[]>();
@@ -123,34 +113,23 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         const baseRecord = sortedRecords[i];
         const baseDate = baseRecord.parsedDate!;
         const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-        const isBaseCredit = isCreditDocument(baseMcnClase);
-        const isBaseSale = isSaleDocument(baseMcnClase);
 
         const groupRecords: typeof sortedRecords = [baseRecord];
         processedIndices.add(i);
 
-        // Find related records for this sale
+        // Find related records: same customer + close date + same MCNCLASE
         for (let j = i + 1; j < sortedRecords.length; j++) {
           if (processedIndices.has(j)) continue;
 
           const candidateRecord = sortedRecords[j];
           const candidateDate = candidateRecord.parsedDate!;
           const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-          const isCandidateCredit = isCreditDocument(candidateMcnClase);
-          const isCandidateSale = isSaleDocument(candidateMcnClase);
 
-          // Check date proximity
           const dateDiff = daysDifference(baseDate, candidateDate);
           if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
 
-          // For credits: DV00 + FV00 can be grouped together
-          // For regular sales: must have same MCNCLASE
-          const canGroup = 
-            (isBaseCredit && isCandidateSale) || 
-            (isBaseSale && isCandidateCredit) ||
-            (baseMcnClase === candidateMcnClase);
-
-          if (canGroup) {
+          // Only group records with same MCNCLASE
+          if (baseMcnClase === candidateMcnClase) {
             groupRecords.push(candidateRecord);
             processedIndices.add(j);
           }
@@ -159,11 +138,10 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         // Create the sale group
         const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
         
-        // Determine the tipo_venta from the FV00 record if available, otherwise from any record
-        const fv00Record = groupRecords.find(r => isSaleDocument(r.mcn_clase));
-        const rawTipoVenta = fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO';
+        // Determine tipo_venta from any record
+        const rawTipoVenta = groupRecords[0].tipo_venta || 'DESCONOCIDO';
         const tipoVenta = normalizeTipoVenta(rawTipoVenta);
-        const forma1Pago = fv00Record?.forma1_pago || groupRecords[0].forma1_pago || 'DESCONOCIDO';
+        const forma1Pago = groupRecords[0].forma1_pago || 'DESCONOCIDO';
 
         // Only count as a sale if total value is positive (net sale)
         if (totalValue > 0) {

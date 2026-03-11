@@ -123,8 +123,13 @@ export function useComparativeData(
       query = query.eq('codigo_jefe', filters.codigoJefe);
     }
     if (filters.tipoVenta.length > 0) {
-      const normalizedTypes = filters.tipoVenta.map(t => t === 'ALIADOS' ? 'CONVENIO' : t);
-      query = query.in('tipo_venta', [...new Set([...filters.tipoVenta, ...normalizedTypes])]);
+      const normalizedTypes: string[] = [];
+      filters.tipoVenta.forEach(t => {
+        normalizedTypes.push(t);
+        if (t === 'ALIADOS') normalizedTypes.push('CONVENIO');
+        if (t === 'FINANSUENOS') { normalizedTypes.push('CREDITO'); normalizedTypes.push('CREDICONTADO'); }
+      });
+      query = query.in('tipo_venta', [...new Set(normalizedTypes)]);
     }
     return query;
   };
@@ -258,7 +263,7 @@ export function useComparativeData(
         entry.currentCount += 1;
       }
       // By type (normalize CONVENIO → ALIADOS)
-      const tipo = (sale.tipo_venta === 'CONVENIO' ? 'ALIADOS' : sale.tipo_venta) || 'SIN TIPO';
+      const tipo = (['CONVENIO'].includes(sale.tipo_venta) ? 'ALIADOS' : ['CREDITO', 'CREDICONTADO'].includes(sale.tipo_venta) ? 'FINANSUENOS' : sale.tipo_venta) || 'SIN TIPO';
       if (!currentByType.has(tipo)) currentByType.set(tipo, { amount: 0, count: 0 });
       const t = currentByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
@@ -288,7 +293,7 @@ export function useComparativeData(
         entry.previousCount += 1;
       }
       // By type (normalize CONVENIO → ALIADOS)
-      const tipo = (sale.tipo_venta === 'CONVENIO' ? 'ALIADOS' : sale.tipo_venta) || 'SIN TIPO';
+      const tipo = (['CONVENIO'].includes(sale.tipo_venta) ? 'ALIADOS' : ['CREDITO', 'CREDICONTADO'].includes(sale.tipo_venta) ? 'FINANSUENOS' : sale.tipo_venta) || 'SIN TIPO';
       if (!previousByType.has(tipo)) previousByType.set(tipo, { amount: 0, count: 0 });
       const t = previousByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;

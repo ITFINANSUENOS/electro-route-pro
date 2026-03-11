@@ -14,12 +14,11 @@ import { exportPromediosTemplate } from '@/utils/exportPromediosTemplate';
 import { importPromediosFromExcel } from '@/utils/importPromediosTemplate';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
-const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
+const TIPOS_VENTA = ['CONTADO', 'FINANSUENOS', 'ALIADOS'] as const;
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 

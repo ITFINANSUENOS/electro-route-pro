@@ -69,14 +69,13 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
-  CREDICONTADO: 'hsl(var(--warning))',
-  CREDITO: 'hsl(var(--primary))',
+  FINANSUENOS: 'hsl(var(--primary))',
   ALIADOS: 'hsl(var(--secondary))',
 };
 
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'FINANSUENOS', 'ALIADOS']);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [consultasPopupMode, setConsultasPopupMode] = useState<'consultas' | 'solicitudes'>('consultas');
@@ -299,7 +298,7 @@ export default function DashboardJefe() {
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
         const typeRaw = sale.tipo_venta || 'OTRO';
-        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : typeRaw;
+        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : (typeRaw === 'CREDITO' || typeRaw === 'CREDICONTADO') ? 'FINANSUENOS' : typeRaw;
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
@@ -327,7 +326,7 @@ export default function DashboardJefe() {
       }
       acc[advisor].total += sale.vtas_ant_i || 0;
       const tipoRaw = sale.tipo_venta || 'OTRO';
-      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : (tipoRaw === 'CREDITO' || tipoRaw === 'CREDICONTADO') ? 'FINANSUENOS' : tipoRaw;
       acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; activo: boolean; total: number; byType: Record<string, number> }>);
@@ -471,7 +470,7 @@ export default function DashboardJefe() {
   const budgetVsExecuted = useMemo(() => {
     if (!metasData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     const teamCodes = new Set(teamAdvisorCodes);
     
     return tiposVenta.map(tipo => {

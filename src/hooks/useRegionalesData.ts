@@ -202,7 +202,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
 
       const amount = sale.vtas_ant_i || 0;
       const rawTipo = sale.tipo_venta || 'OTROS';
-      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : (rawTipo === 'CREDITO' || rawTipo === 'CREDICONTADO') ? 'FINANSUENOS' : rawTipo;
       const isCurrent = sale.fecha >= currentStart && sale.fecha <= currentEnd;
       const isPrev = sale.fecha >= prevStart && sale.fecha <= prevEnd;
 
@@ -231,7 +231,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       entry.prevYear += amount;
       entry.prevYearCount += 1;
       const rawTipo = sale.tipo_venta || 'OTROS';
-      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : (rawTipo === 'CREDITO' || rawTipo === 'CREDICONTADO') ? 'FINANSUENOS' : rawTipo;
       if (!entry.prevYearDesglose[tipo]) entry.prevYearDesglose[tipo] = { valor: 0, cantidad: 0 };
       entry.prevYearDesglose[tipo].valor += amount;
       entry.prevYearDesglose[tipo].cantidad += 1;

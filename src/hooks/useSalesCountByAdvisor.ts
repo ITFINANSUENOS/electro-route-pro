@@ -44,14 +44,12 @@ function daysDifference(date1: Date, date2: Date): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-function isCreditDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'DV00';
-}
-
-function isSaleDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'FV00';
+// Normalize tipo_venta
+function normalizeTipoVenta(tipo: string | null | undefined): string {
+  const n = (tipo || 'DESCONOCIDO').toUpperCase();
+  if (n === 'CONVENIO') return 'ALIADOS';
+  if (n === 'CREDITO' || n === 'CREDICONTADO') return 'FINANSUENOS';
+  return n;
 }
 
 /**
@@ -102,8 +100,6 @@ export function useSalesCountByAdvisor(
         const baseRecord = sortedRecords[i];
         const baseDate = baseRecord.parsedDate!;
         const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-        const isBaseCredit = isCreditDocument(baseMcnClase);
-        const isBaseSale = isSaleDocument(baseMcnClase);
 
         const groupRecords: typeof sortedRecords = [baseRecord];
         processedIndices.add(i);
@@ -114,18 +110,12 @@ export function useSalesCountByAdvisor(
           const candidateRecord = sortedRecords[j];
           const candidateDate = candidateRecord.parsedDate!;
           const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-          const isCandidateCredit = isCreditDocument(candidateMcnClase);
-          const isCandidateSale = isSaleDocument(candidateMcnClase);
 
           const dateDiff = daysDifference(baseDate, candidateDate);
           if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
 
-          const canGroup = 
-            (isBaseCredit && isCandidateSale) || 
-            (isBaseSale && isCandidateCredit) ||
-            (baseMcnClase === candidateMcnClase);
-
-          if (canGroup) {
+          // Only group records with same MCNCLASE
+          if (baseMcnClase === candidateMcnClase) {
             groupRecords.push(candidateRecord);
             processedIndices.add(j);
           }
@@ -134,9 +124,8 @@ export function useSalesCountByAdvisor(
         const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
         
         // Get advisor and sale type info
-        const fv00Record = groupRecords.find(r => isSaleDocument(r.mcn_clase));
-        const tipoVenta = (fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO').toUpperCase();
-        const codigoAsesor = fv00Record?.codigo_asesor || groupRecords[0].codigo_asesor || 'UNKNOWN';
+        const tipoVenta = normalizeTipoVenta(groupRecords[0].tipo_venta);
+        const codigoAsesor = groupRecords[0].codigo_asesor || 'UNKNOWN';
 
         // Only count as a sale if total value is positive
         if (totalValue > 0) {

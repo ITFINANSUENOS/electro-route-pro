@@ -13,11 +13,12 @@ interface ComparativePieChartsProps {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  CREDITO: 'hsl(217, 91%, 50%)',
   CONTADO: 'hsl(142, 76%, 42%)',
-  CREDICONTADO: 'hsl(38, 92%, 50%)',
+  FINANSUENOS: 'hsl(262, 52%, 47%)',
   ALIADOS: 'hsl(187, 85%, 43%)',
   CONVENIO: 'hsl(187, 85%, 43%)',
+  CREDITO: 'hsl(262, 52%, 47%)',
+  CREDICONTADO: 'hsl(262, 52%, 47%)',
 };
 
 const FALLBACK_COLORS = [
@@ -37,11 +38,12 @@ function getColor(key: string, index: number, isBreakdown: boolean) {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  CREDITO: 'Crédito',
   CONTADO: 'Contado',
-  CREDICONTADO: 'CrediContado',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
   CONVENIO: 'Aliados',
+  CREDITO: 'FinanSueños',
+  CREDICONTADO: 'FinanSueños',
 };
 
 function formatLabel(tipo: string) {

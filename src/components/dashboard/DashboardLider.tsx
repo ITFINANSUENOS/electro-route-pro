@@ -77,8 +77,7 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaColors = {
   CONTADO: 'hsl(var(--success))',
-  CREDICONTADO: 'hsl(var(--warning))',
-  CREDITO: 'hsl(var(--primary))',
+  FINANSUENOS: 'hsl(var(--primary))',
   ALIADOS: 'hsl(var(--secondary))',
 };
 
@@ -105,7 +104,7 @@ const tipoAsesorColors: Record<string, string> = {
 
 export default function DashboardLider() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'FINANSUENOS', 'ALIADOS']);
   const [selectedTiposAsesor, setSelectedTiposAsesor] = useState<string[]>([]);
   const [selectedRegionals, setSelectedRegionals] = useState<string[]>([]);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
@@ -512,7 +511,7 @@ export default function DashboardLider() {
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
         const typeRaw = sale.tipo_venta || 'OTRO';
-        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : typeRaw;
+        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : (typeRaw === 'CREDITO' || typeRaw === 'CREDICONTADO') ? 'FINANSUENOS' : typeRaw;
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
@@ -611,7 +610,7 @@ export default function DashboardLider() {
       }
       acc[uniqueKey].total += sale.vtas_ant_i || 0;
       const tipoRaw = sale.tipo_venta || 'OTRO';
-      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : (tipoRaw === 'CREDITO' || tipoRaw === 'CREDICONTADO') ? 'FINANSUENOS' : tipoRaw;
       acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; regional?: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
@@ -804,7 +803,7 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
 
-    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // For unfiltered global scope, include ALL metas (no profile-based filter)

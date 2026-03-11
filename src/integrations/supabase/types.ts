@@ -315,6 +315,39 @@ export type Database = {
         }
         Relationships: []
       }
+      historial_migraciones: {
+        Row: {
+          campo_afectado: string
+          created_at: string | null
+          descripcion: string | null
+          id: string
+          registros_afectados: number | null
+          tabla_afectada: string
+          valor_anterior: string | null
+          valor_nuevo: string | null
+        }
+        Insert: {
+          campo_afectado: string
+          created_at?: string | null
+          descripcion?: string | null
+          id?: string
+          registros_afectados?: number | null
+          tabla_afectada: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Update: {
+          campo_afectado?: string
+          created_at?: string | null
+          descripcion?: string | null
+          id?: string
+          registros_afectados?: number | null
+          tabla_afectada?: string
+          valor_anterior?: string | null
+          valor_nuevo?: string | null
+        }
+        Relationships: []
+      }
       jefes_ventas: {
         Row: {
           activo: boolean | null

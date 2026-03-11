@@ -45,8 +45,7 @@ interface FormaPago {
 
 const TIPOS_VENTA = [
   { value: 'CONTADO', label: 'Contado', color: 'bg-green-100 text-green-800' },
-  { value: 'CREDICONTADO', label: 'Credicontado', color: 'bg-blue-100 text-blue-800' },
-  { value: 'CREDITO', label: 'Crédito', color: 'bg-purple-100 text-purple-800' },
+  { value: 'FINANSUENOS', label: 'FinanSueños', color: 'bg-purple-100 text-purple-800' },
   { value: 'ALIADOS', label: 'Aliados', color: 'bg-orange-100 text-orange-800' },
   { value: 'OTROS', label: 'No Aplica', color: 'bg-gray-100 text-gray-800' },
 ];
