@@ -58,16 +58,12 @@ function daysDifference(date1: Date, date2: Date): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// Check if a record is a credit-related document (FNZ/Finansueños)
-function isCreditDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'DV00';
-}
-
-// Check if a record is a sale document
-function isSaleDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'FV00';
+// Normalize tipo_venta: CONVENIO → ALIADOS, CREDITO/CREDICONTADO → FINANSUENOS
+function normalizeTipoVenta(tipo: string | null | undefined): string {
+  const normalized = (tipo || 'DESCONOCIDO').toUpperCase();
+  if (normalized === 'CONVENIO') return 'ALIADOS';
+  if (normalized === 'CREDITO' || normalized === 'CREDICONTADO') return 'FINANSUENOS';
+  return normalized;
 }
 
 /**
