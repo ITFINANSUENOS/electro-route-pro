@@ -75,7 +75,7 @@ const tiposVentaColors = {
 
 export default function DashboardJefe() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'FINANSUENOS', 'ALIADOS']);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
   const [consultasPopupOpen, setConsultasPopupOpen] = useState(false);
   const [consultasPopupMode, setConsultasPopupMode] = useState<'consultas' | 'solicitudes'>('consultas');
