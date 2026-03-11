@@ -9,8 +9,7 @@ import { formatCurrencyFull as formatCurrencyFullImported } from '@/utils/format
 // Order: bottom (darkest) to top (lightest)
 const TIPOS_VENTA = [
   { key: 'CONTADO', label: 'Contado', ventaColor: 'hsl(217, 91%, 30%)', metaColor: 'hsl(142, 76%, 28%)' },
-  { key: 'CREDICONTADO', label: 'CrediContado', ventaColor: 'hsl(217, 85%, 42%)', metaColor: 'hsl(142, 68%, 38%)' },
-  { key: 'CREDITO', label: 'Crédito', ventaColor: 'hsl(217, 78%, 56%)', metaColor: 'hsl(142, 60%, 50%)' },
+  { key: 'FINANSUENOS', label: 'FinanSueños', ventaColor: 'hsl(217, 82%, 48%)', metaColor: 'hsl(142, 64%, 44%)' },
   { key: 'ALIADOS', label: 'Aliados', ventaColor: 'hsl(217, 70%, 72%)', metaColor: 'hsl(142, 52%, 66%)' },
 ];
 

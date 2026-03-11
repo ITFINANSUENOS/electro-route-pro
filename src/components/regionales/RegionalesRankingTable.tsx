@@ -13,12 +13,11 @@ interface Props {
   metaType: 'comercial' | 'nacional';
 }
 
-type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas' | 'contado' | 'credicontado' | 'credito' | 'aliados';
+type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas' | 'contado' | 'finansuenos' | 'aliados';
 
 const TIPOS_VENTA = [
   { value: 'CONTADO', label: 'Contado', shortLabel: 'Contado' },
-  { value: 'CREDICONTADO', label: 'Credi Contado', shortLabel: 'C. Contado' },
-  { value: 'CREDITO', label: 'Crédito', shortLabel: 'Crédito' },
+  { value: 'FINANSUENOS', label: 'FinanSueños', shortLabel: 'FinanSueños' },
   { value: 'ALIADOS', label: 'Aliados', shortLabel: 'Aliados' },
 ];
 
@@ -62,8 +61,7 @@ function computeFiltered(data: RegionalData[], activeTypes: string[]): RegionalD
 function getSortValue(r: RegionalData, key: SortKey): number {
   switch (key) {
     case 'contado': return getTypeValue(r, 'CONTADO');
-    case 'credicontado': return getTypeValue(r, 'CREDICONTADO');
-    case 'credito': return getTypeValue(r, 'CREDITO');
+    case 'finansuenos': return getTypeValue(r, 'FINANSUENOS');
     case 'aliados': return getTypeValue(r, 'ALIADOS');
     default: return r[key];
   }

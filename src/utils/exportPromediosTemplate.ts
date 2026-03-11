@@ -2,12 +2,11 @@ import ExcelJS from 'exceljs';
 import { dataService } from '@/services';
 
 const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'] as const;
-const TIPOS_VENTA = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
+const TIPOS_VENTA = ['CONTADO', 'FINANSUENOS', 'ALIADOS'] as const;
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
@@ -40,22 +39,11 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       .neq('codigo', 106)
       .order('codigo') as any);
 
-    if (regError) {
-      console.error('Error fetching regionales:', regError);
-      return { success: false, count: 0, error: regError.message };
-    }
+    if (regError) return { success: false, count: 0, error: regError.message };
+    if (!regionales || regionales.length === 0) return { success: false, count: 0, error: 'No se encontraron regionales activas' };
 
-    if (!regionales || regionales.length === 0) {
-      return { success: false, count: 0, error: 'No se encontraron regionales activas' };
-    }
-
-    const { data: promedios, error: promError } = await (dataService
-      .from('config_metas_promedio')
-      .select('*') as any);
-
-    if (promError) {
-      console.error('Error fetching promedios:', promError);
-    }
+    const { data: promedios, error: promError } = await (dataService.from('config_metas_promedio').select('*') as any);
+    if (promError) console.error('Error fetching promedios:', promError);
 
     const promedioLookup: Record<string, number> = {};
     promedios?.forEach((p: PromedioData) => {
@@ -63,20 +51,17 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       promedioLookup[key] = p.valor_promedio;
     });
 
-    // Create workbook
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'E-COM Sistema';
     workbook.created = new Date();
 
-    // Add instructions sheet
     const instrSheet = workbook.addWorksheet('Instrucciones');
     instrSheet.columns = [{ width: 80 }];
-    
     const instrucciones = [
       ['INSTRUCCIONES PARA LLENAR LA PLANTILLA DE PROMEDIOS'],
       [''],
       ['1. No modifique las columnas REGIONAL_ID, CODIGO, REGIONAL, ZONA ni TIPO_ASESOR'],
-      ['2. Solo edite los valores en las columnas: Contado, Credi Contado, Crédito, Aliados'],
+      ['2. Solo edite los valores en las columnas: Contado, FinanSueños, Aliados'],
       ['3. Los valores deben ser números enteros (sin decimales ni símbolos de moneda)'],
       ['4. Ejemplo: 2895000 (NO $2.895.000)'],
       ['5. Cada regional tiene 3 filas: una por cada tipo de asesor (Interno, Externo, Corretaje)'],
@@ -84,18 +69,12 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       [''],
       ['NOTA: Santander (103) incluye Puerto Tejada (106) - use los valores combinados'],
     ];
-    
     instrucciones.forEach((row, index) => {
       instrSheet.addRow(row);
-      if (index === 0) {
-        instrSheet.getRow(1).font = { bold: true, size: 14 };
-      }
+      if (index === 0) instrSheet.getRow(1).font = { bold: true, size: 14 };
     });
 
-    // Add data sheet
     const dataSheet = workbook.addWorksheet('Promedios');
-    
-    // Define columns
     dataSheet.columns = [
       { header: 'REGIONAL_ID', key: 'regional_id', width: 40 },
       { header: 'CODIGO', key: 'codigo', width: 8 },
@@ -103,54 +82,40 @@ export async function exportPromediosTemplate(): Promise<{ success: boolean; cou
       { header: 'ZONA', key: 'zona', width: 10 },
       { header: 'TIPO_ASESOR', key: 'tipo_asesor', width: 12 },
       { header: tiposVentaLabels.CONTADO, key: 'contado', width: 15 },
-      { header: tiposVentaLabels.CREDICONTADO, key: 'credicontado', width: 15 },
-      { header: tiposVentaLabels.CREDITO, key: 'credito', width: 15 },
+      { header: tiposVentaLabels.FINANSUENOS, key: 'finansuenos', width: 15 },
       { header: tiposVentaLabels.ALIADOS, key: 'aliados', width: 15 },
     ];
 
-    // Style header row
     const headerRow = dataSheet.getRow(1);
     headerRow.font = { bold: true };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE0E0E0' }
-    };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
-    // Add data rows
     regionales.forEach((regional: Regional) => {
       TIPOS_ASESOR.forEach(tipoAsesor => {
-        const row = {
+        dataSheet.addRow({
           regional_id: regional.id,
           codigo: regional.codigo,
           regional: regional.nombre,
           zona: regional.zona || '',
           tipo_asesor: tiposAsesorLabels[tipoAsesor],
           contado: promedioLookup[`${regional.id}-${tipoAsesor}-CONTADO`] || 0,
-          credicontado: promedioLookup[`${regional.id}-${tipoAsesor}-CREDICONTADO`] || 0,
-          credito: promedioLookup[`${regional.id}-${tipoAsesor}-CREDITO`] || 0,
+          finansuenos: promedioLookup[`${regional.id}-${tipoAsesor}-FINANSUENOS`] || 0,
           aliados: promedioLookup[`${regional.id}-${tipoAsesor}-ALIADOS`] || 0,
-        };
-        dataSheet.addRow(row);
+        });
       });
     });
 
-    // Format number columns
     dataSheet.getColumn('contado').numFmt = '#,##0';
-    dataSheet.getColumn('credicontado').numFmt = '#,##0';
-    dataSheet.getColumn('credito').numFmt = '#,##0';
+    dataSheet.getColumn('finansuenos').numFmt = '#,##0';
     dataSheet.getColumn('aliados').numFmt = '#,##0';
 
-    // Generate filename with date
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const filename = `Plantilla_Promedios_${dateStr}.xlsx`;
 
-    // Generate buffer and download
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;

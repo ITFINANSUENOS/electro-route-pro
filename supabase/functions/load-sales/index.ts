@@ -169,19 +169,21 @@ function parseCSVLine(line: string, delimiter: string): string[] {
 async function buildPaymentTypeLookup(supabase: any): Promise<{ 
   normalizedLookup: Map<string, string>;
   originalLookup: Map<string, string>;
+  codFormaLookup: Map<string, string>;
 }> {
   const { data, error } = await supabase
     .from('formas_pago')
-    .select('codigo, tipo_venta')
+    .select('codigo, tipo_venta, cod_forma')
     .eq('activo', true);
   
   if (error) {
     console.error("Error fetching formas_pago:", error.message);
-    return { normalizedLookup: new Map(), originalLookup: new Map() };
+    return { normalizedLookup: new Map(), originalLookup: new Map(), codFormaLookup: new Map() };
   }
   
   const normalizedLookup = new Map<string, string>();
   const originalLookup = new Map<string, string>();
+  const codFormaLookup = new Map<string, string>();
   
   if (data && Array.isArray(data)) {
     for (const fp of data) {
@@ -191,38 +193,51 @@ async function buildPaymentTypeLookup(supabase: any): Promise<{
         originalLookup.set(original, String(fp.tipo_venta));
         normalizedLookup.set(normalized, String(fp.tipo_venta));
       }
+      // Also index by cod_forma (e.g. FS10, FS12)
+      if (fp.cod_forma && fp.tipo_venta) {
+        const codFormaKey = String(fp.cod_forma).toUpperCase().trim();
+        codFormaLookup.set(codFormaKey, String(fp.tipo_venta));
+      }
     }
   }
-  return { normalizedLookup, originalLookup };
+  return { normalizedLookup, originalLookup, codFormaLookup };
 }
 
 function deriveTipoVenta(
   forma1Pago: string, 
   formaPago: string, 
   normalizedLookup: Map<string, string>,
-  originalLookup: Map<string, string>
+  originalLookup: Map<string, string>,
+  codFormaLookup: Map<string, string>,
+  codFormaPago?: string
 ): string | null {
   const forma1Upper = (forma1Pago || '').toUpperCase().trim();
   const forma1Normalized = normalizeForComparison(forma1Pago || '');
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  // 1. Exact match on original key
+  // 1. Exact match on original key (FORMA1PAGO)
   if (originalLookup.has(forma1Upper)) return originalLookup.get(forma1Upper)!;
   
-  // 2. Normalized match (handles encoding issues like FINANSUEÐOS vs FINANSUEÑOS)
+  // 2. Match by cod_forma (COD_FORMA_ field, e.g. FS10, FS12)
+  if (codFormaPago) {
+    const codUpper = codFormaPago.toUpperCase().trim();
+    if (codFormaLookup.has(codUpper)) return codFormaLookup.get(codUpper)!;
+  }
+  
+  // 3. Normalized match (handles encoding issues like FINANSUEÐOS vs FINANSUEÑOS)
   if (normalizedLookup.has(forma1Normalized)) return normalizedLookup.get(forma1Normalized)!;
   
-  // 3. Partial match on normalized keys
+  // 4. Partial match on normalized keys
   for (const [normalizedKey, tipoVenta] of normalizedLookup.entries()) {
     if (forma1Normalized.includes(normalizedKey) || normalizedKey.includes(forma1Normalized)) {
       return tipoVenta;
     }
   }
   
-  // 4. Fallback to FORMAPAGO general classification
+  // 5. Fallback to FORMAPAGO general classification (normalize to 3 types)
   if (formaGeneral === 'CONTADO') return 'CONTADO';
-  if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
-  if (formaGeneral === 'CREDITO') return 'CREDITO';
+  if (formaGeneral === 'CREDICONTADO') return 'FINANSUENOS';
+  if (formaGeneral === 'CREDITO') return 'FINANSUENOS';
   if (formaGeneral === 'CONVENIO') return 'ALIADOS';
   if (formaGeneral === 'ALIADOS') return 'ALIADOS';
   
@@ -314,7 +329,7 @@ serve(async (req) => {
       );
     }
 
-    const { normalizedLookup, originalLookup } = await buildPaymentTypeLookup(supabase);
+    const { normalizedLookup, originalLookup, codFormaLookup } = await buildPaymentTypeLookup(supabase);
 
     const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
     if (lines.length < 2) {
@@ -401,7 +416,7 @@ serve(async (req) => {
         const formaPago = (venta.forma_pago as string) || '';
         const codFormaPago = (venta.cod_forma_pago as string) || '';
         
-        let tipoVenta = deriveTipoVenta(forma1Pago, formaPago, normalizedLookup, originalLookup);
+        let tipoVenta = deriveTipoVenta(forma1Pago, formaPago, normalizedLookup, originalLookup, codFormaLookup, codFormaPago);
         
         // Auto-create unknown codes
         if (!tipoVenta && forma1Pago.trim()) {

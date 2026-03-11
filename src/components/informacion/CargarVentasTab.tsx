@@ -237,6 +237,39 @@ export default function CargarVentasTab() {
     return new Date().toISOString().split('T')[0];
   };
 
+  /** Detect the dominant period (month/year) from CSV date column */
+  const detectDominantPeriod = (csvContent: string): { month: number; year: number } | null => {
+    const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return null;
+
+    const delimiter = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const headers = parseCSVLine(lines[0], delimiter);
+    const fechaIdx = headers.findIndex(h => {
+      const n = normalizeHeader(h);
+      return n === 'fecha_fact' || n === 'fecha';
+    });
+    if (fechaIdx === -1) return null;
+
+    const counts = new Map<string, number>();
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = parseCSVLine(lines[i], delimiter);
+      const dateStr = parseDate(values[fechaIdx] || '');
+      if (!dateStr) continue;
+      const key = dateStr.substring(0, 7); // YYYY-MM
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    let maxKey = '';
+    let maxCount = 0;
+    for (const [key, count] of counts) {
+      if (count > maxCount) { maxCount = count; maxKey = key; }
+    }
+    if (!maxKey) return null;
+    const [yearStr, monthStr] = maxKey.split('-');
+    return { month: parseInt(monthStr), year: parseInt(yearStr) };
+  };
+
   /** Count how many rows in the CSV correspond to the target month */
   const countRowsInMonth = (csvContent: string, month: number, year: number): { total: number; inMonth: number } => {
     const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
@@ -292,8 +325,24 @@ export default function CargarVentasTab() {
       setUploadProgress(10);
       setUploadStatus('Validando contenido...');
 
+      // Auto-detect the dominant period from CSV data
+      const detectedPeriod = detectDominantPeriod(csvContent);
+      let effectiveTarget = targetPeriod;
+
+      if (detectedPeriod && !historicMode) {
+        const isDifferentPeriod = detectedPeriod.month !== targetPeriod.month || detectedPeriod.year !== targetPeriod.year;
+        if (isDifferentPeriod) {
+          // Auto-adjust target period to the detected one
+          effectiveTarget = { month: detectedPeriod.month, year: detectedPeriod.year, isClosingDay: false };
+          toast({
+            title: 'Periodo detectado automáticamente',
+            description: `El archivo corresponde a ${getMonthName(detectedPeriod.month)} ${detectedPeriod.year}. Se ajustó el periodo objetivo.`,
+          });
+        }
+      }
+
       // Quick validation: count rows
-      const rowCount = countRowsInMonth(csvContent, targetPeriod.month, targetPeriod.year);
+      const rowCount = countRowsInMonth(csvContent, effectiveTarget.month, effectiveTarget.year);
       
       if (rowCount.total === 0) throw new Error('El archivo CSV está vacío');
       if (rowCount.inMonth < rowCount.total / 2) {
@@ -302,7 +351,7 @@ export default function CargarVentasTab() {
         setUploadStatus('');
         toast({ 
           title: 'Fechas fuera de rango', 
-          description: `Menos del 50% de los registros corresponden a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`,
+          description: `Menos del 50% de los registros corresponden a ${getMonthName(effectiveTarget.month)} ${effectiveTarget.year}.`,
           variant: 'destructive' 
         });
         return;
@@ -312,9 +361,9 @@ export default function CargarVentasTab() {
       setUploadStatus('Verificando cargas anteriores...');
 
       // Check previous record count for THIS specific target period (month/year)
-      const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
-      const lastDay = new Date(targetPeriod.year, targetPeriod.month, 0).getDate();
-      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const monthStart = `${effectiveTarget.year}-${String(effectiveTarget.month).padStart(2, '0')}-01`;
+      const lastDay = new Date(effectiveTarget.year, effectiveTarget.month, 0).getDate();
+      const monthEnd = `${effectiveTarget.year}-${String(effectiveTarget.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       let previousRecordCount = 0;
       try {
@@ -356,7 +405,7 @@ export default function CargarVentasTab() {
       setUploadProgress(20);
       setUploadStatus('Registrando carga...');
 
-      await getOrCreatePeriod(targetPeriod.month, targetPeriod.year);
+      await getOrCreatePeriod(effectiveTarget.month, effectiveTarget.year);
 
       const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
@@ -368,7 +417,7 @@ export default function CargarVentasTab() {
       cargaId = cargaRecord.id;
 
       // Send to edge function for reliable processing
-      await processUploadViaEdgeFunction(csvContent, cargaId);
+      await processUploadViaEdgeFunction(csvContent, cargaId, effectiveTarget.month, effectiveTarget.year);
 
     } catch (error) {
       console.error('Upload error:', error);
@@ -386,7 +435,9 @@ export default function CargarVentasTab() {
   };
 
   /** Process upload via edge function (uses service role for reliable delete) */
-  const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string) => {
+  const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string, overrideMonth?: number, overrideYear?: number) => {
+    const uploadMonth = overrideMonth ?? targetPeriod.month;
+    const uploadYear = overrideYear ?? targetPeriod.year;
     try {
       setUploadProgress(30);
       setUploadStatus('Enviando al servidor para procesamiento...');
@@ -403,8 +454,8 @@ export default function CargarVentasTab() {
       }>('load-sales', {
         body: {
           csvContent,
-          targetMonth: targetPeriod.month,
-          targetYear: targetPeriod.year,
+          targetMonth: uploadMonth,
+          targetYear: uploadYear,
           cargaId,
           cargadoPor: user?.id,
         },

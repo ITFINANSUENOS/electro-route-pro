@@ -36,15 +36,13 @@ const formatCurrency = (value: number) => {
 
 const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
 const tiposVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/20 text-success',
-  CREDICONTADO: 'bg-warning/20 text-warning',
-  CREDITO: 'bg-primary/20 text-primary',
+  FINANSUENOS: 'bg-primary/20 text-primary',
   ALIADOS: 'bg-secondary/20 text-secondary',
 };
 

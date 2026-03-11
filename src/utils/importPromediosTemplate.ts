@@ -4,12 +4,17 @@ import { dataService } from '@/services';
 const TIPOS_VENTA_MAP: Record<string, string> = {
   'Contado': 'CONTADO',
   'CONTADO': 'CONTADO',
-  'Credi Contado': 'CREDICONTADO',
-  'CREDI CONTADO': 'CREDICONTADO',
-  'CREDICONTADO': 'CREDICONTADO',
-  'Crédito': 'CREDITO',
-  'CRÉDITO': 'CREDITO',
-  'CREDITO': 'CREDITO',
+  'FinanSueños': 'FINANSUENOS',
+  'FINANSUENOS': 'FINANSUENOS',
+  'FINANSUEÑOS': 'FINANSUENOS',
+  'Finansuenos': 'FINANSUENOS',
+  // Legacy mappings for backward compatibility
+  'Credi Contado': 'FINANSUENOS',
+  'CREDI CONTADO': 'FINANSUENOS',
+  'CREDICONTADO': 'FINANSUENOS',
+  'Crédito': 'FINANSUENOS',
+  'CRÉDITO': 'FINANSUENOS',
+  'CREDITO': 'FINANSUENOS',
   'Aliados': 'ALIADOS',
   'ALIADOS': 'ALIADOS',
   'Convenio': 'ALIADOS',
@@ -49,164 +54,85 @@ export async function importPromediosFromExcel(file: File): Promise<ImportResult
         await workbook.xlsx.load(arrayBuffer);
         
         let worksheet = workbook.getWorksheet('Promedios');
-        if (!worksheet) {
-          worksheet = workbook.worksheets.find(ws => 
-            ws.name.toLowerCase().includes('promedio')
-          );
-        }
-        if (!worksheet) {
-          worksheet = workbook.worksheets.find(ws => 
-            !ws.name.toLowerCase().includes('instruc')
-          ) || workbook.worksheets[0];
-        }
-        
-        if (!worksheet) {
-          resolve({ success: false, imported: 0, errors: ['No se encontró la hoja de promedios'] });
-          return;
-        }
+        if (!worksheet) worksheet = workbook.worksheets.find(ws => ws.name.toLowerCase().includes('promedio'));
+        if (!worksheet) worksheet = workbook.worksheets.find(ws => !ws.name.toLowerCase().includes('instruc')) || workbook.worksheets[0];
+        if (!worksheet) { resolve({ success: false, imported: 0, errors: ['No se encontró la hoja de promedios'] }); return; }
 
         const headerRow = worksheet.getRow(1);
         const headers: Record<number, string> = {};
-        headerRow.eachCell((cell, colNumber) => {
-          headers[colNumber] = cell.value?.toString() || '';
-        });
+        headerRow.eachCell((cell, colNumber) => { headers[colNumber] = cell.value?.toString() || ''; });
 
         let regionalIdCol = 0;
         let tipoAsesorCol = 0;
         const tipoVentaCols: { colNumber: number; tipoVenta: string }[] = [];
 
+        // Track which target types we've already seen to avoid duplicates from legacy columns
+        const seenTargetTypes = new Set<string>();
+
         Object.entries(headers).forEach(([colStr, header]) => {
           const colNumber = parseInt(colStr);
           const headerLower = header.toLowerCase();
-          
-          if (headerLower.includes('regional_id')) {
-            regionalIdCol = colNumber;
-          } else if (headerLower.includes('tipo_asesor') || headerLower === 'tipo asesor') {
-            tipoAsesorCol = colNumber;
-          } else {
+          if (headerLower.includes('regional_id')) { regionalIdCol = colNumber; }
+          else if (headerLower.includes('tipo_asesor') || headerLower === 'tipo asesor') { tipoAsesorCol = colNumber; }
+          else {
             const normalized = TIPOS_VENTA_MAP[header];
-            if (normalized) {
+            if (normalized && !seenTargetTypes.has(normalized)) {
+              seenTargetTypes.add(normalized);
               tipoVentaCols.push({ colNumber, tipoVenta: normalized });
             }
           }
         });
 
-        if (!regionalIdCol) {
-          resolve({ success: false, imported: 0, errors: ['No se encontró la columna REGIONAL_ID'] });
-          return;
-        }
-
-        if (!tipoAsesorCol) {
-          resolve({ success: false, imported: 0, errors: ['No se encontró la columna TIPO_ASESOR'] });
-          return;
-        }
-
-        if (tipoVentaCols.length === 0) {
-          resolve({ 
-            success: false, 
-            imported: 0, 
-            errors: ['No se encontraron columnas de tipos de venta (Contado, Credi Contado, Crédito, Aliados)'] 
-          });
-          return;
-        }
+        if (!regionalIdCol) { resolve({ success: false, imported: 0, errors: ['No se encontró la columna REGIONAL_ID'] }); return; }
+        if (!tipoAsesorCol) { resolve({ success: false, imported: 0, errors: ['No se encontró la columna TIPO_ASESOR'] }); return; }
+        if (tipoVentaCols.length === 0) { resolve({ success: false, imported: 0, errors: ['No se encontraron columnas de tipos de venta (Contado, FinanSueños, Aliados)'] }); return; }
 
         const promediosToInsert: PromedioRow[] = [];
         const errors: string[] = [];
 
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
-
           const regionalId = row.getCell(regionalIdCol).value?.toString().trim();
           const tipoAsesorRaw = row.getCell(tipoAsesorCol).value?.toString().trim();
-
-          if (!regionalId || !tipoAsesorRaw) {
-            if (regionalId || tipoAsesorRaw) {
-              errors.push(`Fila ${rowNumber}: Falta REGIONAL_ID o TIPO_ASESOR`);
-            }
-            return;
-          }
+          if (!regionalId || !tipoAsesorRaw) { if (regionalId || tipoAsesorRaw) errors.push(`Fila ${rowNumber}: Falta REGIONAL_ID o TIPO_ASESOR`); return; }
 
           const tipoAsesor = TIPOS_ASESOR_MAP[tipoAsesorRaw];
-          if (!tipoAsesor) {
-            errors.push(`Fila ${rowNumber}: Tipo de asesor inválido: ${tipoAsesorRaw}`);
-            return;
-          }
+          if (!tipoAsesor) { errors.push(`Fila ${rowNumber}: Tipo de asesor inválido: ${tipoAsesorRaw}`); return; }
 
           for (const { colNumber, tipoVenta } of tipoVentaCols) {
             const cellValue = row.getCell(colNumber).value;
             let valor = 0;
-
             if (cellValue !== undefined && cellValue !== null && cellValue !== '') {
-              if (typeof cellValue === 'number') {
-                valor = cellValue;
-              } else if (typeof cellValue === 'string') {
-                const cleaned = cellValue.replace(/[$.,\s]/g, '');
-                valor = parseInt(cleaned, 10) || 0;
-              } else if (typeof cellValue === 'object' && 'result' in cellValue) {
-                valor = Number(cellValue.result) || 0;
-              }
+              if (typeof cellValue === 'number') valor = cellValue;
+              else if (typeof cellValue === 'string') { valor = parseInt(cellValue.replace(/[$.,\s]/g, ''), 10) || 0; }
+              else if (typeof cellValue === 'object' && 'result' in cellValue) valor = Number(cellValue.result) || 0;
             }
-
             if (valor >= 0) {
-              promediosToInsert.push({
-                regional_id: regionalId,
-                tipo_asesor: tipoAsesor,
-                tipo_venta: tipoVenta,
-                valor_promedio: valor,
-              });
+              promediosToInsert.push({ regional_id: regionalId, tipo_asesor: tipoAsesor, tipo_venta: tipoVenta, valor_promedio: valor });
             }
           }
         });
 
-        if (promediosToInsert.length === 0) {
-          resolve({ 
-            success: false, 
-            imported: 0, 
-            errors: errors.length > 0 ? errors : ['No se encontraron datos válidos para importar'] 
-          });
-          return;
-        }
+        if (promediosToInsert.length === 0) { resolve({ success: false, imported: 0, errors: errors.length > 0 ? errors : ['No se encontraron datos válidos para importar'] }); return; }
 
         let importedCount = 0;
         for (const promedio of promediosToInsert) {
-          const { error } = await (dataService
-            .from('config_metas_promedio')
-            .upsert({
-              regional_id: promedio.regional_id,
-              tipo_asesor: promedio.tipo_asesor,
-              tipo_venta: promedio.tipo_venta,
-              valor_promedio: promedio.valor_promedio,
-            }, {
-              onConflict: 'regional_id,tipo_asesor,tipo_venta',
-            }) as any);
-
-          if (error) {
-            errors.push(`Error al guardar ${promedio.tipo_asesor}/${promedio.tipo_venta}: ${error.message}`);
-          } else {
-            importedCount++;
-          }
+          const { error } = await (dataService.from('config_metas_promedio').upsert({
+            regional_id: promedio.regional_id, tipo_asesor: promedio.tipo_asesor,
+            tipo_venta: promedio.tipo_venta, valor_promedio: promedio.valor_promedio,
+          }, { onConflict: 'regional_id,tipo_asesor,tipo_venta' }) as any);
+          if (error) errors.push(`Error al guardar ${promedio.tipo_asesor}/${promedio.tipo_venta}: ${error.message}`);
+          else importedCount++;
         }
 
-        resolve({
-          success: importedCount > 0,
-          imported: importedCount,
-          errors,
-        });
-
+        resolve({ success: importedCount > 0, imported: importedCount, errors });
       } catch (error) {
         console.error('Error processing file:', error);
-        resolve({ 
-          success: false, 
-          imported: 0, 
-          errors: ['Error al procesar el archivo Excel'] 
-        });
+        resolve({ success: false, imported: 0, errors: ['Error al procesar el archivo Excel'] });
       }
     };
 
-    reader.onerror = () => {
-      resolve({ success: false, imported: 0, errors: ['Error al leer el archivo'] });
-    };
-
+    reader.onerror = () => { resolve({ success: false, imported: 0, errors: ['Error al leer el archivo'] }); };
     reader.readAsArrayBuffer(file);
   });
 }
