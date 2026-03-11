@@ -169,19 +169,21 @@ function parseCSVLine(line: string, delimiter: string): string[] {
 async function buildPaymentTypeLookup(supabase: any): Promise<{ 
   normalizedLookup: Map<string, string>;
   originalLookup: Map<string, string>;
+  codFormaLookup: Map<string, string>;
 }> {
   const { data, error } = await supabase
     .from('formas_pago')
-    .select('codigo, tipo_venta')
+    .select('codigo, tipo_venta, cod_forma')
     .eq('activo', true);
   
   if (error) {
     console.error("Error fetching formas_pago:", error.message);
-    return { normalizedLookup: new Map(), originalLookup: new Map() };
+    return { normalizedLookup: new Map(), originalLookup: new Map(), codFormaLookup: new Map() };
   }
   
   const normalizedLookup = new Map<string, string>();
   const originalLookup = new Map<string, string>();
+  const codFormaLookup = new Map<string, string>();
   
   if (data && Array.isArray(data)) {
     for (const fp of data) {
@@ -191,9 +193,14 @@ async function buildPaymentTypeLookup(supabase: any): Promise<{
         originalLookup.set(original, String(fp.tipo_venta));
         normalizedLookup.set(normalized, String(fp.tipo_venta));
       }
+      // Also index by cod_forma (e.g. FS10, FS12)
+      if (fp.cod_forma && fp.tipo_venta) {
+        const codFormaKey = String(fp.cod_forma).toUpperCase().trim();
+        codFormaLookup.set(codFormaKey, String(fp.tipo_venta));
+      }
     }
   }
-  return { normalizedLookup, originalLookup };
+  return { normalizedLookup, originalLookup, codFormaLookup };
 }
 
 function deriveTipoVenta(
