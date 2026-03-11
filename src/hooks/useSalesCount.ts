@@ -138,11 +138,10 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
         // Create the sale group
         const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
         
-        // Determine the tipo_venta from the FV00 record if available, otherwise from any record
-        const fv00Record = groupRecords.find(r => isSaleDocument(r.mcn_clase));
-        const rawTipoVenta = fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO';
+        // Determine tipo_venta from any record
+        const rawTipoVenta = groupRecords[0].tipo_venta || 'DESCONOCIDO';
         const tipoVenta = normalizeTipoVenta(rawTipoVenta);
-        const forma1Pago = fv00Record?.forma1_pago || groupRecords[0].forma1_pago || 'DESCONOCIDO';
+        const forma1Pago = groupRecords[0].forma1_pago || 'DESCONOCIDO';
 
         // Only count as a sale if total value is positive (net sale)
         if (totalValue > 0) {
