@@ -288,7 +288,7 @@ export function useComparativeData(
         entry.previousCount += 1;
       }
       // By type (normalize CONVENIO → ALIADOS)
-      const tipo = (sale.tipo_venta === 'CONVENIO' ? 'ALIADOS' : sale.tipo_venta) || 'SIN TIPO';
+      const tipo = (['CONVENIO'].includes(sale.tipo_venta) ? 'ALIADOS' : ['CREDITO', 'CREDICONTADO'].includes(sale.tipo_venta) ? 'FINANSUENOS' : sale.tipo_venta) || 'SIN TIPO';
       if (!previousByType.has(tipo)) previousByType.set(tipo, { amount: 0, count: 0 });
       const t = previousByType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
