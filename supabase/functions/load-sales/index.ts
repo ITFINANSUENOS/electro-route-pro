@@ -329,7 +329,7 @@ serve(async (req) => {
       );
     }
 
-    const { normalizedLookup, originalLookup } = await buildPaymentTypeLookup(supabase);
+    const { normalizedLookup, originalLookup, codFormaLookup } = await buildPaymentTypeLookup(supabase);
 
     const lines = csvContent.split(/\r?\n/).filter((l: string) => l.trim());
     if (lines.length < 2) {
