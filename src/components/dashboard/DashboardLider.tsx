@@ -1118,7 +1118,7 @@ export default function DashboardLider() {
       }
     });
 
-    const SALE_TYPES = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as const;
+    const SALE_TYPES = ['CONTADO', 'FINANSUENOS', 'ALIADOS'] as const;
 
     return advisors
       .filter(a => {

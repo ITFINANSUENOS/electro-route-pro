@@ -149,7 +149,7 @@ export function PaymentBreakdown({
   // Get the active filter types to display
   const displayTipos = selectedFilters.length > 0 
     ? selectedFilters 
-    : (['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'] as TipoVentaKey[]);
+    : (['CONTADO', 'FINANSUENOS', 'ALIADOS'] as TipoVentaKey[]);
 
   if (breakdown.length === 0) {
     return null;
