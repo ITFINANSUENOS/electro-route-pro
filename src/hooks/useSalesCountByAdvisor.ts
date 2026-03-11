@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 
 interface SaleRecord {
-  identifica?: string | null;
+  tipo_documento?: string | null;
+  numero_doc?: string | null;
   fecha?: string | null;
   tipo_venta?: string | null;
   forma1_pago?: string | null;
-  mcn_clase?: string | null;
   vtas_ant_i: number;
   codigo_asesor?: string | null;
 }
@@ -19,31 +19,6 @@ interface SalesCountByAdvisorResult {
   byTipoAsesor: Record<string, { count: number; value: number }>;
 }
 
-const MAX_DAYS_DIFFERENCE = 7;
-
-function parseDate(dateStr: string | null | undefined): Date | null {
-  if (!dateStr?.trim()) return null;
-  const clean = dateStr.trim();
-  
-  const parts = clean.split(/[\/\-]/);
-  if (parts.length === 3) {
-    const [first, second, third] = parts;
-    if (first.length <= 2) {
-      const year = third.length === 2 ? `20${third}` : third;
-      return new Date(`${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`);
-    } else {
-      return new Date(clean);
-    }
-  }
-  
-  return new Date(clean);
-}
-
-function daysDifference(date1: Date, date2: Date): number {
-  const diffTime = Math.abs(date2.getTime() - date1.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
 // Normalize tipo_venta
 function normalizeTipoVenta(tipo: string | null | undefined): string {
   const n = (tipo || 'DESCONOCIDO').toUpperCase();
@@ -54,6 +29,7 @@ function normalizeTipoVenta(tipo: string | null | undefined): string {
 
 /**
  * Groups sales records to count unique sales by advisor
+ * using tipo_documento + numero_doc + fecha as grouping key
  */
 export function useSalesCountByAdvisor(
   salesData: SaleRecord[],
@@ -67,85 +43,50 @@ export function useSalesCountByAdvisor(
       };
     }
 
-    // Group records by customer and advisor
-    const customerRecords = new Map<string, SaleRecord[]>();
-    
+    // Group by tipo_documento + numero_doc + fecha
+    const groups = new Map<string, SaleRecord[]>();
+
     salesData.forEach(record => {
-      const customerId = record.identifica?.trim() || 'UNKNOWN';
-      if (!customerRecords.has(customerId)) {
-        customerRecords.set(customerId, []);
+      const tipoDoc = (record.tipo_documento || 'UNKNOWN').trim();
+      const numDoc = (record.numero_doc || 'UNKNOWN').trim();
+      const fecha = (record.fecha || 'UNKNOWN').trim();
+      const key = `${tipoDoc}|${numDoc}|${fecha}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, []);
       }
-      customerRecords.get(customerId)!.push(record);
+      groups.get(key)!.push(record);
     });
 
-    // Track unique sales by advisor
     const byAdvisor: Record<string, {
       totalCount: number;
       totalValue: number;
       byType: Record<string, { count: number; value: number }>;
     }> = {};
 
-    // Process each customer's records
-    customerRecords.forEach((records, customerId) => {
-      const sortedRecords = records
-        .map(r => ({ ...r, parsedDate: parseDate(r.fecha) }))
-        .filter(r => r.parsedDate !== null)
-        .sort((a, b) => a.parsedDate!.getTime() - b.parsedDate!.getTime());
+    groups.forEach((records) => {
+      const totalValue = records.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
 
-      const processedIndices = new Set<number>();
+      if (totalValue > 0) {
+        const tipoVenta = normalizeTipoVenta(records[0].tipo_venta);
+        const codigoAsesor = records[0].codigo_asesor || 'UNKNOWN';
 
-      for (let i = 0; i < sortedRecords.length; i++) {
-        if (processedIndices.has(i)) continue;
-
-        const baseRecord = sortedRecords[i];
-        const baseDate = baseRecord.parsedDate!;
-        const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-
-        const groupRecords: typeof sortedRecords = [baseRecord];
-        processedIndices.add(i);
-
-        for (let j = i + 1; j < sortedRecords.length; j++) {
-          if (processedIndices.has(j)) continue;
-
-          const candidateRecord = sortedRecords[j];
-          const candidateDate = candidateRecord.parsedDate!;
-          const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-
-          const dateDiff = daysDifference(baseDate, candidateDate);
-          if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
-
-          // Only group records with same MCNCLASE
-          if (baseMcnClase === candidateMcnClase) {
-            groupRecords.push(candidateRecord);
-            processedIndices.add(j);
-          }
+        if (!byAdvisor[codigoAsesor]) {
+          byAdvisor[codigoAsesor] = {
+            totalCount: 0,
+            totalValue: 0,
+            byType: {},
+          };
         }
 
-        const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
-        
-        // Get advisor and sale type info
-        const tipoVenta = normalizeTipoVenta(groupRecords[0].tipo_venta);
-        const codigoAsesor = groupRecords[0].codigo_asesor || 'UNKNOWN';
+        byAdvisor[codigoAsesor].totalCount += 1;
+        byAdvisor[codigoAsesor].totalValue += totalValue;
 
-        // Only count as a sale if total value is positive
-        if (totalValue > 0) {
-          if (!byAdvisor[codigoAsesor]) {
-            byAdvisor[codigoAsesor] = {
-              totalCount: 0,
-              totalValue: 0,
-              byType: {},
-            };
-          }
-          
-          byAdvisor[codigoAsesor].totalCount += 1;
-          byAdvisor[codigoAsesor].totalValue += totalValue;
-          
-          if (!byAdvisor[codigoAsesor].byType[tipoVenta]) {
-            byAdvisor[codigoAsesor].byType[tipoVenta] = { count: 0, value: 0 };
-          }
-          byAdvisor[codigoAsesor].byType[tipoVenta].count += 1;
-          byAdvisor[codigoAsesor].byType[tipoVenta].value += totalValue;
+        if (!byAdvisor[codigoAsesor].byType[tipoVenta]) {
+          byAdvisor[codigoAsesor].byType[tipoVenta] = { count: 0, value: 0 };
         }
+        byAdvisor[codigoAsesor].byType[tipoVenta].count += 1;
+        byAdvisor[codigoAsesor].byType[tipoVenta].value += totalValue;
       }
     });
 
@@ -164,11 +105,8 @@ export function useSalesCountByAdvisor(
 
     Object.entries(byAdvisor).forEach(([codigo, data]) => {
       const normalizedCode = normalizeCode(codigo);
-      const nombre = ''; // We don't have nombre here
-      
-      // Check for GERENCIA
       const isGerencia = codigo === '01' || normalizedCode === '00001';
-      
+
       let tipoAsesor: string;
       if (isGerencia) {
         tipoAsesor = 'INTERNO';
