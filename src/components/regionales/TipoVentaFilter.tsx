@@ -6,9 +6,8 @@ import { cn } from '@/lib/utils';
 
 const TIPOS_VENTA = [
   { value: 'CONTADO', label: 'Contado' },
-  { value: 'CREDITO', label: 'Crédito' },
+  { value: 'FINANSUENOS', label: 'FinanSueños' },
   { value: 'ALIADOS', label: 'Aliados' },
-  { value: 'CREDICONTADO', label: 'CrediContado' },
 ];
 
 interface Props {

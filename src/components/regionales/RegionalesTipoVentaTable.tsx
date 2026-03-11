@@ -12,12 +12,11 @@ interface Props {
   metaNacionalByRegional: Record<string, number>;
 }
 
-const TIPOS = ['CONTADO', 'CREDITO', 'ALIADOS', 'CREDICONTADO'];
+const TIPOS = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
 const TIPO_LABELS: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
-  CREDICONTADO: 'CrediContado',
 };
 
 function formatCurrency(value: number) {
