@@ -104,7 +104,7 @@ const tipoAsesorColors: Record<string, string> = {
 
 export default function DashboardLider() {
   const { profile, role } = useAuth();
-  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']);
+  const [selectedFilters, setSelectedFilters] = useState<TipoVentaKey[]>(['CONTADO', 'FINANSUENOS', 'ALIADOS']);
   const [selectedTiposAsesor, setSelectedTiposAsesor] = useState<string[]>([]);
   const [selectedRegionals, setSelectedRegionals] = useState<string[]>([]);
   const [compliancePopupOpen, setCompliancePopupOpen] = useState(false);
