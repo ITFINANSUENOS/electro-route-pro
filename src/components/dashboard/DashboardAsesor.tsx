@@ -432,7 +432,7 @@ export default function DashboardAsesor() {
             <p className="font-semibold mb-2">Ventas por Tipo</p>
             <div className="space-y-2 text-sm">
               {complianceByType.map(t => {
-                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'Credi Contado' ? 'CREDICONTADO' : t.name === 'Crédito' ? 'CREDITO' : 'ALIADOS';
+                const typeKey = t.name === 'Contado' ? 'CONTADO' : t.name === 'FinanSueños' ? 'FINANSUENOS' : 'ALIADOS';
                 const qtyData = salesCount.byType[typeKey];
                 return (
                   <div key={t.name} className="flex items-center justify-between gap-3">
