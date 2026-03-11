@@ -44,14 +44,12 @@ function daysDifference(date1: Date, date2: Date): number {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-function isCreditDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'DV00';
-}
-
-function isSaleDocument(mcnClase: string | null | undefined): boolean {
-  if (!mcnClase) return false;
-  return mcnClase.toUpperCase() === 'FV00';
+// Normalize tipo_venta
+function normalizeTipoVenta(tipo: string | null | undefined): string {
+  const n = (tipo || 'DESCONOCIDO').toUpperCase();
+  if (n === 'CONVENIO') return 'ALIADOS';
+  if (n === 'CREDITO' || n === 'CREDICONTADO') return 'FINANSUENOS';
+  return n;
 }
 
 /**
