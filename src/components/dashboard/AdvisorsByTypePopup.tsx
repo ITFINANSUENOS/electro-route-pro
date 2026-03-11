@@ -231,7 +231,7 @@ export function AdvisorsByTypePopup({
                             );
                           })}
                           {/* Show sale types with 0 value if they have a meta */}
-                          {['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS']
+                          {['CONTADO', 'FINANSUENOS', 'ALIADOS']
                             .filter(tipo => 
                               !sortedSaleTypes.some(([t]) => t === tipo) && 
                               (advisor.metaByType?.[tipo] || 0) > 0
