@@ -373,11 +373,11 @@ export default function DashboardJefe() {
   // Calculate unique sales counts using the advanced grouping logic
   const salesCountData = useSalesCount(
     transformVentasForCounting((salesData || []) as Array<{
-      cliente_identificacion?: string | null;
+      tipo_documento?: string | null;
+      numero_doc?: string | null;
       fecha?: string | null;
       tipo_venta?: string | null;
       forma1_pago?: string | null;
-      mcn_clase?: string | null;
       vtas_ant_i: number;
     }>)
   );
