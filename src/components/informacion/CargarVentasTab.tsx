@@ -435,7 +435,9 @@ export default function CargarVentasTab() {
   };
 
   /** Process upload via edge function (uses service role for reliable delete) */
-  const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string) => {
+  const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string, overrideMonth?: number, overrideYear?: number) => {
+    const uploadMonth = overrideMonth ?? targetPeriod.month;
+    const uploadYear = overrideYear ?? targetPeriod.year;
     try {
       setUploadProgress(30);
       setUploadStatus('Enviando al servidor para procesamiento...');
@@ -452,8 +454,8 @@ export default function CargarVentasTab() {
       }>('load-sales', {
         body: {
           csvContent,
-          targetMonth: effectiveTarget.month,
-          targetYear: effectiveTarget.year,
+          targetMonth: uploadMonth,
+          targetYear: uploadYear,
           cargaId,
           cargadoPor: user?.id,
         },
