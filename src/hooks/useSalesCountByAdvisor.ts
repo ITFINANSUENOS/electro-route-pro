@@ -100,8 +100,6 @@ export function useSalesCountByAdvisor(
         const baseRecord = sortedRecords[i];
         const baseDate = baseRecord.parsedDate!;
         const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-        const isBaseCredit = isCreditDocument(baseMcnClase);
-        const isBaseSale = isSaleDocument(baseMcnClase);
 
         const groupRecords: typeof sortedRecords = [baseRecord];
         processedIndices.add(i);
@@ -112,18 +110,12 @@ export function useSalesCountByAdvisor(
           const candidateRecord = sortedRecords[j];
           const candidateDate = candidateRecord.parsedDate!;
           const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-          const isCandidateCredit = isCreditDocument(candidateMcnClase);
-          const isCandidateSale = isSaleDocument(candidateMcnClase);
 
           const dateDiff = daysDifference(baseDate, candidateDate);
           if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
 
-          const canGroup = 
-            (isBaseCredit && isCandidateSale) || 
-            (isBaseSale && isCandidateCredit) ||
-            (baseMcnClase === candidateMcnClase);
-
-          if (canGroup) {
+          // Only group records with same MCNCLASE
+          if (baseMcnClase === candidateMcnClase) {
             groupRecords.push(candidateRecord);
             processedIndices.add(j);
           }
