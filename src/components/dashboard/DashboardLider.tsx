@@ -610,7 +610,7 @@ export default function DashboardLider() {
       }
       acc[uniqueKey].total += sale.vtas_ant_i || 0;
       const tipoRaw = sale.tipo_venta || 'OTRO';
-      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : (tipoRaw === 'CREDITO' || tipoRaw === 'CREDICONTADO') ? 'FINANSUENOS' : tipoRaw;
       acc[uniqueKey].byType[tipo] = (acc[uniqueKey].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; regional?: string; total: number; byType: Record<string, number>; isGerencia: boolean }>);
