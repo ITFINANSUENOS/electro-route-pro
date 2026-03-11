@@ -237,6 +237,39 @@ export default function CargarVentasTab() {
     return new Date().toISOString().split('T')[0];
   };
 
+  /** Detect the dominant period (month/year) from CSV date column */
+  const detectDominantPeriod = (csvContent: string): { month: number; year: number } | null => {
+    const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return null;
+
+    const delimiter = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const headers = parseCSVLine(lines[0], delimiter);
+    const fechaIdx = headers.findIndex(h => {
+      const n = normalizeHeader(h);
+      return n === 'fecha_fact' || n === 'fecha';
+    });
+    if (fechaIdx === -1) return null;
+
+    const counts = new Map<string, number>();
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = parseCSVLine(lines[i], delimiter);
+      const dateStr = parseDate(values[fechaIdx] || '');
+      if (!dateStr) continue;
+      const key = dateStr.substring(0, 7); // YYYY-MM
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    let maxKey = '';
+    let maxCount = 0;
+    for (const [key, count] of counts) {
+      if (count > maxCount) { maxCount = count; maxKey = key; }
+    }
+    if (!maxKey) return null;
+    const [yearStr, monthStr] = maxKey.split('-');
+    return { month: parseInt(monthStr), year: parseInt(yearStr) };
+  };
+
   /** Count how many rows in the CSV correspond to the target month */
   const countRowsInMonth = (csvContent: string, month: number, year: number): { total: number; inMonth: number } => {
     const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
