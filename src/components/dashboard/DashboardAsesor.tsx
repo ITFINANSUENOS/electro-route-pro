@@ -366,7 +366,7 @@ export default function DashboardAsesor() {
   const budgetVsExecuted = useMemo(() => {
     if (!metaData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // Get advisor's meta for this tipo_venta
