@@ -124,9 +124,8 @@ export function useSalesCountByAdvisor(
         const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
         
         // Get advisor and sale type info
-        const fv00Record = groupRecords.find(r => isSaleDocument(r.mcn_clase));
-        const tipoVenta = (fv00Record?.tipo_venta || groupRecords[0].tipo_venta || 'DESCONOCIDO').toUpperCase();
-        const codigoAsesor = fv00Record?.codigo_asesor || groupRecords[0].codigo_asesor || 'UNKNOWN';
+        const tipoVenta = normalizeTipoVenta(groupRecords[0].tipo_venta);
+        const codigoAsesor = groupRecords[0].codigo_asesor || 'UNKNOWN';
 
         // Only count as a sale if total value is positive
         if (totalValue > 0) {

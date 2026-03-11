@@ -123,8 +123,13 @@ export function useComparativeData(
       query = query.eq('codigo_jefe', filters.codigoJefe);
     }
     if (filters.tipoVenta.length > 0) {
-      const normalizedTypes = filters.tipoVenta.map(t => t === 'ALIADOS' ? 'CONVENIO' : t);
-      query = query.in('tipo_venta', [...new Set([...filters.tipoVenta, ...normalizedTypes])]);
+      const normalizedTypes: string[] = [];
+      filters.tipoVenta.forEach(t => {
+        normalizedTypes.push(t);
+        if (t === 'ALIADOS') normalizedTypes.push('CONVENIO');
+        if (t === 'FINANSUENOS') { normalizedTypes.push('CREDITO'); normalizedTypes.push('CREDICONTADO'); }
+      });
+      query = query.in('tipo_venta', [...new Set(normalizedTypes)]);
     }
     return query;
   };

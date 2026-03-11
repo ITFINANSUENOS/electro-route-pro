@@ -231,7 +231,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       entry.prevYear += amount;
       entry.prevYearCount += 1;
       const rawTipo = sale.tipo_venta || 'OTROS';
-      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : rawTipo;
+      const tipo = rawTipo === 'CONVENIO' ? 'ALIADOS' : (rawTipo === 'CREDITO' || rawTipo === 'CREDICONTADO') ? 'FINANSUENOS' : rawTipo;
       if (!entry.prevYearDesglose[tipo]) entry.prevYearDesglose[tipo] = { valor: 0, cantidad: 0 };
       entry.prevYearDesglose[tipo].valor += amount;
       entry.prevYearDesglose[tipo].cantidad += 1;
