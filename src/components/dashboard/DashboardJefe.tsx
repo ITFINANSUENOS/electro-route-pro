@@ -298,7 +298,7 @@ export default function DashboardJefe() {
     const byType = Object.entries(
       filteredSales.reduce((acc, sale) => {
         const typeRaw = sale.tipo_venta || 'OTRO';
-        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : typeRaw;
+        const type = typeRaw === 'CONVENIO' ? 'ALIADOS' : (typeRaw === 'CREDITO' || typeRaw === 'CREDICONTADO') ? 'FINANSUENOS' : typeRaw;
         acc[type] = (acc[type] || 0) + (sale.vtas_ant_i || 0);
         return acc;
       }, {} as Record<string, number>)
