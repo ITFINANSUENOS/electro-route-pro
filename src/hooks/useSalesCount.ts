@@ -1,23 +1,12 @@
 import { useMemo } from 'react';
 
 interface SaleRecord {
-  identifica?: string | null;      // cliente_identificacion
-  fecha?: string | null;           // fecha
-  tipo_venta?: string | null;      // tipo_venta
-  forma1_pago?: string | null;     // forma1_pago
-  mcn_clase?: string | null;       // mcn_clase
-  vtas_ant_i: number;              // vtas_ant_i (can be negative for returns)
-}
-
-interface SaleGroup {
-  identifica: string;
-  mcnClase: string;
-  tipoVenta: string;
-  forma1Pago: string;
-  totalValue: number;
-  records: SaleRecord[];
-  minDate: Date;
-  maxDate: Date;
+  tipo_documento?: string | null;
+  numero_doc?: string | null;
+  fecha?: string | null;
+  tipo_venta?: string | null;
+  forma1_pago?: string | null;
+  vtas_ant_i: number;
 }
 
 interface SalesCountResult {
@@ -25,37 +14,6 @@ interface SalesCountResult {
   totalSalesValue: number;
   byType: Record<string, { count: number; value: number }>;
   byPaymentMethod: Record<string, { count: number; value: number }>;
-}
-
-// Maximum days difference to consider records as part of the same sale
-const MAX_DAYS_DIFFERENCE = 7;
-
-// Parse date from various formats
-function parseDate(dateStr: string | null | undefined): Date | null {
-  if (!dateStr?.trim()) return null;
-  const clean = dateStr.trim();
-  
-  // Handle DD/MM/YYYY format
-  const parts = clean.split(/[\/\-]/);
-  if (parts.length === 3) {
-    const [first, second, third] = parts;
-    if (first.length <= 2) {
-      // DD/MM/YYYY format
-      const year = third.length === 2 ? `20${third}` : third;
-      return new Date(`${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`);
-    } else {
-      // YYYY-MM-DD format
-      return new Date(clean);
-    }
-  }
-  
-  return new Date(clean);
-}
-
-// Calculate days difference between two dates
-function daysDifference(date1: Date, date2: Date): number {
-  const diffTime = Math.abs(date2.getTime() - date1.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 // Normalize tipo_venta: CONVENIO → ALIADOS, CREDITO/CREDICONTADO → FINANSUENOS
@@ -68,9 +26,9 @@ function normalizeTipoVenta(tipo: string | null | undefined): string {
 
 /**
  * Groups sales records to count unique sales based on:
- * - Same customer (IDENTIFICA/cédula)
- * - Same or close dates (≤7 days difference)
- * - Same MCNCLASE (except for credit where DV00+FV00 = 1 sale)
+ * - Same tipo_documento + numero_doc + fecha = 1 unique sale
+ * - Sum all vtas_ant_i within the group
+ * - Only count if net total > 0
  */
 export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
   return useMemo(() => {
@@ -83,108 +41,54 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
       };
     }
 
-    // Group records by customer and analyze for unique sales
-    const customerRecords = new Map<string, SaleRecord[]>();
-    
-    // First pass: group by customer identifier
+    // Group by tipo_documento + numero_doc + fecha
+    const groups = new Map<string, SaleRecord[]>();
+
     salesData.forEach(record => {
-      const customerId = record.identifica?.trim() || 'UNKNOWN';
-      if (!customerRecords.has(customerId)) {
-        customerRecords.set(customerId, []);
+      const tipoDoc = (record.tipo_documento || 'UNKNOWN').trim();
+      const numDoc = (record.numero_doc || 'UNKNOWN').trim();
+      const fecha = (record.fecha || 'UNKNOWN').trim();
+      const key = `${tipoDoc}|${numDoc}|${fecha}`;
+
+      if (!groups.has(key)) {
+        groups.set(key, []);
       }
-      customerRecords.get(customerId)!.push(record);
+      groups.get(key)!.push(record);
     });
 
-    const uniqueSales: SaleGroup[] = [];
-
-    // Second pass: for each customer, group records into unique sales
-    customerRecords.forEach((records, customerId) => {
-      // Sort records by date
-      const sortedRecords = records
-        .map(r => ({ ...r, parsedDate: parseDate(r.fecha) }))
-        .filter(r => r.parsedDate !== null)
-        .sort((a, b) => a.parsedDate!.getTime() - b.parsedDate!.getTime());
-
-      const processedIndices = new Set<number>();
-
-      for (let i = 0; i < sortedRecords.length; i++) {
-        if (processedIndices.has(i)) continue;
-
-        const baseRecord = sortedRecords[i];
-        const baseDate = baseRecord.parsedDate!;
-        const baseMcnClase = baseRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-
-        const groupRecords: typeof sortedRecords = [baseRecord];
-        processedIndices.add(i);
-
-        // Find related records: same customer + close date + same MCNCLASE
-        for (let j = i + 1; j < sortedRecords.length; j++) {
-          if (processedIndices.has(j)) continue;
-
-          const candidateRecord = sortedRecords[j];
-          const candidateDate = candidateRecord.parsedDate!;
-          const candidateMcnClase = candidateRecord.mcn_clase?.toUpperCase() || 'UNKNOWN';
-
-          const dateDiff = daysDifference(baseDate, candidateDate);
-          if (dateDiff > MAX_DAYS_DIFFERENCE) continue;
-
-          // Only group records with same MCNCLASE
-          if (baseMcnClase === candidateMcnClase) {
-            groupRecords.push(candidateRecord);
-            processedIndices.add(j);
-          }
-        }
-
-        // Create the sale group
-        const totalValue = groupRecords.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
-        
-        // Determine tipo_venta from any record
-        const rawTipoVenta = groupRecords[0].tipo_venta || 'DESCONOCIDO';
-        const tipoVenta = normalizeTipoVenta(rawTipoVenta);
-        const forma1Pago = groupRecords[0].forma1_pago || 'DESCONOCIDO';
-
-        // Only count as a sale if total value is positive (net sale)
-        if (totalValue > 0) {
-          uniqueSales.push({
-            identifica: customerId,
-            mcnClase: baseMcnClase,
-            tipoVenta: tipoVenta,
-            forma1Pago: forma1Pago?.toUpperCase() || 'DESCONOCIDO',
-            totalValue,
-            records: groupRecords,
-            minDate: baseDate,
-            maxDate: groupRecords.reduce(
-              (max, r) => r.parsedDate! > max ? r.parsedDate! : max,
-              baseDate
-            ),
-          });
-        }
-      }
-    });
-
-    // Calculate totals by type and payment method
     const byType: Record<string, { count: number; value: number }> = {};
     const byPaymentMethod: Record<string, { count: number; value: number }> = {};
+    let totalSalesCount = 0;
+    let totalSalesValue = 0;
 
-    uniqueSales.forEach(sale => {
-      // By tipo_venta
-      if (!byType[sale.tipoVenta]) {
-        byType[sale.tipoVenta] = { count: 0, value: 0 };
-      }
-      byType[sale.tipoVenta].count += 1;
-      byType[sale.tipoVenta].value += sale.totalValue;
+    groups.forEach((records) => {
+      const totalValue = records.reduce((sum, r) => sum + (r.vtas_ant_i || 0), 0);
 
-      // By forma1_pago
-      if (!byPaymentMethod[sale.forma1Pago]) {
-        byPaymentMethod[sale.forma1Pago] = { count: 0, value: 0 };
+      // Only count as a sale if net total > 0
+      if (totalValue > 0) {
+        const tipoVenta = normalizeTipoVenta(records[0].tipo_venta);
+        const forma1Pago = (records[0].forma1_pago || 'DESCONOCIDO').toUpperCase();
+
+        totalSalesCount += 1;
+        totalSalesValue += totalValue;
+
+        if (!byType[tipoVenta]) {
+          byType[tipoVenta] = { count: 0, value: 0 };
+        }
+        byType[tipoVenta].count += 1;
+        byType[tipoVenta].value += totalValue;
+
+        if (!byPaymentMethod[forma1Pago]) {
+          byPaymentMethod[forma1Pago] = { count: 0, value: 0 };
+        }
+        byPaymentMethod[forma1Pago].count += 1;
+        byPaymentMethod[forma1Pago].value += totalValue;
       }
-      byPaymentMethod[sale.forma1Pago].count += 1;
-      byPaymentMethod[sale.forma1Pago].value += sale.totalValue;
     });
 
     return {
-      totalSalesCount: uniqueSales.length,
-      totalSalesValue: uniqueSales.reduce((sum, s) => sum + s.totalValue, 0),
+      totalSalesCount,
+      totalSalesValue,
       byType,
       byPaymentMethod,
     };
@@ -195,19 +99,19 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
  * Transform database ventas records to the format expected by useSalesCount
  */
 export function transformVentasForCounting(ventas: Array<{
-  cliente_identificacion?: string | null;
+  tipo_documento?: string | null;
+  numero_doc?: string | null;
   fecha?: string | null;
   tipo_venta?: string | null;
   forma1_pago?: string | null;
-  mcn_clase?: string | null;
   vtas_ant_i: number;
 }>): SaleRecord[] {
   return ventas.map(v => ({
-    identifica: v.cliente_identificacion,
+    tipo_documento: v.tipo_documento,
+    numero_doc: v.numero_doc,
     fecha: v.fecha,
     tipo_venta: v.tipo_venta,
     forma1_pago: v.forma1_pago,
-    mcn_clase: v.mcn_clase,
     vtas_ant_i: v.vtas_ant_i,
   }));
 }

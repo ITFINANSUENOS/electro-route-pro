@@ -1,64 +1,69 @@
 
 
-## Plan: Corregir lógica de conteo de ventas únicas
+# Plan: Incluir asesores inactivos en toda la reporteria financiera
 
-### Problema identificado
+## Problema
 
-El conteo actual agrupa ventas por **cliente (IDENTIFICA) + MCNCLASE + proximidad de fecha (7 días)**, lo cual es incorrecto. Los datos reales muestran que:
+Cuando un asesor es desactivado durante el mes, sus metas, ventas y devoluciones desaparecen de los totales porque las consultas de perfiles filtran con `activo = true`. Esto causa que el total de metas mostrado no coincida con lo cargado ($5.702.800.000), y que ventas/devoluciones de asesores que salieron de la compania se pierdan de los graficos y reportes.
 
-1. Una venta puede tener múltiples filas (productos), y la llave correcta para agruparlas es: **`tipo_documento` + `numero_doc` + `fecha`** (en la BD: CSV `TIPO_DOCUM` → DB `tipo_documento`, ej: FEPO, FECA, FEPL)
-2. El registro "OBSEQUIOS CLIENTES" (valor $1,319,327.73, numero_doc 6.984, tipo_documento FECA) está mapeado como FINANSUENOS en `formas_pago`, pero debería ser **OTROS** (no es una venta real)
+## Principio
 
-**Resultado esperado para Marzo 2026:**
-- FinanSueños: 2 ventas = $3,890,756.31 (no 4 ventas / $5,210,084)
-- Aliados: 32 ventas = $61,500,134 (correcto)
-- Contado: incluye DV00 = $545,568,499 (correcto)
+Separar logica **financiera** (metas, ventas, devoluciones, presupuestos) de logica **operativa** (conteo de asesores activos, login, programacion):
+- **Financiero**: incluir TODOS los asesores con metas/ventas en el periodo, activos e inactivos
+- **Operativo**: seguir usando `activo = true` solo para conteos de personal activo
 
----
+## Cambios planificados
 
-### Cambios requeridos
+### 1. `src/hooks/useRegionalesData.ts` (linea 97)
+- Quitar `.eq('activo', true)` del query de perfiles para mapeo `codigo_asesor -> regional_id`
+- Agregar `activo` al select: `'codigo_asesor, regional_id, activo'`
+- Resultado: metas y ventas de asesores inactivos se atribuyen correctamente a su regional
 
-**1. Migración BD: Corregir "OBSEQUIOS CLIENTES"**
-- UPDATE `formas_pago` SET `tipo_venta` = 'OTROS' WHERE `codigo` = 'OBSEQUIOS CLIENTES'
-- UPDATE `ventas` SET `tipo_venta` = 'OTROS' WHERE `forma1_pago` ILIKE '%obsequio%' AND `tipo_venta` = 'FINANSUENOS'
-- Registrar en `historial_migraciones`
+### 2. `src/components/dashboard/DashboardLider.tsx` (linea 710)
+- Cambiar `if (!p.activo || !p.codigo_asesor) return;` por `if (!p.codigo_asesor) return;` para incluir codigos de asesores inactivos en el scope de metas
+- Mantener `activo = true` en linea 739 para el conteo de `totalActiveAdvisors` (esto es operativo)
+- Agregar campo `activo` a la estructura de `byAdvisor` para que el ranking pueda mostrar el estado visual
+- Los mapas `tipoAsesorMap` y `regionalMap` (linea 536) ya incluyen todos los perfiles sin filtro de activo, lo cual es correcto
 
-**2. Refactorizar `useSalesCount.ts`**
-- Cambiar la interfaz `SaleRecord` para incluir `tipo_documento` y `numero_doc`
-- Cambiar la lógica de agrupación: agrupar por **`tipo_documento` + `numero_doc` + `fecha`** en vez de `identifica` + `mcn_clase` + proximidad de fecha
-- Cada grupo = 1 venta única, sumar todos los `vtas_ant_i` del grupo
-- Solo contar como venta si el total neto > 0
-- El `tipo_venta` y `forma1_pago` se toman del primer registro del grupo
-- Eliminar la constante `MAX_DAYS_DIFFERENCE` y las funciones `parseDate`/`daysDifference` (ya no se necesitan)
-- Actualizar `transformVentasForCounting` para pasar `tipo_documento` y `numero_doc`
+### 3. `src/components/dashboard/DashboardJefe.tsx` (linea 134)
+- Quitar `.eq('activo', true)` del query de perfiles del equipo
+- Agregar `activo` al select: `'codigo_asesor, nombre_completo, tipo_asesor, cedula, activo'`
+- Asesores inactivos del equipo aparecen en el ranking con sus ventas, devoluciones y metas
 
-**3. Refactorizar `useSalesCountByAdvisor.ts`**
-- Misma lógica: agrupar por `tipo_documento` + `numero_doc` + `fecha`
-- Agregar `tipo_documento` y `numero_doc` a la interfaz `SaleRecord`
+### 4. `src/hooks/useComparativeData.ts` (linea 183)
+- Quitar `.eq('activo', true)` del query de perfiles
+- Agregar `activo` al select
+- Datos comparativos incluyen ventas/devoluciones de asesores inactivos en el breakdown por tipo
 
-**4. Actualizar llamadas en dashboards**
-- `DashboardLider.tsx` (líneas 870-877, 898-906): Pasar `tipo_documento` y `numero_doc` en el transform y en el map manual
-- `DashboardJefe.tsx` (líneas 374-382): Mismo ajuste en `transformVentasForCounting`
-- `DashboardAsesor.tsx` (línea 259): Mismo ajuste
+### 5. `src/components/dashboard/RankingTable.tsx`
+- Agregar campo `activo?: boolean` a la interfaz `RankingAdvisor` (linea 32)
+- En la celda del nombre: si `activo === false`, aplicar estilo gris (`text-muted-foreground opacity-60`) y mostrar un badge pequeno "Inactivo" al lado del nombre
+- El asesor sigue visible con todos sus datos (ventas, devoluciones, meta, cumplimiento)
 
----
+### 6. `src/components/informacion/MetasTab.tsx`
+- Agregar `activo` al select del query de profiles (linea 118): `'codigo_asesor, nombre_completo, tipo_asesor, regional_id, activo'`
+- Agregar `activo` a la interfaz `ProfileWithRegional`
+- En la tabla de metas por asesor, mostrar indicador "Inactivo" en gris para asesores desactivados
 
-### Lógica de agrupación nueva (pseudocódigo)
+### 7. `src/components/regionales/RegionalesRankingTable.tsx`
+- Sin cambios necesarios: esta tabla muestra datos agregados por regional, no por asesor individual. El fix en `useRegionalesData.ts` (#1) es suficiente para que los totales incluyan asesores inactivos.
+
+## Flujo de datos despues del fix
 
 ```text
-Para cada registro de ventas:
-  key = `${tipo_documento}|${numero_doc}|${fecha}`
-  Agrupar todos los registros con la misma key
-  
-Para cada grupo:
-  totalValue = SUM(vtas_ant_i) de todos los registros del grupo
-  Si totalValue > 0 → contar como 1 venta
-  tipo_venta = normalizar(primer registro del grupo)
-  codigo_asesor = primer registro del grupo
+CSV Metas (126 asesores, $5.702.800.000)
+  → tabla metas (126 registros) ✓ ya funciona
+  → query perfiles SIN filtro activo
+  → mapeo codigo_asesor → regional_id COMPLETO
+  → Totales Dashboard/Regionales = $5.702.800.000 ✓
+
+Ventas/Devoluciones de asesores inactivos
+  → query ventas (no filtra por activo) ✓ ya funciona
+  → mapeo a tipo_asesor/regional via perfiles SIN filtro activo
+  → Aparecen en graficos y tablas con badge "Inactivo"
 ```
 
-Esto garantiza que:
-- FEPO 10.563 (filas 121-122 del CSV) = 1 venta = $2,079,831.94
-- FEPO 10.564 (fila 25 del CSV) = 1 venta = $1,810,924.37
-- FECA 6.984 (obsequio) = excluido por tipo_venta = OTROS
+## Sin cambios en base de datos
+
+No se requieren migraciones. Es puramente un ajuste en la capa de consultas y visualizacion del frontend.
 

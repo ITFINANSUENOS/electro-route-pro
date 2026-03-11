@@ -868,11 +868,11 @@ export default function DashboardLider() {
   // Calculate unique sales counts using the advanced grouping logic
   const salesCountData = useSalesCount(
     transformVentasForCounting(advancedFilteredSales as Array<{
-      cliente_identificacion?: string | null;
+      tipo_documento?: string | null;
+      numero_doc?: string | null;
       fecha?: string | null;
       tipo_venta?: string | null;
       forma1_pago?: string | null;
-      mcn_clase?: string | null;
       vtas_ant_i: number;
     }>)
   );
@@ -896,11 +896,11 @@ export default function DashboardLider() {
   // Calculate sales count by advisor for ranking tooltips
   const salesCountByAdvisorData = useSalesCountByAdvisor(
     advancedFilteredSales.map(v => ({
-      identifica: (v as any).cliente_identificacion,
+      tipo_documento: (v as any).tipo_documento,
+      numero_doc: (v as any).numero_doc,
       fecha: v.fecha,
       tipo_venta: v.tipo_venta,
       forma1_pago: (v as any).forma1_pago,
-      mcn_clase: (v as any).mcn_clase,
       vtas_ant_i: v.vtas_ant_i,
       codigo_asesor: v.codigo_asesor,
     })),
