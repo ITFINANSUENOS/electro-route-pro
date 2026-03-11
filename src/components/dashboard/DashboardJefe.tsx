@@ -326,7 +326,7 @@ export default function DashboardJefe() {
       }
       acc[advisor].total += sale.vtas_ant_i || 0;
       const tipoRaw = sale.tipo_venta || 'OTRO';
-      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : tipoRaw;
+      const tipo = tipoRaw === 'CONVENIO' ? 'ALIADOS' : (tipoRaw === 'CREDITO' || tipoRaw === 'CREDICONTADO') ? 'FINANSUENOS' : tipoRaw;
       acc[advisor].byType[tipo] = (acc[advisor].byType[tipo] || 0) + (sale.vtas_ant_i || 0);
       return acc;
     }, {} as Record<string, { codigo: string; nombre: string; tipoAsesor: string; cedula: string; activo: boolean; total: number; byType: Record<string, number> }>);
