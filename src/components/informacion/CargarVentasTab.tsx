@@ -361,9 +361,9 @@ export default function CargarVentasTab() {
       setUploadStatus('Verificando cargas anteriores...');
 
       // Check previous record count for THIS specific target period (month/year)
-      const monthStart = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-01`;
-      const lastDay = new Date(targetPeriod.year, targetPeriod.month, 0).getDate();
-      const monthEnd = `${targetPeriod.year}-${String(targetPeriod.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const monthStart = `${effectiveTarget.year}-${String(effectiveTarget.month).padStart(2, '0')}-01`;
+      const lastDay = new Date(effectiveTarget.year, effectiveTarget.month, 0).getDate();
+      const monthEnd = `${effectiveTarget.year}-${String(effectiveTarget.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       let previousRecordCount = 0;
       try {
