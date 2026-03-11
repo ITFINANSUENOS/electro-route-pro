@@ -401,11 +401,11 @@ export default function DashboardJefe() {
   // Calculate sales count by advisor for ranking tooltips
   const salesCountByAdvisorData = useSalesCountByAdvisor(
     (salesData || []).map(v => ({
-      identifica: (v as any).cliente_identificacion,
+      tipo_documento: (v as any).tipo_documento,
+      numero_doc: (v as any).numero_doc,
       fecha: v.fecha,
       tipo_venta: v.tipo_venta,
       forma1_pago: (v as any).forma1_pago,
-      mcn_clase: (v as any).mcn_clase,
       vtas_ant_i: v.vtas_ant_i,
       codigo_asesor: v.codigo_asesor,
     })),
