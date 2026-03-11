@@ -48,8 +48,7 @@ const formatCurrencyCompact = (value: number) => {
 
 const tipoVentaColors: Record<string, string> = {
   CONTADO: 'bg-success/10 text-success border-success/30',
-  CREDICONTADO: 'bg-warning/10 text-warning border-warning/30',
-  CREDITO: 'bg-primary/10 text-primary border-primary/30',
+  FINANSUENOS: 'bg-primary/10 text-primary border-primary/30',
   ALIADOS: 'bg-secondary/10 text-secondary border-secondary/30',
 };
 
