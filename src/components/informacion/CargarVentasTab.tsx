@@ -325,8 +325,24 @@ export default function CargarVentasTab() {
       setUploadProgress(10);
       setUploadStatus('Validando contenido...');
 
+      // Auto-detect the dominant period from CSV data
+      const detectedPeriod = detectDominantPeriod(csvContent);
+      let effectiveTarget = targetPeriod;
+
+      if (detectedPeriod && !historicMode) {
+        const isDifferentPeriod = detectedPeriod.month !== targetPeriod.month || detectedPeriod.year !== targetPeriod.year;
+        if (isDifferentPeriod) {
+          // Auto-adjust target period to the detected one
+          effectiveTarget = { month: detectedPeriod.month, year: detectedPeriod.year, isClosingDay: false };
+          toast({
+            title: 'Periodo detectado automáticamente',
+            description: `El archivo corresponde a ${getMonthName(detectedPeriod.month)} ${detectedPeriod.year}. Se ajustó el periodo objetivo.`,
+          });
+        }
+      }
+
       // Quick validation: count rows
-      const rowCount = countRowsInMonth(csvContent, targetPeriod.month, targetPeriod.year);
+      const rowCount = countRowsInMonth(csvContent, effectiveTarget.month, effectiveTarget.year);
       
       if (rowCount.total === 0) throw new Error('El archivo CSV está vacío');
       if (rowCount.inMonth < rowCount.total / 2) {
@@ -335,7 +351,7 @@ export default function CargarVentasTab() {
         setUploadStatus('');
         toast({ 
           title: 'Fechas fuera de rango', 
-          description: `Menos del 50% de los registros corresponden a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`,
+          description: `Menos del 50% de los registros corresponden a ${getMonthName(effectiveTarget.month)} ${effectiveTarget.year}.`,
           variant: 'destructive' 
         });
         return;
