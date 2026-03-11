@@ -405,7 +405,7 @@ export default function CargarVentasTab() {
       setUploadProgress(20);
       setUploadStatus('Registrando carga...');
 
-      await getOrCreatePeriod(targetPeriod.month, targetPeriod.year);
+      await getOrCreatePeriod(effectiveTarget.month, effectiveTarget.year);
 
       const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
