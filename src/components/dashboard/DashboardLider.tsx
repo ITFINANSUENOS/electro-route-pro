@@ -803,7 +803,7 @@ export default function DashboardLider() {
       return clean.padStart(5, '0');
     };
 
-    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta: TipoVentaKey[] = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     
     return tiposVenta.map(tipo => {
       // For unfiltered global scope, include ALL metas (no profile-based filter)

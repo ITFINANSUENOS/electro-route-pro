@@ -470,7 +470,7 @@ export default function DashboardJefe() {
   const budgetVsExecuted = useMemo(() => {
     if (!metasData || !salesData) return [];
     
-    const tiposVenta = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+    const tiposVenta = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
     const teamCodes = new Set(teamAdvisorCodes);
     
     return tiposVenta.map(tipo => {

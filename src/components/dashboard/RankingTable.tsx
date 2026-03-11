@@ -46,20 +46,18 @@ export interface RankingAdvisor {
   activo?: boolean; // Whether the advisor is currently active
 }
 
-export type TipoVentaKey = 'CONTADO' | 'CREDICONTADO' | 'CREDITO' | 'ALIADOS';
+export type TipoVentaKey = 'CONTADO' | 'FINANSUENOS' | 'ALIADOS';
 export type TipoAsesorFilter = 'TODOS' | 'INTERNO' | 'EXTERNO' | 'CORRETAJE';
 
 export const tiposVentaLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'Credi Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
 const tiposVentaShortLabels: Record<string, string> = {
   CONTADO: 'Contado',
-  CREDICONTADO: 'C. Contado',
-  CREDITO: 'Crédito',
+  FINANSUENOS: 'FinanSueños',
   ALIADOS: 'Aliados',
 };
 
