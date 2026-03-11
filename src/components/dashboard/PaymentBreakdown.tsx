@@ -112,7 +112,7 @@ export function PaymentBreakdown({
     return Object.values(groupedByPayment)
       .sort((a, b) => {
         // First sort by tipo_venta
-        const tipoOrder = ['CONTADO', 'CREDICONTADO', 'CREDITO', 'ALIADOS'];
+        const tipoOrder = ['CONTADO', 'FINANSUENOS', 'ALIADOS'];
         const tipoA = tipoOrder.indexOf(a.tipo_venta);
         const tipoB = tipoOrder.indexOf(b.tipo_venta);
         if (tipoA !== tipoB) return tipoA - tipoB;
