@@ -416,7 +416,7 @@ serve(async (req) => {
         const formaPago = (venta.forma_pago as string) || '';
         const codFormaPago = (venta.cod_forma_pago as string) || '';
         
-        let tipoVenta = deriveTipoVenta(forma1Pago, formaPago, normalizedLookup, originalLookup);
+        let tipoVenta = deriveTipoVenta(forma1Pago, formaPago, normalizedLookup, originalLookup, codFormaLookup, codFormaPago);
         
         // Auto-create unknown codes
         if (!tipoVenta && forma1Pago.trim()) {

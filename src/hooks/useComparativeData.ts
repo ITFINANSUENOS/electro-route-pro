@@ -144,7 +144,7 @@ export function useComparativeData(
         const prevStart = format(previousPeriod.start, 'yyyy-MM-dd');
         const prevEnd = format(previousPeriod.end, 'yyyy-MM-dd');
 
-        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta, forma_pago, forma1_pago';
+        const selectCols = 'fecha, vtas_ant_i, codigo_asesor, tipo_venta, forma_pago, forma1_pago, tipo_docum';
 
         const [currentData, prevData] = await Promise.all([
           fetchPaginated((page, pageSize) => {

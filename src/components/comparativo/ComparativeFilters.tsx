@@ -22,8 +22,7 @@ import { ComparativeFilters as FiltersType } from '@/hooks/useComparativeData';
  
  const TIPOS_VENTA = [
    { value: 'CONTADO', label: 'Contado' },
-   { value: 'CREDI CONTADO', label: 'Credi Contado' },
-   { value: 'CREDITO', label: 'Crédito' },
+   { value: 'FINANSUENOS', label: 'FinanSueños' },
    { value: 'ALIADOS', label: 'Aliados' },
  ];
  

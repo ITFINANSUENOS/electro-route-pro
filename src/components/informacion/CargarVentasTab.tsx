@@ -452,8 +452,8 @@ export default function CargarVentasTab() {
       }>('load-sales', {
         body: {
           csvContent,
-          targetMonth: targetPeriod.month,
-          targetYear: targetPeriod.year,
+          targetMonth: effectiveTarget.month,
+          targetYear: effectiveTarget.year,
           cargaId,
           cargadoPor: user?.id,
         },
