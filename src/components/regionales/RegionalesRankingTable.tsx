@@ -13,12 +13,11 @@ interface Props {
   metaType: 'comercial' | 'nacional';
 }
 
-type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas' | 'contado' | 'credicontado' | 'credito' | 'aliados';
+type SortKey = 'cumplimiento' | 'ventaTotal' | 'meta' | 'cantidadVentas' | 'contado' | 'finansuenos' | 'aliados';
 
 const TIPOS_VENTA = [
   { value: 'CONTADO', label: 'Contado', shortLabel: 'Contado' },
-  { value: 'CREDICONTADO', label: 'Credi Contado', shortLabel: 'C. Contado' },
-  { value: 'CREDITO', label: 'Crédito', shortLabel: 'Crédito' },
+  { value: 'FINANSUENOS', label: 'FinanSueños', shortLabel: 'FinanSueños' },
   { value: 'ALIADOS', label: 'Aliados', shortLabel: 'Aliados' },
 ];
 
