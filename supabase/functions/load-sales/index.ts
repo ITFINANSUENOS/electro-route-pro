@@ -207,29 +207,37 @@ function deriveTipoVenta(
   forma1Pago: string, 
   formaPago: string, 
   normalizedLookup: Map<string, string>,
-  originalLookup: Map<string, string>
+  originalLookup: Map<string, string>,
+  codFormaLookup: Map<string, string>,
+  codFormaPago?: string
 ): string | null {
   const forma1Upper = (forma1Pago || '').toUpperCase().trim();
   const forma1Normalized = normalizeForComparison(forma1Pago || '');
   const formaGeneral = (formaPago || '').toUpperCase().trim();
   
-  // 1. Exact match on original key
+  // 1. Exact match on original key (FORMA1PAGO)
   if (originalLookup.has(forma1Upper)) return originalLookup.get(forma1Upper)!;
   
-  // 2. Normalized match (handles encoding issues like FINANSUEÐOS vs FINANSUEÑOS)
+  // 2. Match by cod_forma (COD_FORMA_ field, e.g. FS10, FS12)
+  if (codFormaPago) {
+    const codUpper = codFormaPago.toUpperCase().trim();
+    if (codFormaLookup.has(codUpper)) return codFormaLookup.get(codUpper)!;
+  }
+  
+  // 3. Normalized match (handles encoding issues like FINANSUEÐOS vs FINANSUEÑOS)
   if (normalizedLookup.has(forma1Normalized)) return normalizedLookup.get(forma1Normalized)!;
   
-  // 3. Partial match on normalized keys
+  // 4. Partial match on normalized keys
   for (const [normalizedKey, tipoVenta] of normalizedLookup.entries()) {
     if (forma1Normalized.includes(normalizedKey) || normalizedKey.includes(forma1Normalized)) {
       return tipoVenta;
     }
   }
   
-  // 4. Fallback to FORMAPAGO general classification
+  // 5. Fallback to FORMAPAGO general classification (normalize to 3 types)
   if (formaGeneral === 'CONTADO') return 'CONTADO';
-  if (formaGeneral === 'CREDICONTADO') return 'CREDICONTADO';
-  if (formaGeneral === 'CREDITO') return 'CREDITO';
+  if (formaGeneral === 'CREDICONTADO') return 'FINANSUENOS';
+  if (formaGeneral === 'CREDITO') return 'FINANSUENOS';
   if (formaGeneral === 'CONVENIO') return 'ALIADOS';
   if (formaGeneral === 'ALIADOS') return 'ALIADOS';
   
