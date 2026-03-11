@@ -83,12 +83,6 @@ export function useSalesCount(salesData: SaleRecord[]): SalesCountResult {
       };
     }
 
-    // Normalize tipo_venta: CONVENIO → ALIADOS
-    const normalizeTipoVenta = (tipo: string | null | undefined): string => {
-      const normalized = (tipo || 'DESCONOCIDO').toUpperCase();
-      return normalized === 'CONVENIO' ? 'ALIADOS' : normalized;
-    };
-
     // Group records by customer and analyze for unique sales
     const customerRecords = new Map<string, SaleRecord[]>();
     
