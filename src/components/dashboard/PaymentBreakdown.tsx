@@ -64,11 +64,7 @@ export function PaymentBreakdown({
     // Create a lookup map for payment method names
     const paymentNameMap = new Map<string, { nombre: string; tipo_venta: string }>();
     formasPago.forEach(fp => {
-      // Normalize both keys (with special chars like ñ/�)
       paymentNameMap.set(fp.codigo.toUpperCase(), { nombre: fp.nombre, tipo_venta: fp.tipo_venta });
-      // Also add with common replacements for encoding issues
-      const normalizedCodigo = fp.codigo.toUpperCase().replace(/Ñ/g, '�');
-      paymentNameMap.set(normalizedCodigo, { nombre: fp.nombre, tipo_venta: fp.tipo_venta });
     });
 
     // Filter sales by selected types (if any)
