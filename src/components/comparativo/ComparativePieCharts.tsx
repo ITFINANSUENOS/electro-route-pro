@@ -21,6 +21,11 @@ const TYPE_COLORS: Record<string, string> = {
   CREDICONTADO: 'hsl(262, 52%, 47%)',
 };
 
+const SUBCATEGORY_COLORS: Record<string, string> = {
+  'Largo Plazo': 'hsl(262, 52%, 47%)',
+  'Corto Plazo': 'hsl(280, 60%, 60%)',
+};
+
 const FALLBACK_COLORS = [
   'hsl(262, 52%, 47%)',
   'hsl(350, 80%, 55%)',
@@ -32,8 +37,9 @@ const FALLBACK_COLORS = [
   'hsl(320, 65%, 50%)',
 ];
 
-function getColor(key: string, index: number, isBreakdown: boolean) {
-  if (!isBreakdown) return TYPE_COLORS[key] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+function getColor(key: string, index: number, level: number) {
+  if (level === 0) return TYPE_COLORS[key] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  if (level === 1) return SUBCATEGORY_COLORS[key] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
   return FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
@@ -64,12 +70,12 @@ interface ChartEntry {
 function PieSection({
   title,
   entries,
-  isBreakdown,
+  level,
   onSliceClick,
 }: {
   title: string;
   entries: ChartEntry[];
-  isBreakdown: boolean;
+  level: number;
   onSliceClick?: (key: string) => void;
 }) {
   const total = entries.reduce((s, e) => s + e.value, 0);
@@ -108,7 +114,7 @@ function PieSection({
                 onClick={(_, index) => onSliceClick?.(entries[index].key)}
               >
                 {entries.map((entry, i) => (
-                  <Cell key={entry.key} fill={getColor(entry.key, i, isBreakdown)} />
+                  <Cell key={entry.key} fill={getColor(entry.key, i, level)} />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
@@ -126,7 +132,7 @@ function PieSection({
               >
                 <div
                   className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: getColor(entry.key, i, isBreakdown) }}
+                  style={{ backgroundColor: getColor(entry.key, i, level) }}
                 />
                 <div className="flex-1 min-w-0">
                   <span className="text-foreground text-xs font-medium truncate block">{entry.name}</span>
@@ -150,25 +156,58 @@ function PieSection({
 }
 
 export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLabel }: ComparativePieChartsProps) {
+  // Drill-down state: null → level 0 (types), selectedType → level 1 (subcategory or breakdown), selectedSubcat → level 2
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedSubcat, setSelectedSubcat] = useState<string | null>(null);
+
+  // Determine if the selected type has subcategories
+  const hasSubcategories = useMemo(() => {
+    if (!selectedType) return false;
+    const currentSub = data.currentSubcategory?.[selectedType];
+    const previousSub = data.previousSubcategory?.[selectedType];
+    return (currentSub && currentSub.length > 0) || (previousSub && previousSub.length > 0);
+  }, [data, selectedType]);
+
+  // Current drill level
+  const drillLevel = selectedSubcat ? 2 : selectedType ? 1 : 0;
 
   const currentEntries: ChartEntry[] = useMemo(() => {
     if (!selectedType) {
+      // Level 0: by tipo_venta
       return data.current.map(e => ({ name: formatLabel(e.tipo), key: e.tipo, value: e.amount, count: e.count }));
     }
+    if (hasSubcategories && !selectedSubcat) {
+      // Level 1: subcategories (Largo Plazo / Corto Plazo)
+      const subs = data.currentSubcategory?.[selectedType] || [];
+      return subs.map(e => ({ name: e.subcategoria, key: e.subcategoria, value: e.amount, count: e.count }));
+    }
+    if (selectedSubcat) {
+      // Level 2: forma_pago within subcategory
+      const breakdown = data.currentSubcategoryBreakdown?.[selectedType]?.[selectedSubcat] || [];
+      return breakdown.map(e => ({ name: e.formaPago, key: e.formaPago, value: e.amount, count: e.count }));
+    }
+    // Level 1 (no subcategories): direct forma_pago breakdown
     const breakdown = data.currentBreakdown[selectedType] || [];
     return breakdown.map(e => ({ name: e.formaPago, key: e.formaPago, value: e.amount, count: e.count }));
-  }, [data, selectedType]);
+  }, [data, selectedType, selectedSubcat, hasSubcategories]);
 
   const previousEntries: ChartEntry[] = useMemo(() => {
     if (!selectedType) {
       return data.previous.map(e => ({ name: formatLabel(e.tipo), key: e.tipo, value: e.amount, count: e.count }));
     }
+    if (hasSubcategories && !selectedSubcat) {
+      const subs = data.previousSubcategory?.[selectedType] || [];
+      return subs.map(e => ({ name: e.subcategoria, key: e.subcategoria, value: e.amount, count: e.count }));
+    }
+    if (selectedSubcat) {
+      const breakdown = data.previousSubcategoryBreakdown?.[selectedType]?.[selectedSubcat] || [];
+      return breakdown.map(e => ({ name: e.formaPago, key: e.formaPago, value: e.amount, count: e.count }));
+    }
     const breakdown = data.previousBreakdown[selectedType] || [];
     return breakdown.map(e => ({ name: e.formaPago, key: e.formaPago, value: e.amount, count: e.count }));
-  }, [data, selectedType]);
+  }, [data, selectedType, selectedSubcat, hasSubcategories]);
 
-  // Compute variations aligned to currentEntries order
+  // Compute variations
   const variations = useMemo(() => {
     return currentEntries.map(cur => {
       const prev = previousEntries.find(p => p.key === cur.key);
@@ -185,25 +224,50 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
     : totalCurrent > 0 ? 100 : 0;
 
   const handleSliceClick = (key: string) => {
-    if (!selectedType) setSelectedType(key);
+    if (!selectedType) {
+      setSelectedType(key);
+    } else if (hasSubcategories && !selectedSubcat) {
+      setSelectedSubcat(key);
+    }
   };
+
+  const handleBack = () => {
+    if (selectedSubcat) {
+      setSelectedSubcat(null);
+    } else {
+      setSelectedType(null);
+    }
+  };
+
+  // Build title
+  let chartTitle = 'Comparativo por Tipo de Venta';
+  if (selectedType && !selectedSubcat) {
+    chartTitle = `Desglose: ${formatLabel(selectedType)}`;
+  } else if (selectedType && selectedSubcat) {
+    chartTitle = `${formatLabel(selectedType)} → ${selectedSubcat}`;
+  }
+
+  // Can click to drill deeper?
+  const canDrillDown = !selectedType || (hasSubcategories && !selectedSubcat);
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          {selectedType && (
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedType(null)}>
+          {(selectedType || selectedSubcat) && (
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleBack}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
           <CardTitle className="text-lg flex items-center gap-2">
             <PieChartIcon className="h-5 w-5 text-secondary" />
-            {selectedType ? `Desglose: ${formatLabel(selectedType)}` : 'Comparativo por Tipo de Venta'}
+            {chartTitle}
           </CardTitle>
         </div>
-        {selectedType && (
-          <p className="text-xs text-muted-foreground ml-9">Haz clic en el botón ← para volver</p>
+        {(selectedType || selectedSubcat) && (
+          <p className="text-xs text-muted-foreground ml-9">
+            Haz clic en ← para volver{canDrillDown ? ' · Clic en un segmento para desglosar' : ''}
+          </p>
         )}
       </CardHeader>
       <CardContent>
@@ -211,15 +275,15 @@ export function ComparativePieCharts({ data, currentMonthLabel, previousMonthLab
           <PieSection
             title={currentMonthLabel}
             entries={currentEntries}
-            isBreakdown={!!selectedType}
-            onSliceClick={!selectedType ? handleSliceClick : undefined}
+            level={drillLevel}
+            onSliceClick={canDrillDown ? handleSliceClick : undefined}
           />
           <div className="hidden md:block w-px bg-border" />
           <PieSection
             title={previousMonthLabel}
             entries={previousEntries}
-            isBreakdown={!!selectedType}
-            onSliceClick={!selectedType ? handleSliceClick : undefined}
+            level={drillLevel}
+            onSliceClick={canDrillDown ? handleSliceClick : undefined}
           />
           {/* Variation column */}
           <div className="hidden md:flex flex-col border-l border-border pl-4 min-w-[90px]">

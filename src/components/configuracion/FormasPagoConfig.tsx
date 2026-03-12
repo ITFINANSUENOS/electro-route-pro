@@ -5,27 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +26,7 @@ interface FormaPago {
   tipo_venta: string;
   activo: boolean;
   cod_forma: string | null;
+  subcategoria: string | null;
   created_at: string;
 }
 
@@ -50,6 +37,11 @@ const TIPOS_VENTA = [
   { value: 'OTROS', label: 'No Aplica', color: 'bg-gray-100 text-gray-800' },
 ];
 
+const SUBCATEGORIAS = [
+  { value: 'LARGO_PLAZO', label: 'Largo Plazo', color: 'bg-indigo-100 text-indigo-800' },
+  { value: 'CORTO_PLAZO', label: 'Corto Plazo', color: 'bg-violet-100 text-violet-800' },
+];
+
 export function FormasPagoConfig() {
   const { user } = useAuth();
   const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
@@ -58,8 +50,8 @@ export function FormasPagoConfig() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingForma, setEditingForma] = useState<FormaPago | null>(null);
   
-  // Filters
   const [filterTipo, setFilterTipo] = useState<string>('all');
+  const [filterSubcat, setFilterSubcat] = useState<string>('all');
   const [filterCodigo, setFilterCodigo] = useState('');
   
   const [formData, setFormData] = useState({
@@ -68,6 +60,7 @@ export function FormasPagoConfig() {
     tipo_venta: '',
     activo: true,
     cod_forma: '',
+    subcategoria: '',
   });
 
   const fetchFormasPago = async () => {
@@ -89,33 +82,30 @@ export function FormasPagoConfig() {
     }
   };
 
-  useEffect(() => {
-    fetchFormasPago();
-  }, []);
+  useEffect(() => { fetchFormasPago(); }, []);
 
   const filteredFormas = formasPago.filter((forma) => {
     if (filterTipo !== 'all' && forma.tipo_venta !== filterTipo) return false;
+    if (filterSubcat !== 'all') {
+      if (filterSubcat === 'none' && forma.subcategoria) return false;
+      if (filterSubcat !== 'none' && forma.subcategoria !== filterSubcat) return false;
+    }
     if (filterCodigo && !forma.codigo.toLowerCase().includes(filterCodigo.toLowerCase()) && 
         !forma.nombre.toLowerCase().includes(filterCodigo.toLowerCase()) &&
         !(forma.cod_forma || '').toLowerCase().includes(filterCodigo.toLowerCase())) return false;
     return true;
   });
 
-  const hasActiveFilters = filterTipo !== 'all' || filterCodigo !== '';
+  const hasActiveFilters = filterTipo !== 'all' || filterSubcat !== 'all' || filterCodigo !== '';
 
   const clearFilters = () => {
     setFilterTipo('all');
+    setFilterSubcat('all');
     setFilterCodigo('');
   };
 
   const resetForm = () => {
-    setFormData({
-      codigo: '',
-      nombre: '',
-      tipo_venta: '',
-      activo: true,
-      cod_forma: '',
-    });
+    setFormData({ codigo: '', nombre: '', tipo_venta: '', activo: true, cod_forma: '', subcategoria: '' });
     setEditingForma(null);
   };
 
@@ -127,6 +117,7 @@ export function FormasPagoConfig() {
       tipo_venta: forma.tipo_venta,
       activo: forma.activo ?? true,
       cod_forma: forma.cod_forma || '',
+      subcategoria: forma.subcategoria || '',
     });
     setDialogOpen(true);
   };
@@ -136,12 +127,7 @@ export function FormasPagoConfig() {
     setDialogOpen(true);
   };
 
-  const logChange = async (
-    registroId: string,
-    campo: string,
-    valorAnterior: string | null,
-    valorNuevo: string | null
-  ) => {
+  const logChange = async (registroId: string, campo: string, valorAnterior: string | null, valorNuevo: string | null) => {
     try {
       await dataService.from('historial_ediciones').insert({
         tabla: 'formas_pago',
@@ -158,7 +144,6 @@ export function FormasPagoConfig() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.codigo || !formData.nombre || !formData.tipo_venta) {
       toast.error('Complete los campos requeridos');
       return;
@@ -166,54 +151,40 @@ export function FormasPagoConfig() {
 
     setSaving(true);
     try {
+      const payload = {
+        codigo: formData.codigo,
+        nombre: formData.nombre,
+        tipo_venta: formData.tipo_venta,
+        activo: formData.activo,
+        cod_forma: formData.cod_forma || null,
+        subcategoria: formData.subcategoria || null,
+      };
+
       if (editingForma) {
         const { error } = await dataService
           .from('formas_pago')
-          .update({
-            codigo: formData.codigo,
-            nombre: formData.nombre,
-            tipo_venta: formData.tipo_venta,
-            activo: formData.activo,
-            cod_forma: formData.cod_forma || null,
-          } as Record<string, unknown>)
+          .update(payload as Record<string, unknown>)
           .eq('id', editingForma.id);
-
         if (error) throw error;
 
-        if (editingForma.codigo !== formData.codigo) {
-          await logChange(editingForma.id, 'codigo', editingForma.codigo, formData.codigo);
+        // Log changes
+        for (const [field, newVal] of Object.entries(payload)) {
+          const oldVal = (editingForma as any)[field];
+          const oldStr = oldVal == null ? null : String(oldVal);
+          const newStr = newVal == null ? null : String(newVal);
+          if (oldStr !== newStr) {
+            await logChange(editingForma.id, field, oldStr, newStr);
+          }
         }
-        if (editingForma.nombre !== formData.nombre) {
-          await logChange(editingForma.id, 'nombre', editingForma.nombre, formData.nombre);
-        }
-        if (editingForma.tipo_venta !== formData.tipo_venta) {
-          await logChange(editingForma.id, 'tipo_venta', editingForma.tipo_venta, formData.tipo_venta);
-        }
-        if (editingForma.activo !== formData.activo) {
-          await logChange(editingForma.id, 'activo', editingForma.activo.toString(), formData.activo.toString());
-        }
-        if ((editingForma.cod_forma || '') !== formData.cod_forma) {
-          await logChange(editingForma.id, 'cod_forma', editingForma.cod_forma, formData.cod_forma || null);
-        }
-
         toast.success('Forma de pago actualizada');
       } else {
         const { data, error } = await dataService
           .from('formas_pago')
-          .insert({
-            codigo: formData.codigo,
-            nombre: formData.nombre,
-            tipo_venta: formData.tipo_venta,
-            activo: formData.activo,
-            cod_forma: formData.cod_forma || null,
-          } as Record<string, unknown>)
+          .insert(payload as Record<string, unknown>)
           .select()
           .single();
-
         if (error) throw error;
-
         await logChange((data as unknown as FormaPago).id, 'creacion', null, `Forma de pago ${formData.codigo} creada`);
-
         toast.success('Forma de pago creada');
       }
 
@@ -223,7 +194,6 @@ export function FormasPagoConfig() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Error guardando forma de pago';
       toast.error(message);
-      console.error('Error saving forma de pago:', error);
     } finally {
       setSaving(false);
     }
@@ -231,11 +201,13 @@ export function FormasPagoConfig() {
 
   const getTipoVentaBadge = (tipo: string) => {
     const tipoInfo = TIPOS_VENTA.find(t => t.value === tipo);
-    return tipoInfo ? (
-      <Badge className={tipoInfo.color}>{tipoInfo.label}</Badge>
-    ) : (
-      <Badge variant="outline">{tipo}</Badge>
-    );
+    return tipoInfo ? <Badge className={tipoInfo.color}>{tipoInfo.label}</Badge> : <Badge variant="outline">{tipo}</Badge>;
+  };
+
+  const getSubcategoriaBadge = (subcat: string | null) => {
+    if (!subcat) return <span className="text-muted-foreground text-xs">—</span>;
+    const info = SUBCATEGORIAS.find(s => s.value === subcat);
+    return info ? <Badge variant="outline" className={info.color}>{info.label}</Badge> : <Badge variant="outline">{subcat}</Badge>;
   };
 
   const summary = TIPOS_VENTA.map(tipo => ({
@@ -250,7 +222,7 @@ export function FormasPagoConfig() {
           <div>
             <CardTitle>Clasificación de Formas de Pago</CardTitle>
             <CardDescription>
-              Configura cómo se clasifican las formas de pago (FORMA1PAGO) en los tipos de venta
+              Configura cómo se clasifican las formas de pago y sus subcategorías (Largo/Corto Plazo)
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -260,7 +232,7 @@ export function FormasPagoConfig() {
             </Button>
             <Button size="sm" onClick={openCreateDialog}>
               <Plus className="h-4 w-4 mr-2" />
-              Nueva Forma de Pago
+              Nueva
             </Button>
           </div>
         </div>
@@ -269,12 +241,8 @@ export function FormasPagoConfig() {
         {/* Summary badges */}
         <div className="flex flex-wrap gap-2">
           {summary.map((tipo) => (
-            <Badge 
-              key={tipo.value} 
-              variant="outline" 
-              className="cursor-pointer hover:bg-muted"
-              onClick={() => setFilterTipo(filterTipo === tipo.value ? 'all' : tipo.value)}
-            >
+            <Badge key={tipo.value} variant="outline" className="cursor-pointer hover:bg-muted"
+              onClick={() => setFilterTipo(filterTipo === tipo.value ? 'all' : tipo.value)}>
               <span className={`w-2 h-2 rounded-full mr-2 ${tipo.color.split(' ')[0]}`} />
               {tipo.label}: {tipo.count}
             </Badge>
@@ -283,19 +251,29 @@ export function FormasPagoConfig() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-4 p-4 bg-muted/50 rounded-lg">
-          <div className="flex flex-col gap-1.5 min-w-[180px]">
+          <div className="flex flex-col gap-1.5 min-w-[160px]">
             <Label className="text-xs text-muted-foreground">Tipo de Venta</Label>
             <Select value={filterTipo} onValueChange={setFilterTipo}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los tipos</SelectItem>
                 {TIPOS_VENTA.map((tipo) => (
-                  <SelectItem key={tipo.value} value={tipo.value}>
-                    {tipo.label}
-                  </SelectItem>
+                  <SelectItem key={tipo.value} value={tipo.value}>{tipo.label}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5 min-w-[160px]">
+            <Label className="text-xs text-muted-foreground">Subcategoría</Label>
+            <Select value={filterSubcat} onValueChange={setFilterSubcat}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {SUBCATEGORIAS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+                <SelectItem value="none">Sin subcategoría</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -304,19 +282,14 @@ export function FormasPagoConfig() {
             <Label className="text-xs text-muted-foreground">Buscar</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Código, nombre o COD_FORMA_..."
-                value={filterCodigo}
-                onChange={(e) => setFilterCodigo(e.target.value)}
-                className="pl-8 h-9"
-              />
+              <Input placeholder="Código, nombre..." value={filterCodigo}
+                onChange={(e) => setFilterCodigo(e.target.value)} className="pl-8 h-9" />
             </div>
           </div>
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9">
-              <X className="h-4 w-4 mr-1" />
-              Limpiar
+              <X className="h-4 w-4 mr-1" /> Limpiar
             </Button>
           )}
         </div>
@@ -335,47 +308,40 @@ export function FormasPagoConfig() {
                 <TableHead className="w-[150px]">Código</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead className="w-[100px]">COD_FORMA_</TableHead>
-                <TableHead className="w-[150px]">Tipo de Venta</TableHead>
-                <TableHead className="w-[100px]">Estado</TableHead>
-                <TableHead className="w-[80px]">Editar</TableHead>
+                <TableHead className="w-[130px]">Tipo de Venta</TableHead>
+                <TableHead className="w-[120px]">Subcategoría</TableHead>
+                <TableHead className="w-[80px]">Estado</TableHead>
+                <TableHead className="w-[60px]">Editar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : filteredFormas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    {hasActiveFilters 
-                      ? 'No hay formas de pago que coincidan con los filtros' 
-                      : 'No hay formas de pago configuradas'
-                    }
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    {hasActiveFilters ? 'No hay formas de pago que coincidan' : 'No hay formas de pago configuradas'}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredFormas.map((forma) => (
                   <TableRow key={forma.id}>
-                    <TableCell className="font-mono font-medium">{forma.codigo}</TableCell>
-                    <TableCell>{forma.nombre}</TableCell>
-                    <TableCell className="font-mono text-muted-foreground text-xs">
-                      {forma.cod_forma || '—'}
-                    </TableCell>
+                    <TableCell className="font-mono font-medium text-xs">{forma.codigo}</TableCell>
+                    <TableCell className="text-sm">{forma.nombre}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">{forma.cod_forma || '—'}</TableCell>
                     <TableCell>{getTipoVentaBadge(forma.tipo_venta)}</TableCell>
+                    <TableCell>{getSubcategoriaBadge(forma.subcategoria)}</TableCell>
                     <TableCell>
                       <Badge variant={forma.activo ? 'default' : 'secondary'}>
                         {forma.activo ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(forma)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(forma)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -386,92 +352,80 @@ export function FormasPagoConfig() {
           </Table>
         </div>
 
-        {/* Dialog para crear/editar */}
+        {/* Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {editingForma ? 'Editar Forma de Pago' : 'Nueva Forma de Pago'}
-              </DialogTitle>
+              <DialogTitle>{editingForma ? 'Editar Forma de Pago' : 'Nueva Forma de Pago'}</DialogTitle>
               <DialogDescription>
                 {editingForma 
-                  ? 'Modifica los datos de la forma de pago. Los cambios serán registrados en el historial.'
-                  : 'Ingresa los datos para crear una nueva forma de pago.'
-                }
+                  ? 'Los cambios serán registrados en el historial.'
+                  : 'Ingresa los datos para crear una nueva forma de pago.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="codigo">Código (FORMA1PAGO) *</Label>
-                  <Input
-                    id="codigo"
-                    placeholder="FINANSUE"
-                    value={formData.codigo}
-                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })}
-                    required
-                  />
+                  <Input id="codigo" value={formData.codigo}
+                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value.toUpperCase() })} required />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="nombre">Nombre Descriptivo *</Label>
-                  <Input
-                    id="nombre"
-                    placeholder="Finansueños Crédito"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                    required
-                  />
+                  <Input id="nombre" value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} required />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="cod_forma">COD_FORMA_ (Referencia)</Label>
-                  <Input
-                    id="cod_forma"
-                    placeholder="FS10, PB01, PS01..."
-                    value={formData.cod_forma}
-                    onChange={(e) => setFormData({ ...formData, cod_forma: e.target.value.toUpperCase() })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Código de referencia del CSV (informativo)
-                  </p>
+                  <Input id="cod_forma" placeholder="FS10, PB01..." value={formData.cod_forma}
+                    onChange={(e) => setFormData({ ...formData, cod_forma: e.target.value.toUpperCase() })} />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="tipo_venta">Tipo de Venta *</Label>
-                  <Select
-                    value={formData.tipo_venta}
-                    onValueChange={(value) => setFormData({ ...formData, tipo_venta: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione tipo" />
-                    </SelectTrigger>
+                  <Select value={formData.tipo_venta}
+                    onValueChange={(value) => setFormData({ ...formData, tipo_venta: value, subcategoria: value !== 'FINANSUENOS' ? '' : formData.subcategoria })}>
+                    <SelectTrigger><SelectValue placeholder="Seleccione tipo" /></SelectTrigger>
                     <SelectContent>
                       {TIPOS_VENTA.map((tipo) => (
-                        <SelectItem key={tipo.value} value={tipo.value}>
-                          {tipo.label}
-                        </SelectItem>
+                        <SelectItem key={tipo.value} value={tipo.value}>{tipo.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
+                {formData.tipo_venta === 'FINANSUENOS' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="subcategoria">Subcategoría</Label>
+                    <Select value={formData.subcategoria || 'none'}
+                      onValueChange={(value) => setFormData({ ...formData, subcategoria: value === 'none' ? '' : value })}>
+                      <SelectTrigger><SelectValue placeholder="Sin subcategoría" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin subcategoría</SelectItem>
+                        {SUBCATEGORIAS.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Define si esta forma de pago es Largo o Corto Plazo para el desglose comparativo
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <Label htmlFor="activo">Activo</Label>
-                  <Switch
-                    id="activo"
-                    checked={formData.activo}
-                    onCheckedChange={(checked) => setFormData({ ...formData, activo: checked })}
-                  />
+                  <Switch id="activo" checked={formData.activo}
+                    onCheckedChange={(checked) => setFormData({ ...formData, activo: checked })} />
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancelar
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
                 <Button type="submit" disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {editingForma ? 'Guardar Cambios' : 'Crear Forma de Pago'}
+                  {editingForma ? 'Guardar Cambios' : 'Crear'}
                 </Button>
               </DialogFooter>
             </form>
