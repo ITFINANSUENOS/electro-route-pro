@@ -42,11 +42,21 @@ export interface SalesByTypeBreakdownEntry {
   count: number;
 }
 
+export interface SalesBySubcategoryEntry {
+  subcategoria: string;
+  amount: number;
+  count: number;
+}
+
 export interface SalesByTypeData {
   current: SalesByTypeEntry[];
   previous: SalesByTypeEntry[];
   currentBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
   previousBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
+  currentSubcategory: Record<string, SalesBySubcategoryEntry[]>;
+  previousSubcategory: Record<string, SalesBySubcategoryEntry[]>;
+  currentSubcategoryBreakdown: Record<string, Record<string, SalesByTypeBreakdownEntry[]>>;
+  previousSubcategoryBreakdown: Record<string, Record<string, SalesByTypeBreakdownEntry[]>>;
 }
 
 async function fetchPaginated(
