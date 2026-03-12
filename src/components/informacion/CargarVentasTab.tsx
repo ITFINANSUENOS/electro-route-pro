@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { dataService } from '@/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useSalesPeriod, getMonthName, isClosingDay } from '@/hooks/useSalesPeriod';
+import { useSalesPeriod, getMonthName, isGracePeriod } from '@/hooks/useSalesPeriod';
 import MonthCloseDialog from './MonthCloseDialog';
 
 const MONTH_NAMES = [

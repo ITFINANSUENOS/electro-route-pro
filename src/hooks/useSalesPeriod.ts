@@ -134,9 +134,10 @@ export function useSalesPeriod() {
   const getCurrentTargetPeriod = (): { month: number; year: number; isClosingDay: boolean } => {
     const now = new Date();
     const target = getTargetMonth(now);
+    const inGrace = isGracePeriod(now);
     
-    // If it's day 1 but the previous month is already closed, use current month
-    if (isClosingDay(now) && isPeriodClosed(target.month, target.year)) {
+    // If in grace period but previous month is already closed, use current month
+    if (inGrace && isPeriodClosed(target.month, target.year)) {
       return { 
         month: now.getMonth() + 1, 
         year: now.getFullYear(), 
@@ -144,7 +145,7 @@ export function useSalesPeriod() {
       };
     }
 
-    return { ...target, isClosingDay: isClosingDay(now) };
+    return { ...target, isClosingDay: inGrace };
   };
 
   return {
