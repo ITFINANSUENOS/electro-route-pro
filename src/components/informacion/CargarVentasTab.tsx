@@ -706,11 +706,11 @@ export default function CargarVentasTab() {
                 <CalendarCheck className="h-4 w-4" />
                 <AlertTitle className="flex items-center gap-2 text-sm">
                   Período Activo: {getMonthName(targetPeriod.month)} {targetPeriod.year}
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{targetPeriod.isClosingDay ? 'Día de cierre' : 'Abierto'}</Badge>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{targetPeriod.isClosingDay ? 'Período de gracia' : 'Abierto'}</Badge>
                 </AlertTitle>
                 <AlertDescription className="text-xs">
                   {targetPeriod.isClosingDay 
-                    ? `Día de cierre. Se preguntará si es el resultado final.`
+                    ? `Período de gracia (máx. día 5). Se preguntará si es el resultado final.`
                     : `Archivos se asignarán a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
                   }
                 </AlertDescription>
