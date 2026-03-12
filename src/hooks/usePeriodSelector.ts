@@ -62,6 +62,26 @@ export function usePeriodSelector(options: UsePeriodSelectorOptions = {}) {
     },
   });
 
+  // Determine effective period status: only current month (and previous month
+  // within a 5-day grace window) can be 'abierto'. Everything else is 'cerrado'.
+  const getEffectiveEstado = useCallback((mes: number, anio: number, dbEstado: string): 'abierto' | 'cerrado' => {
+    // Current month is always allowed to be open
+    if (mes === currentMonth && anio === currentYear) {
+      return dbEstado === 'cerrado' ? 'cerrado' : 'abierto';
+    }
+
+    // Previous month: open only within first 5 days of current month
+    const day = now.getDate();
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    if (mes === prevMonth && anio === prevYear && day <= 5 && dbEstado !== 'cerrado') {
+      return 'abierto';
+    }
+
+    // Everything else is closed regardless of DB state
+    return 'cerrado';
+  }, [currentMonth, currentYear, now]);
+
   // Build available periods list
   const availablePeriods = useMemo((): Period[] => {
     const periodsMap = new Map<string, Period>();
@@ -71,7 +91,7 @@ export function usePeriodSelector(options: UsePeriodSelectorOptions = {}) {
       periodsMap.set(key, {
         mes: p.mes,
         anio: p.anio,
-        estado: p.estado as 'abierto' | 'cerrado',
+        estado: getEffectiveEstado(p.mes, p.anio, p.estado),
         label: formatPeriodLabel(p.mes, p.anio),
       });
     });
@@ -90,7 +110,7 @@ export function usePeriodSelector(options: UsePeriodSelectorOptions = {}) {
       if (a.anio !== b.anio) return b.anio - a.anio;
       return b.mes - a.mes;
     });
-  }, [dbPeriods, currentMonth, currentYear]);
+  }, [dbPeriods, currentMonth, currentYear, getEffectiveEstado]);
 
   // Get selected period details
   const selectedPeriodDetails = useMemo((): Period | undefined => {
