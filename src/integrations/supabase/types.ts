@@ -218,6 +218,7 @@ export type Database = {
           created_at: string
           id: string
           nombre: string
+          subcategoria: string | null
           tipo_venta: string
         }
         Insert: {
@@ -227,6 +228,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre: string
+          subcategoria?: string | null
           tipo_venta: string
         }
         Update: {
@@ -236,6 +238,7 @@ export type Database = {
           created_at?: string
           id?: string
           nombre?: string
+          subcategoria?: string | null
           tipo_venta?: string
         }
         Relationships: []

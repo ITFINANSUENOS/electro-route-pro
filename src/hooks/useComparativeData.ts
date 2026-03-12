@@ -42,11 +42,21 @@ export interface SalesByTypeBreakdownEntry {
   count: number;
 }
 
+export interface SalesBySubcategoryEntry {
+  subcategoria: string;
+  amount: number;
+  count: number;
+}
+
 export interface SalesByTypeData {
   current: SalesByTypeEntry[];
   previous: SalesByTypeEntry[];
   currentBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
   previousBreakdown: Record<string, SalesByTypeBreakdownEntry[]>;
+  currentSubcategory: Record<string, SalesBySubcategoryEntry[]>;
+  previousSubcategory: Record<string, SalesBySubcategoryEntry[]>;
+  currentSubcategoryBreakdown: Record<string, Record<string, SalesByTypeBreakdownEntry[]>>;
+  previousSubcategoryBreakdown: Record<string, Record<string, SalesByTypeBreakdownEntry[]>>;
 }
 
 async function fetchPaginated(
@@ -204,13 +214,13 @@ export function useComparativeData(
     enabled: !!profile,
   });
 
-  // Fetch formas_pago reference table for descriptive names
+  // Fetch formas_pago reference table for descriptive names + subcategoria
   const { data: formasPagoData } = useQuery({
     queryKey: ['comparative-formas-pago'],
     queryFn: async () => {
       const { data, error } = await dataService
         .from('formas_pago')
-        .select('codigo, nombre, tipo_venta')
+        .select('codigo, nombre, tipo_venta, subcategoria')
         .eq('activo', true);
       if (error) throw error;
       return data || [];
@@ -222,10 +232,13 @@ export function useComparativeData(
   const processedData = useMemo(() => {
     if (!salesData || !profilesData || !formasPagoData) return { daily: [], kpis: null, salesByType: null };
 
-    // Build payment method name lookup
+    // Build payment method name + subcategoria lookup
     const paymentNameMap = new Map<string, string>();
+    const paymentSubcategoriaMap = new Map<string, string>();
     formasPagoData.forEach((fp: any) => {
-      paymentNameMap.set(fp.codigo.toUpperCase(), fp.nombre);
+      const key = fp.codigo.toUpperCase();
+      paymentNameMap.set(key, fp.nombre);
+      if (fp.subcategoria) paymentSubcategoriaMap.set(key, fp.subcategoria);
     });
     const validCodigos = filters.tipoAsesor.length > 0
       ? new Set(profilesData.map((p: any) => p.codigo_asesor))
@@ -249,65 +262,85 @@ export function useComparativeData(
     const currentBreakdownMap = new Map<string, Map<string, { amount: number; count: number }>>();
     const previousBreakdownMap = new Map<string, Map<string, { amount: number; count: number }>>();
 
-    // Process current period
-    salesData.currentData.forEach((sale: any) => {
-      if (validCodigos && !validCodigos.has(sale.codigo_asesor)) return;
-      const day = parseInt(sale.fecha.split('-')[2]);
-      const entry = dailyMap.get(day);
-      if (!entry) return;
-      entry.currentAmount += sale.vtas_ant_i || 0;
-      const clientId = sale.codigo_asesor;
-      if (!currentUniqueSales.has(clientId)) currentUniqueSales.set(clientId, new Set());
-      if (!currentUniqueSales.get(clientId)!.has(day)) {
-        currentUniqueSales.get(clientId)!.add(day);
-        entry.currentCount += 1;
-      }
-      // By type (normalize CONVENIO → ALIADOS)
-      const tipo = (['CONVENIO'].includes(sale.tipo_venta) ? 'ALIADOS' : ['CREDITO', 'CREDICONTADO'].includes(sale.tipo_venta) ? 'FINANSUENOS' : sale.tipo_venta) || 'SIN TIPO';
-      if (!currentByType.has(tipo)) currentByType.set(tipo, { amount: 0, count: 0 });
-      const t = currentByType.get(tipo)!;
-      t.amount += sale.vtas_ant_i || 0;
-      t.count += 1;
-      // Breakdown by forma_pago (using forma1_pago + lookup)
-      const fpCode = (sale.forma1_pago || sale.forma_pago || 'Sin forma').toUpperCase();
-      const fpName = paymentNameMap.get(fpCode) || fpCode;
-      if (!currentBreakdownMap.has(tipo)) currentBreakdownMap.set(tipo, new Map());
-      const bm = currentBreakdownMap.get(tipo)!;
-      if (!bm.has(fpName)) bm.set(fpName, { amount: 0, count: 0 });
-      const bf = bm.get(fpName)!;
-      bf.amount += sale.vtas_ant_i || 0;
-      bf.count += 1;
-    });
+    // Subcategory aggregation (tipo → subcategoria → {amount, count})
+    const currentSubcatMap = new Map<string, Map<string, { amount: number; count: number }>>();
+    const previousSubcatMap = new Map<string, Map<string, { amount: number; count: number }>>();
 
-    // Process previous period
-    salesData.prevData.forEach((sale: any) => {
+    // Subcategory breakdown (tipo → subcategoria → formaPago → {amount, count})
+    const currentSubcatBreakdownMap = new Map<string, Map<string, Map<string, { amount: number; count: number }>>>();
+    const previousSubcatBreakdownMap = new Map<string, Map<string, Map<string, { amount: number; count: number }>>>();
+
+    function processSale(
+      sale: any, 
+      isCurrent: boolean,
+    ) {
       if (validCodigos && !validCodigos.has(sale.codigo_asesor)) return;
       const day = parseInt(sale.fecha.split('-')[2]);
       const entry = dailyMap.get(day);
       if (!entry) return;
-      entry.previousAmount += sale.vtas_ant_i || 0;
-      const clientId = sale.codigo_asesor;
-      if (!previousUniqueSales.has(clientId)) previousUniqueSales.set(clientId, new Set());
-      if (!previousUniqueSales.get(clientId)!.has(day)) {
-        previousUniqueSales.get(clientId)!.add(day);
-        entry.previousCount += 1;
+
+      const uniqueMap = isCurrent ? currentUniqueSales : previousUniqueSales;
+      const byType = isCurrent ? currentByType : previousByType;
+      const breakdownMap = isCurrent ? currentBreakdownMap : previousBreakdownMap;
+      const subcatMap = isCurrent ? currentSubcatMap : previousSubcatMap;
+      const subcatBreakdown = isCurrent ? currentSubcatBreakdownMap : previousSubcatBreakdownMap;
+
+      if (isCurrent) {
+        entry.currentAmount += sale.vtas_ant_i || 0;
+      } else {
+        entry.previousAmount += sale.vtas_ant_i || 0;
       }
-      // By type (normalize CONVENIO → ALIADOS)
+
+      const clientId = sale.codigo_asesor;
+      if (!uniqueMap.has(clientId)) uniqueMap.set(clientId, new Set());
+      if (!uniqueMap.get(clientId)!.has(day)) {
+        uniqueMap.get(clientId)!.add(day);
+        if (isCurrent) entry.currentCount += 1;
+        else entry.previousCount += 1;
+      }
+
       const tipo = (['CONVENIO'].includes(sale.tipo_venta) ? 'ALIADOS' : ['CREDITO', 'CREDICONTADO'].includes(sale.tipo_venta) ? 'FINANSUENOS' : sale.tipo_venta) || 'SIN TIPO';
-      if (!previousByType.has(tipo)) previousByType.set(tipo, { amount: 0, count: 0 });
-      const t = previousByType.get(tipo)!;
+      if (!byType.has(tipo)) byType.set(tipo, { amount: 0, count: 0 });
+      const t = byType.get(tipo)!;
       t.amount += sale.vtas_ant_i || 0;
       t.count += 1;
-      // Breakdown by forma_pago (using forma1_pago + lookup)
+
       const fpCode = (sale.forma1_pago || sale.forma_pago || 'Sin forma').toUpperCase();
       const fpName = paymentNameMap.get(fpCode) || fpCode;
-      if (!previousBreakdownMap.has(tipo)) previousBreakdownMap.set(tipo, new Map());
-      const bm = previousBreakdownMap.get(tipo)!;
+      const subcategoria = paymentSubcategoriaMap.get(fpCode) || null;
+
+      // Breakdown by forma_pago
+      if (!breakdownMap.has(tipo)) breakdownMap.set(tipo, new Map());
+      const bm = breakdownMap.get(tipo)!;
       if (!bm.has(fpName)) bm.set(fpName, { amount: 0, count: 0 });
       const bf = bm.get(fpName)!;
       bf.amount += sale.vtas_ant_i || 0;
       bf.count += 1;
-    });
+
+      // Subcategory aggregation (only for types that have subcategories, e.g. FINANSUENOS)
+      if (subcategoria) {
+        const subcatLabel = subcategoria === 'LARGO_PLAZO' ? 'Largo Plazo' : 'Corto Plazo';
+        if (!subcatMap.has(tipo)) subcatMap.set(tipo, new Map());
+        const sm = subcatMap.get(tipo)!;
+        if (!sm.has(subcatLabel)) sm.set(subcatLabel, { amount: 0, count: 0 });
+        const sf = sm.get(subcatLabel)!;
+        sf.amount += sale.vtas_ant_i || 0;
+        sf.count += 1;
+
+        // Subcategory → forma breakdown
+        if (!subcatBreakdown.has(tipo)) subcatBreakdown.set(tipo, new Map());
+        const stm = subcatBreakdown.get(tipo)!;
+        if (!stm.has(subcatLabel)) stm.set(subcatLabel, new Map());
+        const sbm = stm.get(subcatLabel)!;
+        if (!sbm.has(fpName)) sbm.set(fpName, { amount: 0, count: 0 });
+        const sbf = sbm.get(fpName)!;
+        sbf.amount += sale.vtas_ant_i || 0;
+        sbf.count += 1;
+      }
+    }
+
+    salesData.currentData.forEach((sale: any) => processSale(sale, true));
+    salesData.prevData.forEach((sale: any) => processSale(sale, false));
 
     const daily = Array.from(dailyMap.values()).sort((a, b) => a.day - b.day);
 
@@ -342,24 +375,48 @@ export function useComparativeData(
     };
 
     // Build breakdown records
-    const currentBreakdown: Record<string, SalesByTypeBreakdownEntry[]> = {};
-    currentBreakdownMap.forEach((fpMap, tipo) => {
-      currentBreakdown[tipo] = Array.from(fpMap.entries())
-        .map(([formaPago, d]) => ({ formaPago, ...d }))
-        .sort((a, b) => b.amount - a.amount);
-    });
-    const previousBreakdown: Record<string, SalesByTypeBreakdownEntry[]> = {};
-    previousBreakdownMap.forEach((fpMap, tipo) => {
-      previousBreakdown[tipo] = Array.from(fpMap.entries())
-        .map(([formaPago, d]) => ({ formaPago, ...d }))
-        .sort((a, b) => b.amount - a.amount);
-    });
+    const toBreakdown = (m: Map<string, Map<string, { amount: number; count: number }>>) => {
+      const result: Record<string, SalesByTypeBreakdownEntry[]> = {};
+      m.forEach((fpMap, tipo) => {
+        result[tipo] = Array.from(fpMap.entries())
+          .map(([formaPago, d]) => ({ formaPago, ...d }))
+          .sort((a, b) => b.amount - a.amount);
+      });
+      return result;
+    };
+
+    const toSubcategory = (m: Map<string, Map<string, { amount: number; count: number }>>) => {
+      const result: Record<string, SalesBySubcategoryEntry[]> = {};
+      m.forEach((scMap, tipo) => {
+        result[tipo] = Array.from(scMap.entries())
+          .map(([subcategoria, d]) => ({ subcategoria, ...d }))
+          .sort((a, b) => b.amount - a.amount);
+      });
+      return result;
+    };
+
+    const toSubcatBreakdown = (m: Map<string, Map<string, Map<string, { amount: number; count: number }>>>) => {
+      const result: Record<string, Record<string, SalesByTypeBreakdownEntry[]>> = {};
+      m.forEach((scMap, tipo) => {
+        result[tipo] = {};
+        scMap.forEach((fpMap, subcat) => {
+          result[tipo][subcat] = Array.from(fpMap.entries())
+            .map(([formaPago, d]) => ({ formaPago, ...d }))
+            .sort((a, b) => b.amount - a.amount);
+        });
+      });
+      return result;
+    };
 
     const salesByType: SalesByTypeData = {
       current: Array.from(currentByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
       previous: Array.from(previousByType.entries()).map(([tipo, d]) => ({ tipo, ...d })).sort((a, b) => b.amount - a.amount),
-      currentBreakdown,
-      previousBreakdown,
+      currentBreakdown: toBreakdown(currentBreakdownMap),
+      previousBreakdown: toBreakdown(previousBreakdownMap),
+      currentSubcategory: toSubcategory(currentSubcatMap),
+      previousSubcategory: toSubcategory(previousSubcatMap),
+      currentSubcategoryBreakdown: toSubcatBreakdown(currentSubcatBreakdownMap),
+      previousSubcategoryBreakdown: toSubcatBreakdown(previousSubcatBreakdownMap),
     };
 
     return { daily, kpis, salesByType };

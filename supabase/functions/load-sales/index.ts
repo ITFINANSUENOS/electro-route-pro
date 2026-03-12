@@ -395,6 +395,10 @@ serve(async (req) => {
       });
 
       if (!venta.codigo_asesor) venta.codigo_asesor = (venta.cedula_asesor as string) || 'UNKNOWN';
+      // Fix encoding: replace U+FFFD with Ñ in forma1_pago
+      if (venta.forma1_pago && typeof venta.forma1_pago === 'string') {
+        venta.forma1_pago = (venta.forma1_pago as string).replace(/\uFFFD/g, 'Ñ');
+      }
       if (!venta.fecha) {
         invalidRows++;
         continue;
