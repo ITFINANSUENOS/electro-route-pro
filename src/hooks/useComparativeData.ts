@@ -204,13 +204,13 @@ export function useComparativeData(
     enabled: !!profile,
   });
 
-  // Fetch formas_pago reference table for descriptive names
+  // Fetch formas_pago reference table for descriptive names + subcategoria
   const { data: formasPagoData } = useQuery({
     queryKey: ['comparative-formas-pago'],
     queryFn: async () => {
       const { data, error } = await dataService
         .from('formas_pago')
-        .select('codigo, nombre, tipo_venta')
+        .select('codigo, nombre, tipo_venta, subcategoria')
         .eq('activo', true);
       if (error) throw error;
       return data || [];
