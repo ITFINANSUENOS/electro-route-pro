@@ -267,7 +267,8 @@ export default function Usuarios() {
         // Try to extract the actual error message from the response body
         let errorMsg = 'Error creando usuario';
         try {
-          const errorBody = await response.error.context?.json?.();
+          const errObj = response.error as any;
+          const errorBody = await errObj?.context?.json?.();
           if (errorBody?.error) {
             errorMsg = errorBody.error;
           } else {
