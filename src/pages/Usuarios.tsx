@@ -264,7 +264,20 @@ export default function Usuarios() {
       });
 
       if (response.error) {
-        throw new Error(response.error.message);
+        // Try to extract the actual error message from the response body
+        let errorMsg = 'Error creando usuario';
+        try {
+          const errObj = response.error as any;
+          const errorBody = await errObj?.context?.json?.();
+          if (errorBody?.error) {
+            errorMsg = errorBody.error;
+          } else {
+            errorMsg = response.error.message;
+          }
+        } catch {
+          errorMsg = response.error.message;
+        }
+        throw new Error(errorMsg);
       }
 
       if (response.data?.error) {
