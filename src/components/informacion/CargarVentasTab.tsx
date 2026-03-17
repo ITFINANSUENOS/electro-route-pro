@@ -448,12 +448,15 @@ export default function CargarVentasTab() {
 
       const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
-        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id, periodo_mes: effectiveTarget.month, periodo_anio: effectiveTarget.year })
         .select()
         .single() as any);
 
       if (cargaError) throw cargaError;
       cargaId = cargaRecord.id;
+
+      // Track effective period for post-upload grace period question
+      setLastUploadEffectivePeriod({ month: effectiveTarget.month, year: effectiveTarget.year });
 
       // Send to edge function for reliable processing
       await processUploadViaEdgeFunction(csvContent, cargaId, effectiveTarget.month, effectiveTarget.year);
