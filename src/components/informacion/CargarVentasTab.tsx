@@ -675,12 +675,12 @@ export default function CargarVentasTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Month Close Dialog */}
+      {/* Month Close Dialog - uses effective period from last upload */}
       <MonthCloseDialog
         open={showCloseDialog}
         onOpenChange={setShowCloseDialog}
-        monthName={getMonthName(targetPeriod.month)}
-        year={targetPeriod.year}
+        monthName={getMonthName(lastUploadEffectivePeriod?.month ?? targetPeriod.month)}
+        year={lastUploadEffectivePeriod?.year ?? targetPeriod.year}
         onConfirm={handleCloseMonthConfirm}
         onCancel={handleCloseMonthCancel}
         isLoading={isClosingPeriod}
