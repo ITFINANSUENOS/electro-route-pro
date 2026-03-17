@@ -193,6 +193,39 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
               </TableRow>
             )}
           </TableBody>
+          {sorted.length > 0 && (() => {
+            const totalVentas = sorted.reduce((s, r) => s + r.ventaTotal, 0);
+            const totalMeta = sorted.reduce((s, r) => s + r.meta, 0);
+            const totalCumplimiento = totalMeta > 0 ? (totalVentas / totalMeta) * 100 : 0;
+            const totalCantidad = sorted.reduce((s, r) => s + r.cantidadVentas, 0);
+            return (
+              <tfoot className="border-t-2 border-primary/20 bg-muted/30">
+                <tr>
+                  <td className="p-4 text-center font-bold text-primary">Σ</td>
+                  <td className="p-4 font-bold text-primary">TOTAL</td>
+                  {TIPOS_VENTA.filter(t => activeTypes.includes(t.value)).map(t => {
+                    const total = sorted.reduce((s, r) => s + getTypeValue(r, t.value), 0);
+                    return (
+                      <td key={t.value} className="p-4 text-right text-sm font-semibold">
+                        {formatCurrency(total)}
+                      </td>
+                    );
+                  })}
+                  <td className="p-4 text-right text-sm font-bold text-primary">{formatCurrency(totalVentas)}</td>
+                  <td className="p-4 text-right text-sm font-semibold">{formatCurrency(totalMeta)}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <Progress value={Math.min(totalCumplimiento, 100)} className={cn('h-2.5 flex-1', getProgressColor(totalCumplimiento))} />
+                      <span className={cn('text-xs font-bold w-12 text-right', getComplianceColor(totalCumplimiento))}>
+                        {totalCumplimiento.toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-4 text-right font-bold">{totalCantidad}</td>
+                </tr>
+              </tfoot>
+            );
+          })()}
         </Table>
       </CardContent>
     </Card>
