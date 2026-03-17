@@ -152,8 +152,7 @@ export default function CargarVentasTab() {
   const { data: historicPeriodStatus } = useQuery({
     queryKey: ['historic-period-status', historicPeriodKey],
     queryFn: async () => {
-      // First try to find uploads tagged with this specific period
-      const { data: taggedUploads } = await (dataService
+      const { data: lastUpload } = await (dataService
         .from('carga_archivos')
         .select('nombre_archivo, created_at, registros_procesados')
         .eq('tipo', 'ventas')
@@ -163,7 +162,7 @@ export default function CargarVentasTab() {
         .order('created_at', { ascending: false })
         .limit(1) as any);
 
-      // Count ventas for this period
+      // Also count ventas for this period
       const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
       const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
       const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -172,30 +171,10 @@ export default function CargarVentasTab() {
         .gte('fecha', monthStart)
         .lte('fecha', monthEnd);
 
-      // If no tagged upload found but ventas exist, look for legacy uploads (no periodo_mes) around that time
-      let lastUpload = taggedUploads?.[0] || null;
-      if (!lastUpload && (ventasCount || 0) > 0) {
-        // Look for legacy uploads (periodo_mes is null) that were completed, ordered by date
-        const { data: legacyUploads } = await (dataService
-          .from('carga_archivos')
-          .select('nombre_archivo, created_at, registros_procesados')
-          .eq('tipo', 'ventas')
-          .eq('estado', 'completado')
-          .is('periodo_mes', null)
-          .order('created_at', { ascending: false })
-          .limit(5) as any);
-        
-        // Try to find one that was uploaded around the target month
-        if (legacyUploads?.length) {
-          // Pick the most recent legacy upload as fallback
-          lastUpload = legacyUploads[0];
-        }
-      }
-
       return {
         hasData: (ventasCount || 0) > 0,
         ventasCount: ventasCount || 0,
-        lastUpload,
+        lastUpload: lastUpload?.[0] || null,
       };
     },
     enabled: historicMode && canUseHistoricMode,
@@ -204,38 +183,17 @@ export default function CargarVentasTab() {
   const { data: uploadHistory, refetch } = useQuery({
     queryKey: ['upload-history-ventas', historicMode ? `${selectedMonth}-${selectedYear}` : 'global'],
     queryFn: async () => {
-      if (historicMode && canUseHistoricMode) {
-        // First get tagged records for this period
-        const { data: tagged } = await (dataService
-          .from('carga_archivos')
-          .select('*')
-          .eq('tipo', 'ventas')
-          .eq('periodo_mes', selectedMonth)
-          .eq('periodo_anio', selectedYear)
-          .order('created_at', { ascending: false })
-          .limit(15) as any);
-
-        // If no tagged records, fall back to legacy (untagged) records
-        if (!tagged?.length) {
-          const { data: legacy, error } = await (dataService
-            .from('carga_archivos')
-            .select('*')
-            .eq('tipo', 'ventas')
-            .is('periodo_mes', null)
-            .order('created_at', { ascending: false })
-            .limit(15) as any);
-          if (error) throw error;
-          return (legacy || []) as UploadHistory[];
-        }
-        return (tagged || []) as UploadHistory[];
-      }
-
-      const { data, error } = await (dataService
+      let query = dataService
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
-        .order('created_at', { ascending: false })
-        .limit(15) as any);
+        .order('created_at', { ascending: false }) as any;
+
+      if (historicMode && canUseHistoricMode) {
+        query = query.eq('periodo_mes', selectedMonth).eq('periodo_anio', selectedYear);
+      }
+
+      const { data, error } = await query.limit(15);
       
       if (error) throw error;
       return data as UploadHistory[];
