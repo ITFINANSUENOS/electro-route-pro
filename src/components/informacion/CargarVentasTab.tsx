@@ -428,14 +428,14 @@ export default function CargarVentasTab() {
         // Create upload record first
         const { data: cargaRecord, error: cargaError } = await (dataService
           .from('carga_archivos')
-          .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+          .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id, periodo_mes: effectiveTarget.month, periodo_anio: effectiveTarget.year })
           .select()
           .single() as any);
 
         if (cargaError) throw cargaError;
         cargaId = cargaRecord.id;
 
-        setPendingUploadData({ csvContent, cargaId });
+        setPendingUploadData({ csvContent, cargaId, effectiveMonth: effectiveTarget.month, effectiveYear: effectiveTarget.year });
         setShowFewerRecordsDialog(true);
         // Don't reset uploading - the dialog will handle it
         return;
