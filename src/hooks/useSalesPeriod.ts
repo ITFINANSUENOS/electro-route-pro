@@ -26,16 +26,16 @@ export function getMonthName(month: number): string {
 
 /**
  * Determines which month sales data should be assigned to based on current date logic:
- * - Days 1-5 of any month: Data can go to PREVIOUS month (grace period for final upload)
- * - Days 6-31: Data belongs to CURRENT month only
+ * - Days 1-2 of any month: Data can go to PREVIOUS month (grace period for final upload)
+ * - Days 3-31: Data belongs to CURRENT month only
  */
 export function getTargetMonth(currentDate: Date = new Date()): { month: number; year: number } {
   const day = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1; // 1-12
   const currentYear = currentDate.getFullYear();
 
-  // Within 5-day grace period, target previous month (if not yet closed)
-  if (day <= 5) {
+  // Within 2-day grace period, target previous month (if not yet closed)
+  if (day <= 2) {
     if (currentMonth === 1) {
       return { month: 12, year: currentYear - 1 };
     }
@@ -46,10 +46,10 @@ export function getTargetMonth(currentDate: Date = new Date()): { month: number;
 }
 
 /**
- * Check if we're in the grace period (days 1-5) where previous month can still receive data
+ * Check if we're in the grace period (days 1-2) where previous month can still receive data
  */
 export function isGracePeriod(currentDate: Date = new Date()): boolean {
-  return currentDate.getDate() <= 5;
+  return currentDate.getDate() <= 2;
 }
 
 export function useSalesPeriod() {

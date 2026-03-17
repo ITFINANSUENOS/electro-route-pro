@@ -45,10 +45,11 @@ export default function MonthCloseDialog({
             🗓️ Cierre de Período
           </AlertDialogTitle>
           <AlertDialogDescription className="text-base">
-            ¿Este archivo es el <strong>resultado final</strong> del mes de{' '}
+            ¿Es este el <strong>informe final de ventas</strong> del mes de{' '}
             <span className="font-bold text-foreground">{monthName} {year}</span>?
             <br /><br />
-            Si seleccionas <strong>"Sí"</strong>, el mes se cerrará y no podrás agregar más datos a este período.
+            Si seleccionas <strong>"Sí"</strong>, el mes se cerrará y las siguientes cargas se asignarán al mes en curso.
+            Si seleccionas <strong>"No"</strong>, la próxima carga volverá a preguntarte.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
