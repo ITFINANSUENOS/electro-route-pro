@@ -454,10 +454,10 @@ export function ActividadesViewer() {
               {/* Date filter */}
               <div className="space-y-2">
                 <Label>Fecha</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
+                  onChange={(v) => setSearchDate(v)}
+                  placeholder="Seleccionar fecha"
                 />
               </div>
 
