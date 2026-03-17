@@ -508,9 +508,9 @@ export default function CargarVentasTab() {
         throw new Error(errorMsg);
       }
 
-      // Update carga record
+      // Update carga record with periodo info
       await (dataService.from('carga_archivos')
-        .update({ estado: 'completado', registros_procesados: result.inserted })
+        .update({ estado: 'completado', registros_procesados: result.inserted, periodo_mes: uploadMonth, periodo_anio: uploadYear })
         .eq('id', cargaId) as any);
 
       setUploadProgress(100);
@@ -526,6 +526,17 @@ export default function CargarVentasTab() {
       queryClient.invalidateQueries({ queryKey: ['ventas'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
+      queryClient.invalidateQueries({ queryKey: ['historic-period-status'] });
+
+      // During grace period and NOT historic mode: ask if this is the final report
+      const now = new Date();
+      const inGrace = isGracePeriod(now);
+      if (inGrace && !historicMode && uploadMonth !== (now.getMonth() + 1)) {
+        // The upload was for the previous month during grace period - ask about closing
+        // We don't process via edge function again; the upload is already done
+        // Just show the close dialog
+        setShowCloseDialog(true);
+      }
 
     } catch (error) {
       // Update carga record with error
