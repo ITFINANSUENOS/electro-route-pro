@@ -559,7 +559,7 @@ export default function CargarVentasTab() {
     try {
       setUploadProgress(25);
       setUploadStatus('Procesando carga confirmada...');
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
+      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId, pendingUploadData.effectiveMonth, pendingUploadData.effectiveYear);
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     } finally {
