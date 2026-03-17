@@ -221,7 +221,7 @@ export function RegionalesRankingTable({ data, metaType }: Props) {
                       </span>
                     </div>
                   </td>
-                  <td className="p-4 text-right font-bold">{totalCantidad}</td>
+                  <td className="p-4 text-right font-bold">{totalCantidad.toLocaleString('es-CO')}</td>
                 </tr>
               </tfoot>
             );
