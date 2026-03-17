@@ -734,13 +734,36 @@ export default function CargarVentasTab() {
           {/* Period Status - compact inline */}
           <div className="flex-1">
             {historicMode && canUseHistoricMode ? (
-              <Alert className="border-warning bg-warning/10 py-2">
-                <History className="h-4 w-4 text-warning" />
-                <AlertTitle className="text-warning text-sm">Modo Histórico — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</AlertTitle>
-                <AlertDescription className="text-xs">
-                  Los datos existentes de este período serán reemplazados.
-                </AlertDescription>
-              </Alert>
+              <div className="space-y-2">
+                <Alert className="border-warning bg-warning/10 py-2">
+                  <History className="h-4 w-4 text-warning" />
+                  <AlertTitle className="text-warning text-sm">Modo Histórico — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Los datos existentes de este período serán reemplazados.
+                  </AlertDescription>
+                </Alert>
+                {/* Historic period status badge */}
+                {historicPeriodStatus && (
+                  historicPeriodStatus.hasData ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
+                      <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-success font-medium">✓ Datos cargados</span>
+                        {historicPeriodStatus.lastUpload && (
+                          <span className="text-muted-foreground ml-1">
+                            — {historicPeriodStatus.lastUpload.nombre_archivo} — {new Date(historicPeriodStatus.lastUpload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} — {historicPeriodStatus.ventasCount.toLocaleString('es-CO')} registros
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+                      <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0" />
+                      <span className="text-warning font-medium">⚠ Sin datos cargados para este periodo</span>
+                    </div>
+                  )
+                )}
+              </div>
             ) : periodClosed ? (
               <Alert variant="destructive" className="py-2">
                 <Lock className="h-4 w-4" />
