@@ -92,6 +92,31 @@ export function RegionalesTipoVentaTable({ data, metaNacionalByRegional }: Props
                 </TableRow>
               )}
             </TableBody>
+            {data.length > 0 && (() => {
+              const totalMetaNac = Object.values(metaNacionalByRegional).reduce((s, v) => s + v, 0);
+              let grandTotal = 0;
+              return (
+                <tfoot className="border-t-2 border-primary/20 bg-muted/30">
+                  <tr>
+                    <td className="p-4 sticky left-0 bg-muted/30 z-10 font-bold text-primary">TOTAL</td>
+                    {TIPOS.map(t => {
+                      const tipoTotal = data.reduce((s, r) => s + (r.desglose[t]?.valor || 0), 0);
+                      grandTotal += tipoTotal;
+                      const pct = totalMetaNac > 0 ? (tipoTotal / totalMetaNac) * 100 : 0;
+                      return (
+                        <Fragment key={`total-${t}`}>
+                          <td className="p-4 text-right text-xs font-semibold border-l">{formatCurrency(tipoTotal)}</td>
+                          <td className={cn('p-4 text-right text-xs font-bold', getComplianceColor(pct))}>
+                            {pct.toFixed(1)}%
+                          </td>
+                        </Fragment>
+                      );
+                    })}
+                    <td className="p-4 text-right text-xs font-bold text-primary border-l">{formatCurrency(grandTotal)}</td>
+                  </tr>
+                </tfoot>
+              );
+            })()}
           </Table>
         </ScrollArea>
       </CardContent>
