@@ -117,7 +117,8 @@ export default function CargarVentasTab() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showFewerRecordsDialog, setShowFewerRecordsDialog] = useState(false);
   const [fewerRecordsInfo, setFewerRecordsInfo] = useState<{ previous: number; current: number } | null>(null);
-  const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string } | null>(null);
+  const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string; effectiveMonth: number; effectiveYear: number } | null>(null);
+  const [lastUploadEffectivePeriod, setLastUploadEffectivePeriod] = useState<{ month: number; year: number } | null>(null);
   
   // Historic mode state
   const [historicMode, setHistoricMode] = useState(false);
