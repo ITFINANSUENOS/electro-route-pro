@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -186,10 +187,10 @@ export function MigrateRegionalDialog({
 
             <div className="grid gap-2">
               <Label>Fecha efectiva</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={fechaEfectiva}
-                onChange={(e) => setFechaEfectiva(e.target.value)}
+                onChange={(v) => setFechaEfectiva(v)}
+                placeholder="Seleccionar fecha"
               />
               <p className="text-xs text-muted-foreground">
                 Desde qué fecha aplica la consolidación en los reportes
