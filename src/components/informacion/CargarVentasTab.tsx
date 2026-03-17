@@ -147,35 +147,59 @@ export default function CargarVentasTab() {
     : autoTargetPeriod;
   const periodClosed = historicMode ? false : autoPeriodClosed;
 
-  // Query for historic mode badge: last successful upload for selected period
+  // Query for historic mode badge: uploads for selected period with fallback via ventas.carga_id
   const historicPeriodKey = historicMode ? `${selectedMonth}-${selectedYear}` : null;
   const { data: historicPeriodStatus } = useQuery({
     queryKey: ['historic-period-status', historicPeriodKey],
     queryFn: async () => {
-      const { data: lastUpload } = await (dataService
+      const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      // Count ventas for this period
+      const { count: ventasCount } = await (dataService.from('ventas') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('fecha', monthStart)
+        .lte('fecha', monthEnd);
+
+      if (!ventasCount || ventasCount === 0) {
+        return { hasData: false, ventasCount: 0, uploads: [] as any[] };
+      }
+
+      // Strategy 1: Find uploads by periodo_mes/periodo_anio
+      const { data: directUploads } = await (dataService
         .from('carga_archivos')
         .select('nombre_archivo, created_at, registros_procesados')
         .eq('tipo', 'ventas')
         .eq('estado', 'completado')
         .eq('periodo_mes', selectedMonth)
         .eq('periodo_anio', selectedYear)
-        .order('created_at', { ascending: false })
-        .limit(1) as any);
+        .order('created_at', { ascending: true }) as any);
 
-      // Also count ventas for this period
-      const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-      const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const { count: ventasCount } = await (dataService.from('ventas') as any)
-        .select('id', { count: 'exact', head: true })
+      if (directUploads && directUploads.length > 0) {
+        return { hasData: true, ventasCount: ventasCount || 0, uploads: directUploads };
+      }
+
+      // Strategy 2 (fallback): Find the active carga_id from ventas for this period
+      const { data: activeCargaIds } = await (dataService.from('ventas') as any)
+        .select('carga_id')
         .gte('fecha', monthStart)
-        .lte('fecha', monthEnd);
+        .lte('fecha', monthEnd)
+        .not('carga_id', 'is', null)
+        .limit(1);
 
-      return {
-        hasData: (ventasCount || 0) > 0,
-        ventasCount: ventasCount || 0,
-        lastUpload: lastUpload?.[0] || null,
-      };
+      if (activeCargaIds?.[0]?.carga_id) {
+        const { data: fallbackUpload } = await (dataService
+          .from('carga_archivos')
+          .select('nombre_archivo, created_at, registros_procesados')
+          .eq('id', activeCargaIds[0].carga_id) as any);
+
+        if (fallbackUpload && fallbackUpload.length > 0) {
+          return { hasData: true, ventasCount: ventasCount || 0, uploads: fallbackUpload };
+        }
+      }
+
+      return { hasData: true, ventasCount: ventasCount || 0, uploads: [] as any[] };
     },
     enabled: historicMode && canUseHistoricMode,
   });
@@ -183,13 +207,14 @@ export default function CargarVentasTab() {
   const { data: uploadHistory, refetch } = useQuery({
     queryKey: ['upload-history-ventas', historicMode ? `${selectedMonth}-${selectedYear}` : 'global'],
     queryFn: async () => {
+      const isHistoric = historicMode && canUseHistoricMode;
       let query = dataService
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
-        .order('created_at', { ascending: false }) as any;
+        .order('created_at', { ascending: isHistoric }) as any;
 
-      if (historicMode && canUseHistoricMode) {
+      if (isHistoric) {
         query = query.eq('periodo_mes', selectedMonth).eq('periodo_anio', selectedYear);
       }
 
@@ -745,16 +770,25 @@ export default function CargarVentasTab() {
                 {/* Historic period status badge */}
                 {historicPeriodStatus && (
                   historicPeriodStatus.hasData ? (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
-                      <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
-                      <div className="min-w-0">
-                        <span className="text-success font-medium">✓ Datos cargados</span>
-                        {historicPeriodStatus.lastUpload && (
-                          <span className="text-muted-foreground ml-1">
-                            — {historicPeriodStatus.lastUpload.nombre_archivo} — {new Date(historicPeriodStatus.lastUpload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} — {historicPeriodStatus.ventasCount.toLocaleString('es-CO')} registros
-                          </span>
-                        )}
-                      </div>
+                    <div className="space-y-1.5">
+                      {historicPeriodStatus.uploads.length > 0 ? (
+                        historicPeriodStatus.uploads.map((upload: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
+                            <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-success font-medium">✓ {upload.nombre_archivo}</span>
+                              <span className="text-muted-foreground ml-1">
+                                — {new Date(upload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — {(upload.registros_procesados || 0).toLocaleString('es-CO')} registros
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
+                          <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
+                          <span className="text-success font-medium">✓ {historicPeriodStatus.ventasCount.toLocaleString('es-CO')} registros activos en ventas</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-sm">
