@@ -615,20 +615,13 @@ export default function CargarVentasTab() {
   };
 
   const handleCloseMonthCancel = async () => {
-    if (!pendingUploadData) return;
-
-    try {
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
-      toast({ 
-        title: '¡Carga exitosa!', 
-        description: `Datos cargados. El período de ${getMonthName(targetPeriod.month)} sigue abierto.` 
-      });
-    } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
-    } finally {
-      setShowCloseDialog(false);
-      setPendingUploadData(null);
-    }
+    const periodMonth = lastUploadEffectivePeriod?.month ?? targetPeriod.month;
+    toast({ 
+      title: 'Período sigue abierto', 
+      description: `${getMonthName(periodMonth)} sigue abierto. La próxima carga volverá a preguntar.` 
+    });
+    setShowCloseDialog(false);
+    setLastUploadEffectivePeriod(null);
   };
 
   const removeFile = () => setFile(null);
