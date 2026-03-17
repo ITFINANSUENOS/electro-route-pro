@@ -17,12 +17,13 @@ export function formatCurrencyShort(value: number): string {
   const sign = value < 0 ? '-' : '';
   if (abs >= 1_000_000) {
     const m = abs / 1_000_000;
-    const formatted = m >= 1000
-      ? `${formatNumber(Math.round(m))}M`
-      : m >= 100
-        ? `${formatNumber(Math.round(m))}M`
-        : `${m.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}M`;
-    return `${sign}$${formatted}`;
+    let mStr: string;
+    if (m >= 100) {
+      mStr = formatNumber(Math.round(m));
+    } else {
+      mStr = m.toFixed(1);
+    }
+    return `${sign}$${mStr}M`;
   }
   return `${sign}$${formatNumber(abs)}`;
 }
