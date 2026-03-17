@@ -117,7 +117,8 @@ export default function CargarVentasTab() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showFewerRecordsDialog, setShowFewerRecordsDialog] = useState(false);
   const [fewerRecordsInfo, setFewerRecordsInfo] = useState<{ previous: number; current: number } | null>(null);
-  const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string } | null>(null);
+  const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string; effectiveMonth: number; effectiveYear: number } | null>(null);
+  const [lastUploadEffectivePeriod, setLastUploadEffectivePeriod] = useState<{ month: number; year: number } | null>(null);
   
   // Historic mode state
   const [historicMode, setHistoricMode] = useState(false);
@@ -146,15 +147,53 @@ export default function CargarVentasTab() {
     : autoTargetPeriod;
   const periodClosed = historicMode ? false : autoPeriodClosed;
 
-  const { data: uploadHistory, refetch } = useQuery({
-    queryKey: ['upload-history-ventas'],
+  // Query for historic mode badge: last successful upload for selected period
+  const historicPeriodKey = historicMode ? `${selectedMonth}-${selectedYear}` : null;
+  const { data: historicPeriodStatus } = useQuery({
+    queryKey: ['historic-period-status', historicPeriodKey],
     queryFn: async () => {
-      const { data, error } = await (dataService
+      const { data: lastUpload } = await (dataService
+        .from('carga_archivos')
+        .select('nombre_archivo, created_at, registros_procesados')
+        .eq('tipo', 'ventas')
+        .eq('estado', 'completado')
+        .eq('periodo_mes', selectedMonth)
+        .eq('periodo_anio', selectedYear)
+        .order('created_at', { ascending: false })
+        .limit(1) as any);
+
+      // Also count ventas for this period
+      const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const { count: ventasCount } = await (dataService.from('ventas') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('fecha', monthStart)
+        .lte('fecha', monthEnd);
+
+      return {
+        hasData: (ventasCount || 0) > 0,
+        ventasCount: ventasCount || 0,
+        lastUpload: lastUpload?.[0] || null,
+      };
+    },
+    enabled: historicMode && canUseHistoricMode,
+  });
+
+  const { data: uploadHistory, refetch } = useQuery({
+    queryKey: ['upload-history-ventas', historicMode ? `${selectedMonth}-${selectedYear}` : 'global'],
+    queryFn: async () => {
+      let query = dataService
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
-        .order('created_at', { ascending: false })
-        .limit(10) as any);
+        .order('created_at', { ascending: false }) as any;
+
+      if (historicMode && canUseHistoricMode) {
+        query = query.eq('periodo_mes', selectedMonth).eq('periodo_anio', selectedYear);
+      }
+
+      const { data, error } = await query.limit(15);
       
       if (error) throw error;
       return data as UploadHistory[];
@@ -389,14 +428,14 @@ export default function CargarVentasTab() {
         // Create upload record first
         const { data: cargaRecord, error: cargaError } = await (dataService
           .from('carga_archivos')
-          .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+          .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id, periodo_mes: effectiveTarget.month, periodo_anio: effectiveTarget.year })
           .select()
           .single() as any);
 
         if (cargaError) throw cargaError;
         cargaId = cargaRecord.id;
 
-        setPendingUploadData({ csvContent, cargaId });
+        setPendingUploadData({ csvContent, cargaId, effectiveMonth: effectiveTarget.month, effectiveYear: effectiveTarget.year });
         setShowFewerRecordsDialog(true);
         // Don't reset uploading - the dialog will handle it
         return;
@@ -409,12 +448,15 @@ export default function CargarVentasTab() {
 
       const { data: cargaRecord, error: cargaError } = await (dataService
         .from('carga_archivos')
-        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id })
+        .insert({ nombre_archivo: file.name, tipo: 'ventas', estado: 'procesando', cargado_por: user.id, periodo_mes: effectiveTarget.month, periodo_anio: effectiveTarget.year })
         .select()
         .single() as any);
 
       if (cargaError) throw cargaError;
       cargaId = cargaRecord.id;
+
+      // Track effective period for post-upload grace period question
+      setLastUploadEffectivePeriod({ month: effectiveTarget.month, year: effectiveTarget.year });
 
       // Send to edge function for reliable processing
       await processUploadViaEdgeFunction(csvContent, cargaId, effectiveTarget.month, effectiveTarget.year);
@@ -466,9 +508,9 @@ export default function CargarVentasTab() {
         throw new Error(errorMsg);
       }
 
-      // Update carga record
+      // Update carga record with periodo info
       await (dataService.from('carga_archivos')
-        .update({ estado: 'completado', registros_procesados: result.inserted })
+        .update({ estado: 'completado', registros_procesados: result.inserted, periodo_mes: uploadMonth, periodo_anio: uploadYear })
         .eq('id', cargaId) as any);
 
       setUploadProgress(100);
@@ -484,6 +526,17 @@ export default function CargarVentasTab() {
       queryClient.invalidateQueries({ queryKey: ['ventas'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
+      queryClient.invalidateQueries({ queryKey: ['historic-period-status'] });
+
+      // During grace period and NOT historic mode: ask if this is the final report
+      const now = new Date();
+      const inGrace = isGracePeriod(now);
+      if (inGrace && !historicMode && uploadMonth !== (now.getMonth() + 1)) {
+        // The upload was for the previous month during grace period - ask about closing
+        // We don't process via edge function again; the upload is already done
+        // Just show the close dialog
+        setShowCloseDialog(true);
+      }
 
     } catch (error) {
       // Update carga record with error
@@ -506,7 +559,7 @@ export default function CargarVentasTab() {
     try {
       setUploadProgress(25);
       setUploadStatus('Procesando carga confirmada...');
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
+      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId, pendingUploadData.effectiveMonth, pendingUploadData.effectiveYear);
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     } finally {
@@ -536,46 +589,39 @@ export default function CargarVentasTab() {
   };
 
   const handleCloseMonthConfirm = async () => {
-    if (!pendingUploadData) return;
-
     try {
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
+      const periodMonth = lastUploadEffectivePeriod?.month ?? targetPeriod.month;
+      const periodYear = lastUploadEffectivePeriod?.year ?? targetPeriod.year;
 
       await closePeriod({
-        month: targetPeriod.month,
-        year: targetPeriod.year,
+        month: periodMonth,
+        year: periodYear,
         totalRecords: 0,
         totalAmount: 0
       });
 
       toast({ 
         title: '¡Período cerrado!', 
-        description: `${getMonthName(targetPeriod.month)} ${targetPeriod.year} ha sido cerrado con éxito.` 
+        description: `${getMonthName(periodMonth)} ${periodYear} ha sido cerrado con éxito. Las siguientes cargas se asignarán al mes en curso.` 
       });
 
+      queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     } finally {
       setShowCloseDialog(false);
-      setPendingUploadData(null);
+      setLastUploadEffectivePeriod(null);
     }
   };
 
   const handleCloseMonthCancel = async () => {
-    if (!pendingUploadData) return;
-
-    try {
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
-      toast({ 
-        title: '¡Carga exitosa!', 
-        description: `Datos cargados. El período de ${getMonthName(targetPeriod.month)} sigue abierto.` 
-      });
-    } catch (error) {
-      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
-    } finally {
-      setShowCloseDialog(false);
-      setPendingUploadData(null);
-    }
+    const periodMonth = lastUploadEffectivePeriod?.month ?? targetPeriod.month;
+    toast({ 
+      title: 'Período sigue abierto', 
+      description: `${getMonthName(periodMonth)} sigue abierto. La próxima carga volverá a preguntar.` 
+    });
+    setShowCloseDialog(false);
+    setLastUploadEffectivePeriod(null);
   };
 
   const removeFile = () => setFile(null);
@@ -629,12 +675,12 @@ export default function CargarVentasTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Month Close Dialog */}
+      {/* Month Close Dialog - uses effective period from last upload */}
       <MonthCloseDialog
         open={showCloseDialog}
         onOpenChange={setShowCloseDialog}
-        monthName={getMonthName(targetPeriod.month)}
-        year={targetPeriod.year}
+        monthName={getMonthName(lastUploadEffectivePeriod?.month ?? targetPeriod.month)}
+        year={lastUploadEffectivePeriod?.year ?? targetPeriod.year}
         onConfirm={handleCloseMonthConfirm}
         onCancel={handleCloseMonthCancel}
         isLoading={isClosingPeriod}
@@ -688,13 +734,36 @@ export default function CargarVentasTab() {
           {/* Period Status - compact inline */}
           <div className="flex-1">
             {historicMode && canUseHistoricMode ? (
-              <Alert className="border-warning bg-warning/10 py-2">
-                <History className="h-4 w-4 text-warning" />
-                <AlertTitle className="text-warning text-sm">Modo Histórico — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</AlertTitle>
-                <AlertDescription className="text-xs">
-                  Los datos existentes de este período serán reemplazados.
-                </AlertDescription>
-              </Alert>
+              <div className="space-y-2">
+                <Alert className="border-warning bg-warning/10 py-2">
+                  <History className="h-4 w-4 text-warning" />
+                  <AlertTitle className="text-warning text-sm">Modo Histórico — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Los datos existentes de este período serán reemplazados.
+                  </AlertDescription>
+                </Alert>
+                {/* Historic period status badge */}
+                {historicPeriodStatus && (
+                  historicPeriodStatus.hasData ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
+                      <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-success font-medium">✓ Datos cargados</span>
+                        {historicPeriodStatus.lastUpload && (
+                          <span className="text-muted-foreground ml-1">
+                            — {historicPeriodStatus.lastUpload.nombre_archivo} — {new Date(historicPeriodStatus.lastUpload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} — {historicPeriodStatus.ventasCount.toLocaleString('es-CO')} registros
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-sm">
+                      <AlertTriangle className="h-4 w-4 text-warning flex-shrink-0" />
+                      <span className="text-warning font-medium">⚠ Sin datos cargados para este periodo</span>
+                    </div>
+                  )
+                )}
+              </div>
             ) : periodClosed ? (
               <Alert variant="destructive" className="py-2">
                 <Lock className="h-4 w-4" />
@@ -709,8 +778,8 @@ export default function CargarVentasTab() {
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{targetPeriod.isClosingDay ? 'Período de gracia' : 'Abierto'}</Badge>
                 </AlertTitle>
                 <AlertDescription className="text-xs">
-                  {targetPeriod.isClosingDay 
-                    ? `Período de gracia (máx. día 5). Se preguntará si es el resultado final.`
+                {targetPeriod.isClosingDay 
+                    ? `Período de gracia (máx. día 2). Se preguntará si es el informe final.`
                     : `Archivos se asignarán a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
                   }
                 </AlertDescription>
