@@ -17,7 +17,13 @@ export function formatCurrencyShort(value: number): string {
   const sign = value < 0 ? '-' : '';
   if (abs >= 1_000_000) {
     const m = abs / 1_000_000;
-    return `${sign}$${m.toFixed(m >= 100 ? 0 : 1)}M`;
+    let mStr: string;
+    if (m >= 100) {
+      mStr = formatNumber(Math.round(m));
+    } else {
+      mStr = m.toFixed(1);
+    }
+    return `${sign}$${mStr}M`;
   }
   return `${sign}$${formatNumber(abs)}`;
 }
