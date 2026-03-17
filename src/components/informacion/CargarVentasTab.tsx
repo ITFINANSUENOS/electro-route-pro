@@ -589,28 +589,28 @@ export default function CargarVentasTab() {
   };
 
   const handleCloseMonthConfirm = async () => {
-    if (!pendingUploadData) return;
-
     try {
-      await processUploadViaEdgeFunction(pendingUploadData.csvContent, pendingUploadData.cargaId);
+      const periodMonth = lastUploadEffectivePeriod?.month ?? targetPeriod.month;
+      const periodYear = lastUploadEffectivePeriod?.year ?? targetPeriod.year;
 
       await closePeriod({
-        month: targetPeriod.month,
-        year: targetPeriod.year,
+        month: periodMonth,
+        year: periodYear,
         totalRecords: 0,
         totalAmount: 0
       });
 
       toast({ 
         title: '¡Período cerrado!', 
-        description: `${getMonthName(targetPeriod.month)} ${targetPeriod.year} ha sido cerrado con éxito.` 
+        description: `${getMonthName(periodMonth)} ${periodYear} ha sido cerrado con éxito. Las siguientes cargas se asignarán al mes en curso.` 
       });
 
+      queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
     } catch (error) {
       toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
     } finally {
       setShowCloseDialog(false);
-      setPendingUploadData(null);
+      setLastUploadEffectivePeriod(null);
     }
   };
 
