@@ -147,15 +147,53 @@ export default function CargarVentasTab() {
     : autoTargetPeriod;
   const periodClosed = historicMode ? false : autoPeriodClosed;
 
-  const { data: uploadHistory, refetch } = useQuery({
-    queryKey: ['upload-history-ventas'],
+  // Query for historic mode badge: last successful upload for selected period
+  const historicPeriodKey = historicMode ? `${selectedMonth}-${selectedYear}` : null;
+  const { data: historicPeriodStatus } = useQuery({
+    queryKey: ['historic-period-status', historicPeriodKey],
     queryFn: async () => {
-      const { data, error } = await (dataService
+      const { data: lastUpload } = await (dataService
+        .from('carga_archivos')
+        .select('nombre_archivo, created_at, registros_procesados')
+        .eq('tipo', 'ventas')
+        .eq('estado', 'completado')
+        .eq('periodo_mes', selectedMonth)
+        .eq('periodo_anio', selectedYear)
+        .order('created_at', { ascending: false })
+        .limit(1) as any);
+
+      // Also count ventas for this period
+      const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const { count: ventasCount } = await (dataService.from('ventas') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('fecha', monthStart)
+        .lte('fecha', monthEnd);
+
+      return {
+        hasData: (ventasCount || 0) > 0,
+        ventasCount: ventasCount || 0,
+        lastUpload: lastUpload?.[0] || null,
+      };
+    },
+    enabled: historicMode && canUseHistoricMode,
+  });
+
+  const { data: uploadHistory, refetch } = useQuery({
+    queryKey: ['upload-history-ventas', historicMode ? `${selectedMonth}-${selectedYear}` : 'global'],
+    queryFn: async () => {
+      let query = dataService
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
-        .order('created_at', { ascending: false })
-        .limit(10) as any);
+        .order('created_at', { ascending: false }) as any;
+
+      if (historicMode && canUseHistoricMode) {
+        query = query.eq('periodo_mes', selectedMonth).eq('periodo_anio', selectedYear);
+      }
+
+      const { data, error } = await query.limit(15);
       
       if (error) throw error;
       return data as UploadHistory[];
