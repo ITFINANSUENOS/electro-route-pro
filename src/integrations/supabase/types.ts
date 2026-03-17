@@ -22,6 +22,8 @@ export type Database = {
           id: string
           mensaje_error: string | null
           nombre_archivo: string
+          periodo_anio: number | null
+          periodo_mes: number | null
           registros_procesados: number | null
           tipo: string
         }
@@ -32,6 +34,8 @@ export type Database = {
           id?: string
           mensaje_error?: string | null
           nombre_archivo: string
+          periodo_anio?: number | null
+          periodo_mes?: number | null
           registros_procesados?: number | null
           tipo: string
         }
@@ -42,6 +46,8 @@ export type Database = {
           id?: string
           mensaje_error?: string | null
           nombre_archivo?: string
+          periodo_anio?: number | null
+          periodo_mes?: number | null
           registros_procesados?: number | null
           tipo?: string
         }
