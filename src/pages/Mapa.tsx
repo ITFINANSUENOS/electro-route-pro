@@ -85,7 +85,7 @@ export default function Mapa() {
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-4">
         {/* Map */}
-        <Card className="card-elevated lg:col-span-3">
+        <Card className="card-elevated lg:col-span-3 relative z-10">
           <CardContent className="p-0 overflow-hidden rounded-xl">
             {isLoading ? (
               <div className="h-[600px] flex items-center justify-center bg-muted/20">

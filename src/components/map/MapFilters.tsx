@@ -78,7 +78,7 @@ export function MapFilters({ filters, onChange, onClear }: MapFiltersProps) {
   };
 
   return (
-    <Card>
+    <Card className="relative z-20">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
