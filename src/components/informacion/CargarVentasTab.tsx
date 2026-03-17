@@ -778,8 +778,8 @@ export default function CargarVentasTab() {
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{targetPeriod.isClosingDay ? 'Período de gracia' : 'Abierto'}</Badge>
                 </AlertTitle>
                 <AlertDescription className="text-xs">
-                  {targetPeriod.isClosingDay 
-                    ? `Período de gracia (máx. día 5). Se preguntará si es el resultado final.`
+                {targetPeriod.isClosingDay 
+                    ? `Período de gracia (máx. día 2). Se preguntará si es el informe final.`
                     : `Archivos se asignarán a ${getMonthName(targetPeriod.month)} ${targetPeriod.year}.`
                   }
                 </AlertDescription>
