@@ -72,6 +72,13 @@ const allNavItems: NavItem[] = [
     roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrador']
   },
   { 
+    id: 'historico',
+    title: 'Histórico', 
+    href: '/historico', 
+    icon: History,
+    roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
+  },
+  { 
     id: 'cargar-ventas',
     title: 'Cargar Ventas', 
     href: '/cargar-ventas', 

@@ -50,7 +50,7 @@ export default function Historico() {
         {showRegionalFilter && (
           <RegionalMultiSelect
             regionales={regionales}
-            selectedIds={selectedRegionalIds}
+            selectedCodes={selectedRegionalIds}
             onChange={setSelectedRegionalIds}
           />
         )}
