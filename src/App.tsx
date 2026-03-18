@@ -18,6 +18,7 @@ import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 import Comparativo from "./pages/Comparativo";
 import Regionales from "./pages/Regionales";
+import Historico from "./pages/Historico";
 
 const queryClient = new QueryClient({
   defaultOptions: {
