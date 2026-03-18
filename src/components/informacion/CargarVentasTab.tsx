@@ -736,12 +736,30 @@ export default function CargarVentasTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MONTH_NAMES.map((name, idx) => (
-                        <SelectItem key={idx} value={String(idx + 1)}>{name}</SelectItem>
-                      ))}
+                      {MONTH_NAMES.map((name, idx) => {
+                        const monthNum = idx + 1;
+                        const now = new Date();
+                        const currentMonth = now.getMonth() + 1;
+                        const currentYear = now.getFullYear();
+                        // Disable current month and future months
+                        const isFuture = selectedYear > currentYear || (selectedYear === currentYear && monthNum >= currentMonth);
+                        return (
+                          <SelectItem key={idx} value={String(monthNum)} disabled={isFuture}>
+                            {name}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
-                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                  <Select value={String(selectedYear)} onValueChange={(v) => {
+                    const newYear = parseInt(v);
+                    setSelectedYear(newYear);
+                    // Auto-adjust month if it becomes invalid
+                    const now = new Date();
+                    if (newYear === now.getFullYear() && selectedMonth >= now.getMonth() + 1) {
+                      setSelectedMonth(Math.max(1, now.getMonth())); // previous month
+                    }
+                  }}>
                     <SelectTrigger className="w-[80px] h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
