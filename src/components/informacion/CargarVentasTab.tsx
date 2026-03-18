@@ -771,19 +771,30 @@ export default function CargarVentasTab() {
                 {historicPeriodStatus && (
                   historicPeriodStatus.hasData ? (
                     <div className="space-y-1.5">
-                      {historicPeriodStatus.uploads.length > 0 ? (
-                        historicPeriodStatus.uploads.map((upload: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
+                      {historicPeriodStatus.uploads.length > 0 ? (() => {
+                        // Show only the final upload (latest with most records)
+                        const finalUpload = [...historicPeriodStatus.uploads].sort((a: any, b: any) => {
+                          const regDiff = (b.registros_procesados || 0) - (a.registros_procesados || 0);
+                          if (regDiff !== 0) return regDiff;
+                          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                        })[0];
+                        return (
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
                             <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
                             <div className="min-w-0">
-                              <span className="text-success font-medium">✓ {upload.nombre_archivo}</span>
+                              <span className="text-success font-medium">✓ {finalUpload.nombre_archivo}</span>
                               <span className="text-muted-foreground ml-1">
-                                — {new Date(upload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — {(upload.registros_procesados || 0).toLocaleString('es-CO')} registros
+                                — {new Date(finalUpload.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — {(finalUpload.registros_procesados || 0).toLocaleString('es-CO')} registros
                               </span>
+                              {historicPeriodStatus.uploads.length > 1 && (
+                                <span className="text-muted-foreground/60 ml-1 text-xs">
+                                  ({historicPeriodStatus.uploads.length} cargas realizadas)
+                                </span>
+                              )}
                             </div>
                           </div>
-                        ))
-                      ) : (
+                        );
+                      })() : (
                         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-sm">
                           <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
                           <span className="text-success font-medium">✓ {historicPeriodStatus.ventasCount.toLocaleString('es-CO')} registros activos en ventas</span>
