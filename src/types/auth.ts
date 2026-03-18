@@ -86,12 +86,12 @@ export const rolePermissions: Record<UserRole, string[]> = {
 
 // Orden de menú por rol (consolidado sin reportes separado)
 export const menuOrderByRole: Record<UserRole, string[]> = {
-  asesor_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo'],
-  jefe_ventas: ['dashboard', 'programacion', 'actividades', 'comparativo'],
-  lider_zona: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
-  coordinador_comercial: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios'],
-  administrativo: ['dashboard', 'cargar-ventas'],
-  administrador: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'mapa', 'informacion', 'usuarios', 'configuracion'],
+  asesor_comercial: ['dashboard', 'programacion', 'actividades', 'comparativo', 'historico'],
+  jefe_ventas: ['dashboard', 'programacion', 'actividades', 'comparativo', 'historico'],
+  lider_zona: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'historico', 'mapa', 'informacion', 'usuarios'],
+  coordinador_comercial: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'historico', 'mapa', 'informacion', 'usuarios'],
+  administrativo: ['dashboard', 'cargar-ventas', 'historico'],
+  administrador: ['dashboard', 'regionales', 'programacion', 'actividades', 'comparativo', 'historico', 'mapa', 'informacion', 'usuarios', 'configuracion'],
 };
 
 // Helper function to get zona based on regional name

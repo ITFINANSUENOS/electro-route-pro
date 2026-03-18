@@ -18,6 +18,7 @@ import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 import Comparativo from "./pages/Comparativo";
 import Regionales from "./pages/Regionales";
+import Historico from "./pages/Historico";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ const App = () => (
                 <Route path="/configuracion" element={<Configuracion />} />
                 <Route path="/comparativo" element={<Comparativo />} />
                 <Route path="/regionales" element={<Regionales />} />
+                <Route path="/historico" element={<Historico />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
