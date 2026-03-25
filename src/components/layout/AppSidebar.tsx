@@ -75,7 +75,7 @@ const allNavItems: NavItem[] = [
     id: 'historico',
     title: 'Histórico', 
     href: '/historico', 
-    icon: History,
+    icon: ChartLine,
     roles: ['asesor_comercial', 'jefe_ventas', 'lider_zona', 'coordinador_comercial', 'administrativo', 'administrador']
   },
   { 

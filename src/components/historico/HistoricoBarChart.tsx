@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3 } from 'lucide-react';
 import { TipoVentaFilter } from '@/components/regionales/TipoVentaFilter';
 import { formatCurrencyFull, formatCurrencyAxis } from '@/utils/formatCurrency';
@@ -31,6 +31,11 @@ function CustomTooltip({ active, payload }: any) {
           Cumplimiento: {((totalVentas / entry.metaTotal) * 100).toFixed(1)}%
         </p>
       )}
+      {entry?.cumplimiento != null && (
+        <p className="text-amber-600 font-medium text-xs mt-1">
+          Cumpl. línea: {entry.cumplimiento.toFixed(1)}%
+        </p>
+      )}
       <hr className="my-1.5 border-border/50" />
       {TIPOS_VENTA.slice().reverse().map(t => {
         const val = entry?.[t.key] || 0;
@@ -59,6 +64,8 @@ export function HistoricoBarChart({ months, tipoFilter, onTipoFilterChange }: Pr
         ? (val / totalVentas) * m.meta
         : activeTipos.includes(t.key) ? m.meta / activeTipos.length : 0;
     });
+    // Compliance line: null when no meta to avoid 0% line
+    row.cumplimiento = m.meta > 0 ? m.cumplimiento : null;
     return row;
   });
 
@@ -82,6 +89,10 @@ export function HistoricoBarChart({ months, tipoFilter, onTipoFilterChange }: Pr
                 <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: 'hsl(142, 68%, 38%)' }} />
                 <span className="text-sm font-semibold">META</span>
               </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-1 rounded-full" style={{ backgroundColor: 'hsl(38, 92%, 50%)' }} />
+                <span className="text-sm font-semibold">CUMPL. %</span>
+              </div>
             </div>
             <TipoVentaFilter selected={tipoFilter} onChange={onTipoFilterChange} />
           </div>
@@ -91,20 +102,38 @@ export function HistoricoBarChart({ months, tipoFilter, onTipoFilterChange }: Pr
         <div className="flex">
           <div className="flex-1">
             <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={60} />
-                <YAxis tickFormatter={formatCurrencyAxis} tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left" tickFormatter={formatCurrencyAxis} tick={{ fontSize: 11 }} />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={(v: number) => `${v}%`}
+                  tick={{ fontSize: 11 }}
+                  domain={[0, (dataMax: number) => Math.max(120, Math.ceil(dataMax / 10) * 10 + 10)]}
+                />
                 <Tooltip content={<CustomTooltip />} />
                 {activeItems.map((t, i) => (
-                  <Bar key={t.key} dataKey={t.key} stackId="ventas" fill={t.ventaColor}
+                  <Bar key={t.key} yAxisId="left" dataKey={t.key} stackId="ventas" fill={t.ventaColor}
                     radius={i === activeItems.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} legendType="none" />
                 ))}
                 {activeItems.map((t, i) => (
-                  <Bar key={`meta_${t.key}`} dataKey={`meta_${t.key}`} stackId="metas" fill={t.metaColor}
+                  <Bar key={`meta_${t.key}`} yAxisId="left" dataKey={`meta_${t.key}`} stackId="metas" fill={t.metaColor}
                     radius={i === activeItems.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} legendType="none" />
                 ))}
-              </BarChart>
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="cumplimiento"
+                  stroke="hsl(38, 92%, 50%)"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: 'hsl(38, 92%, 50%)' }}
+                  activeDot={{ r: 6 }}
+                  connectNulls
+                  legendType="none"
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
           <div className="flex flex-col justify-center gap-2 pl-3 min-w-[120px]">

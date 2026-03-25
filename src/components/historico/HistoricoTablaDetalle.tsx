@@ -42,6 +42,7 @@ export function HistoricoTablaDetalle({ months }: Props) {
     aliados: months.reduce((s, m) => s + (m.desglose['ALIADOS']?.valor || 0), 0),
     cantidad: months.reduce((s, m) => s + m.cantidad, 0),
     meta: months.reduce((s, m) => s + m.meta, 0),
+    asesores: Math.round(months.reduce((s, m) => s + m.asesoresUnicos, 0) / (months.length || 1)),
   };
   const totalCumplimiento = totals.meta > 0 ? (totals.ventaTotal / totals.meta) * 100 : 0;
 
@@ -63,6 +64,7 @@ export function HistoricoTablaDetalle({ months }: Props) {
               <TableHead className="text-right">FinanSueños</TableHead>
               <TableHead className="text-right">Aliados</TableHead>
               <TableHead className="text-right">Q</TableHead>
+              <TableHead className="text-right">Asesores</TableHead>
               <TableHead className="text-right">Meta</TableHead>
               <TableHead className="text-right">Cumpl. %</TableHead>
               <TableHead className="text-right">Var. %</TableHead>
@@ -77,6 +79,7 @@ export function HistoricoTablaDetalle({ months }: Props) {
                 <TableCell className="text-right text-muted-foreground">{formatCurrencyFull(m.desglose['FINANSUENOS']?.valor || 0)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">{formatCurrencyFull(m.desglose['ALIADOS']?.valor || 0)}</TableCell>
                 <TableCell className="text-right">{m.cantidad.toLocaleString('es-CO')}</TableCell>
+                <TableCell className="text-right text-muted-foreground">{m.asesoresUnicos.toLocaleString('es-CO')}</TableCell>
                 <TableCell className="text-right">{formatCurrencyFull(m.meta)}</TableCell>
                 <TableCell className="text-right"><CumplimientoCell value={m.cumplimiento} /></TableCell>
                 <TableCell className="text-right">
@@ -93,6 +96,7 @@ export function HistoricoTablaDetalle({ months }: Props) {
               <TableCell className="text-right">{formatCurrencyFull(totals.finansuenos)}</TableCell>
               <TableCell className="text-right">{formatCurrencyFull(totals.aliados)}</TableCell>
               <TableCell className="text-right">{totals.cantidad.toLocaleString('es-CO')}</TableCell>
+              <TableCell className="text-right text-muted-foreground">~{totals.asesores}</TableCell>
               <TableCell className="text-right">{formatCurrencyFull(totals.meta)}</TableCell>
               <TableCell className="text-right"><CumplimientoCell value={totalCumplimiento} /></TableCell>
               <TableCell />
