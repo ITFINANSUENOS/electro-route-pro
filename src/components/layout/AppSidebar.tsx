@@ -16,7 +16,7 @@ import {
   Menu,
   X,
   TrendingUp,
-  History,
+  ChartLine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
