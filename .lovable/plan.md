@@ -1,69 +1,86 @@
 
 
-# Plan: Incluir asesores inactivos en toda la reporteria financiera
+## Plan: Corregir datos del Historico + mejoras visuales
 
-## Problema
+### Causa raiz del error de datos
 
-Cuando un asesor es desactivado durante el mes, sus metas, ventas y devoluciones desaparecen de los totales porque las consultas de perfiles filtran con `activo = true`. Esto causa que el total de metas mostrado no coincida con lo cargado ($5.702.800.000), y que ventas/devoluciones de asesores que salieron de la compania se pierdan de los graficos y reportes.
+La query de ventas en `useHistoricoData.ts` usa `fetchAllPaginated` con `.range()` **sin `.order()`**. Sin orden estable, PostgreSQL puede retornar filas duplicadas entre paginas cuando pagina 62,488 registros (63 paginas de 1000). Esto causa que registros aparezcan en multiples paginas, inflando los totales (ej. Nov 2025 muestra ~$8B en vez de $5.1B).
 
-## Principio
+**El Dashboard NO tiene este problema** porque consulta un solo mes (~4-5K filas, 5 paginas) donde la probabilidad de duplicacion es menor.
 
-Separar logica **financiera** (metas, ventas, devoluciones, presupuestos) de logica **operativa** (conteo de asesores activos, login, programacion):
-- **Financiero**: incluir TODOS los asesores con metas/ventas en el periodo, activos e inactivos
-- **Operativo**: seguir usando `activo = true` solo para conteos de personal activo
+### Cambios
 
-## Cambios planificados
+#### 1. Fix critico: Agregar `.order('id')` a queries paginadas
+**Archivo: `src/hooks/useHistoricoData.ts`**
+- En la query de ventas (linea 121-127): agregar `.order('id')` antes de `.range()`
+- En la query de metas (linea 146-151): agregar `.order('id')` antes de `.range()`
+- Esto garantiza ordenamiento estable y elimina duplicacion entre paginas
 
-### 1. `src/hooks/useRegionalesData.ts` (linea 97)
-- Quitar `.eq('activo', true)` del query de perfiles para mapeo `codigo_asesor -> regional_id`
-- Agregar `activo` al select: `'codigo_asesor, regional_id, activo'`
-- Resultado: metas y ventas de asesores inactivos se atribuyen correctamente a su regional
+#### 2. Toggle "Modo comparable" (sin FNZ complements)
+- Agregar estado `comparableMode` (boolean toggle) en `Historico.tsx`
+- Cuando activo: agregar `.neq('mcn_clase', '.')` a la query de ventas
+- Cuando inactivo: mostrar valores identicos al Dashboard (incluye FNZ)
+- Default: desactivado (igual a Dashboard)
+- Pasar como parametro al hook
 
-### 2. `src/components/dashboard/DashboardLider.tsx` (linea 710)
-- Cambiar `if (!p.activo || !p.codigo_asesor) return;` por `if (!p.codigo_asesor) return;` para incluir codigos de asesores inactivos en el scope de metas
-- Mantener `activo = true` en linea 739 para el conteo de `totalActiveAdvisors` (esto es operativo)
-- Agregar campo `activo` a la estructura de `byAdvisor` para que el ranking pueda mostrar el estado visual
-- Los mapas `tipoAsesorMap` y `regionalMap` (linea 536) ya incluyen todos los perfiles sin filtro de activo, lo cual es correcto
+#### 3. Cambiar icono
+- `AppSidebar.tsx` y `Historico.tsx`: reemplazar `History` por `ChartLine` de lucide-react
 
-### 3. `src/components/dashboard/DashboardJefe.tsx` (linea 134)
-- Quitar `.eq('activo', true)` del query de perfiles del equipo
-- Agregar `activo` al select: `'codigo_asesor, nombre_completo, tipo_asesor, cedula, activo'`
-- Asesores inactivos del equipo aparecen en el ranking con sus ventas, devoluciones y metas
+#### 4. Agregar linea de cumplimiento % al grafico de barras
+**Archivo: `src/components/historico/HistoricoBarChart.tsx`**
+- Importar `ComposedChart`, `Line`, segundo `YAxis` de recharts (reemplazar `BarChart` por `ComposedChart`)
+- Agregar eje Y derecho con escala porcentual
+- Agregar `Line` con `dataKey="cumplimiento"` en color naranja/dorado
+- Usar `null` para meses donde `meta === 0` para que la linea no caiga a 0% (solo conectar meses con presupuesto)
+- Actualizar tooltip para incluir el %
 
-### 4. `src/hooks/useComparativeData.ts` (linea 183)
-- Quitar `.eq('activo', true)` del query de perfiles
-- Agregar `activo` al select
-- Datos comparativos incluyen ventas/devoluciones de asesores inactivos en el breakdown por tipo
+#### 5. Toggle Meta Comercial / Nacional
+**Archivo: `src/pages/Historico.tsx`**
+- Importar y renderizar `MetaTypeToggle` en el header
+- Estado `metaType: 'comercial' | 'nacional'`
+- Pasar al hook para filtrar metas por `tipo_meta_categoria`
 
-### 5. `src/components/dashboard/RankingTable.tsx`
-- Agregar campo `activo?: boolean` a la interfaz `RankingAdvisor` (linea 32)
-- En la celda del nombre: si `activo === false`, aplicar estilo gris (`text-muted-foreground opacity-60`) y mostrar un badge pequeno "Inactivo" al lado del nombre
-- El asesor sigue visible con todos sus datos (ventas, devoluciones, meta, cumplimiento)
+**Archivo: `src/hooks/useHistoricoData.ts`**
+- Recibir `metaType` como parametro
+- Aplicar `.eq('tipo_meta_categoria', metaType)` en la query de metas
 
-### 6. `src/components/informacion/MetasTab.tsx`
-- Agregar `activo` al select del query de profiles (linea 118): `'codigo_asesor, nombre_completo, tipo_asesor, regional_id, activo'`
-- Agregar `activo` a la interfaz `ProfileWithRegional`
-- En la tabla de metas por asesor, mostrar indicador "Inactivo" en gris para asesores desactivados
+#### 6. Crear componente de filtros avanzados
+**Nuevo archivo: `src/components/historico/HistoricoFilters.tsx`**
+- Filtro de regional (multi-select, solo admin/coordinador)
+- Filtro de jefe de ventas (select, visible para lider_zona+)
+- Filtro de asesor (multi-select, visible para jefe_ventas+)
+- Selector de rango de meses (mes/anio inicio y fin)
+- Pasar todos los filtros al hook
 
-### 7. `src/components/regionales/RegionalesRankingTable.tsx`
-- Sin cambios necesarios: esta tabla muestra datos agregados por regional, no por asesor individual. El fix en `useRegionalesData.ts` (#1) es suficiente para que los totales incluyan asesores inactivos.
+**Archivo: `src/hooks/useHistoricoData.ts`**
+- Recibir filtros adicionales: `codigoJefe`, `codigosAsesor`, `monthRange`
+- Aplicar filtros en query y/o procesamiento
 
-## Flujo de datos despues del fix
+#### 7. Agregar columna "Asesores" a tabla detalle
+**Archivo: `src/hooks/useHistoricoData.ts`**
+- Agregar `asesoresUnicos: number` a `MonthData` contando `codigo_asesor` distintos por mes
 
-```text
-CSV Metas (126 asesores, $5.702.800.000)
-  → tabla metas (126 registros) ✓ ya funciona
-  → query perfiles SIN filtro activo
-  → mapeo codigo_asesor → regional_id COMPLETO
-  → Totales Dashboard/Regionales = $5.702.800.000 ✓
+**Archivo: `src/components/historico/HistoricoTablaDetalle.tsx`**
+- Agregar columna "Asesores" mostrando el conteo
 
-Ventas/Devoluciones de asesores inactivos
-  → query ventas (no filtra por activo) ✓ ya funciona
-  → mapeo a tipo_asesor/regional via perfiles SIN filtro activo
-  → Aparecen en graficos y tablas con badge "Inactivo"
-```
+#### 8. Mejorar performance
+- Agregar `staleTime: 5 * 60 * 1000` y `retry: 2` a las queries del hook
+- Agregar `keepPreviousData: true` para transiciones suaves al cambiar filtros
 
-## Sin cambios en base de datos
+### Valores esperados post-fix (Noviembre 2025)
 
-No se requieren migraciones. Es puramente un ajuste en la capa de consultas y visualizacion del frontend.
+| Modo | Valor |
+|------|-------|
+| Normal (como Dashboard) | $5.106.670.397 |
+| Comparable (sin FNZ) | $4.547.563.197 |
+
+### Archivos a modificar
+- `src/hooks/useHistoricoData.ts` - fix paginacion, metaType, filtros, asesoresUnicos
+- `src/pages/Historico.tsx` - icono, toggle meta, toggle comparable, filtros
+- `src/components/historico/HistoricoBarChart.tsx` - linea cumplimiento %
+- `src/components/historico/HistoricoTablaDetalle.tsx` - columna asesores
+- `src/components/layout/AppSidebar.tsx` - icono ChartLine
+
+### Archivo a crear
+- `src/components/historico/HistoricoFilters.tsx`
 
