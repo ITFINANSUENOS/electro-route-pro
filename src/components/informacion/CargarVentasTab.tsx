@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSalesPeriod, getMonthName, isGracePeriod } from '@/hooks/useSalesPeriod';
 import MonthCloseDialog from './MonthCloseDialog';
+import NewAdvisorsDetectedDialog from '@/components/usuarios/NewAdvisorsDetectedDialog';
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
