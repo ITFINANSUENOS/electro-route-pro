@@ -1052,6 +1052,48 @@ export default function Usuarios() {
         onUserUpdated={fetchUsers}
         limitedEdit={isLeaderOrCoordinator}
       />
+
+      {/* Pending Advisors Intercept Dialog */}
+      <Dialog open={pendingInterceptOpen} onOpenChange={setPendingInterceptOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold">
+                {pendingCount}
+              </span>
+              Asesores pendientes por crear
+            </DialogTitle>
+            <DialogDescription>
+              Existen {pendingCount} asesor(es) detectados en informes de ventas que aún no han sido registrados en el sistema. ¿Desea completar la creación?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => {
+              setPendingInterceptOpen(false);
+              resetForm();
+              setDialogOpen(true);
+            }}>
+              Continuar Después
+            </Button>
+            <Button onClick={() => {
+              setPendingInterceptOpen(false);
+              setWizardOpen(true);
+            }} className="bg-orange-600 hover:bg-orange-700 text-white">
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Advisors Wizard */}
+      <PendingAdvisorsWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onComplete={() => {
+          fetchUsers();
+          refetchPending();
+        }}
+      />
     </div>
   );
 }
