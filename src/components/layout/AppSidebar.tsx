@@ -26,6 +26,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useActivityNotification } from '@/hooks/useActivityNotification';
+import { usePendingAdvisors } from '@/hooks/usePendingAdvisors';
 
 interface NavItem {
   id: string;
