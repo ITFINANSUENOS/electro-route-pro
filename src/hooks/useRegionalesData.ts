@@ -181,7 +181,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     }
     const { currentPrevData, prevYearData } = salesData;
 
-    // Build lookup: codigo_asesor -> regional_id
+    // Build lookup: codigo_asesor -> regional_id (for metas mapping)
     const asesorToRegional = new Map<string, string>();
     profiles.forEach(p => {
       if (p.codigo_asesor && p.regional_id) {
@@ -189,7 +189,13 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       }
     });
 
-    // Aggregate sales by regional
+    // Build lookup: cod_region (number) -> regional id (uuid)
+    const codRegionToId = new Map<number, string>();
+    regionales.forEach(r => {
+      codRegionToId.set(r.codigo, r.id);
+    });
+
+    // Aggregate sales by regional using cod_region directly from ventas
     const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; prevYear: number; prevYearCount: number; desglose: Record<string, { valor: number; cantidad: number }>; prevDesglose: Record<string, { valor: number; cantidad: number }>; prevYearDesglose: Record<string, { valor: number; cantidad: number }> }>();
     
     regionales.forEach(r => {
@@ -197,7 +203,8 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     });
 
     currentPrevData.forEach(sale => {
-      const regionalId = asesorToRegional.get(sale.codigo_asesor);
+      // Use cod_region directly from ventas table for accurate regional mapping
+      const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
       const entry = regionalSales.get(regionalId);
       if (!entry) return;
@@ -223,9 +230,9 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       }
     });
 
-    // Aggregate prev year sales
+    // Aggregate prev year sales using cod_region
     prevYearData.forEach(sale => {
-      const regionalId = asesorToRegional.get(sale.codigo_asesor);
+      const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
       const entry = regionalSales.get(regionalId);
       if (!entry) return;
