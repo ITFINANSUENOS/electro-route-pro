@@ -1,126 +1,76 @@
 
 
-## Plan: Proceso de Creación de Asesores Pendientes
+## Plan: Excel de pendientes + mejor análisis regional + email opcional
 
-### Resumen
+### Problema actual
+1. No hay forma de descargar Excel de asesores pendientes
+2. La detección solo captura `cod_region` del CSV, pero hay asesores con `cod_region = NULL` cuando el CSV tiene datos en columnas `sede`, `regional` (nombre), `zona`
+3. Email y contraseña son obligatorios en `create-user` edge function y en el wizard, pero no siempre se tienen estos datos
 
-Proceso automatizado que detecta asesores en informes de ventas sin perfil en el sistema, los registra como pendientes y permite crearlos desde el tab Usuarios con un wizard por fichas.
-
-### Datos extraidos del CSV (automaticos)
-- `codigo_asesor` - del CSV
-- `cedula` (cedula_asesor) - del CSV  
-- `nombre_completo` (asesor_nombre) - del CSV
-- `cod_region` - del CSV (se mapea a regional_id)
-- `num_ventas` - conteo calculado
-
-### Datos que se dejan vacios (diligenciar manual)
-- `codigo_jefe` - CSV no es confiable
-- `tipo_asesor` - INTERNO/EXTERNO/CORRETAJE manual
-- `email` - manual
-- `password` - manual
-- `telefono` - manual
+### Cambios por fases
 
 ---
 
-## FASE 1: Base de datos y deteccion (backend)
+### FASE 1: Mejor análisis de datos del CSV en detección
 
-**Objetivo**: Crear tabla `asesores_pendientes` y logica de deteccion post-carga.
+**Archivo: `src/components/informacion/CargarVentasTab.tsx`**
+- En `detectNewAdvisors`, ampliar el select para traer también `sede`, `regional`, `zona`, `codigo_jefe`, `jefe_ventas`
+- Al agrupar por `codigo_asesor`, guardar el valor más frecuente (moda) de `sede`, `regional`, `zona`
+- Si `cod_region` es null pero `regional` (nombre texto) existe, buscar en tabla `regionales` por nombre para mapear
+- Guardar `sede` en el insert a `asesores_pendientes`
 
-### 1.1 Migracion SQL
-- Crear tabla `asesores_pendientes` con columnas: id, codigo_asesor (unique), cedula, nombre_completo, cod_region, regional_id, num_ventas, mes_deteccion, anio_deteccion, estado ('pendiente'|'creado'|'descartado'), email, telefono, tipo_asesor, codigo_jefe, password_temp, resuelto_por, resuelto_at, created_at
-- RLS: solo admin, coordinador, lider pueden SELECT/INSERT/UPDATE
-- Poblar con asesores existentes en ventas sin perfil (>3 ventas, cedula valida)
+**Migración SQL**: Agregar columna `sede` a tabla `asesores_pendientes`
 
-### 1.2 Hook `usePendingAdvisors.ts`
-- Query a `asesores_pendientes` donde estado='pendiente'
-- Retorna: `pendingList`, `pendingCount`, `refetch`
-- `markAsCreated(codigoAsesor, resolvedBy)` - actualiza estado
-- `markAsDiscarded(codigoAsesor, resolvedBy)` - descarta
-
-### 1.3 Deteccion post-carga en `CargarVentasTab.tsx`
-- Despues de `processUploadViaEdgeFunction` exitoso:
-  - Query ventas del periodo cargado agrupando por codigo_asesor
-  - LEFT JOIN contra profiles y asesores_pendientes
-  - Los que tengan >3 ventas, no esten en profiles ni en pendientes → INSERT en asesores_pendientes
-  - Si se insertaron nuevos, mostrar `NewAdvisorsDetectedDialog`
+**Archivo: `src/hooks/usePendingAdvisors.ts`**: Agregar `sede` al tipo `PendingAdvisor`
 
 ---
 
-## FASE 2: Dialogs y alertas (UI notificaciones)
+### FASE 2: Botón de descarga Excel en el wizard
 
-**Objetivo**: Notificar al usuario sobre asesores pendientes.
-
-### 2.1 `NewAdvisorsDetectedDialog.tsx`
-- Se muestra post-carga cuando hay nuevos asesores detectados
-- Mensaje: "Se detectaron X asesores nuevos sin registro en el sistema"
-- Lista resumida: nombre, cedula, codigo, ventas del mes
-- Botones: "Crear Ahora" (navega a Usuarios) | "Continuar Después"
-
-### 2.2 Badge en `AppSidebar.tsx`
-- Badge naranja en item "Usuarios" cuando `pendingCount > 0`
-- Usa `usePendingAdvisors` para obtener conteo
-
-### 2.3 Interceptacion en `Usuarios.tsx`
-- Badge naranja en boton "+ Nuevo Usuario" si hay pendientes
-- Al click con pendientes: dialog "Existen X asesores pendientes. ¿Desea completar la creación?"
-  - "Continuar" → abre wizard
-  - "Continuar Después" → abre formulario normal de nuevo usuario
+**Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
+- Agregar botón de descarga Excel al lado del badge "X / Y" en el header del wizard
+- El Excel incluirá columnas: Código Asesor, Cédula, Nombre, Regional, Sede, Cod Región, Ventas Detectadas, Estado
+- Usar ExcelJS (ya importado en el proyecto) para generar el archivo
+- Formato con headers estilizados, colores de marca
 
 ---
 
-## FASE 3: Wizard de creacion por fichas
+### FASE 3: Email y teléfono opcionales en toda la lógica
 
-**Objetivo**: Componente carousel para crear asesores pendientes uno a uno.
+**Archivo: `supabase/functions/create-user/index.ts`**
+- Hacer `email` opcional: si no se proporciona, generar un email placeholder usando la cédula (ej. `cedula@placeholder.internal`)
+- Esto permite crear el auth user sin email real
+- Mantener validación de email solo si se proporciona uno real
 
-### 3.1 `PendingAdvisorsWizard.tsx`
-- Header: "Asesor 2/4 pendientes" con navegacion izq/der
-- Ficha con:
-  - **Readonly** (del CSV): nombre, cedula, codigo_asesor, regional (mapeada de cod_region)
-  - **Editables** (obligatorios): email, password, tipo_asesor
-  - **Editables** (opcionales): telefono, codigo_jefe (select de jefes filtrado por regional)
-- Boton "Guardar y Crear" → llama `create-user` edge function, luego actualiza profile con codigo_asesor/regional_id/codigo_jefe, marca como 'creado' en asesores_pendientes
-- Boton "Saltar" → pasa al siguiente sin crear
-- Boton "Descartar" → marca como descartado (con confirmacion)
-- Al crear: el contador se actualiza y se remueve de la lista
+**Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
+- Quitar `*` de Email, hacerlo opcional
+- Actualizar `canSave`: solo requerir `password` y `tipo_asesor`
+- Si no hay email, enviar cedula como identificador al edge function
 
-### 3.2 Cruce automatico en creacion manual
-- En `handleSubmit` de Usuarios.tsx: si la cedula del nuevo usuario coincide con un pendiente, marcarlo como 'creado' automaticamente
+**Archivo: `src/pages/Usuarios.tsx`**
+- En el formulario de creación manual: quitar `required` de email
+- Actualizar `handleSubmit` para permitir email vacío
 
 ---
 
-## FASE 4: Pruebas y ajustes
+### FASE 4: Mostrar sede/regional en ficha del wizard
 
-**Objetivo**: Verificar flujo completo end-to-end.
-
-### 4.1 Pruebas
-- Verificar que la poblacion inicial detecta los ~30 asesores existentes
-- Cargar un CSV y verificar que detecta nuevos asesores
-- Crear un asesor desde el wizard y verificar perfil completo (profile + role + user)
-- Verificar que el badge desaparece cuando no hay pendientes
-- Verificar cruce automatico al crear manualmente un usuario que coincida
-- Verificar que "Descartar" funciona y no reaparece el asesor
-- Verificar que al cargar otro CSV del mismo mes no duplica pendientes (UNIQUE en codigo_asesor)
+**Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
+- En la sección readonly, mostrar también la columna `sede` del CSV
+- Si `regional_id` es null pero hay `sede` o `cod_region`, mostrar los datos disponibles para que el admin pueda identificar manualmente
 
 ---
 
-### Resumen de fases
+### Resumen de archivos
 
-| Fase | Alcance | Archivos |
-|------|---------|----------|
-| **1** | BD + hook + deteccion | Migracion SQL, `usePendingAdvisors.ts`, `CargarVentasTab.tsx` |
-| **2** | Dialogs + badges | `NewAdvisorsDetectedDialog.tsx`, `AppSidebar.tsx`, `Usuarios.tsx` |
-| **3** | Wizard carousel | `PendingAdvisorsWizard.tsx`, `Usuarios.tsx`, `create-user` (sin cambios) |
-| **4** | Testing E2E | Verificacion de todo el flujo |
+| Archivo | Cambio |
+|---------|--------|
+| Migración SQL | Agregar columna `sede` a `asesores_pendientes` |
+| `src/components/informacion/CargarVentasTab.tsx` | Capturar `sede`, `regional`, `zona` en detección |
+| `src/hooks/usePendingAdvisors.ts` | Agregar `sede` al tipo |
+| `src/components/usuarios/PendingAdvisorsWizard.tsx` | Botón Excel, email opcional, mostrar sede |
+| `supabase/functions/create-user/index.ts` | Email opcional con placeholder |
+| `src/pages/Usuarios.tsx` | Email opcional en formulario manual |
 
 **Total: 4 fases**
-
-### Archivos a crear
-- `src/hooks/usePendingAdvisors.ts`
-- `src/components/usuarios/NewAdvisorsDetectedDialog.tsx`
-- `src/components/usuarios/PendingAdvisorsWizard.tsx`
-
-### Archivos a modificar
-- `src/components/informacion/CargarVentasTab.tsx` - deteccion post-carga
-- `src/pages/Usuarios.tsx` - badge, interceptacion, cruce automatico
-- `src/components/layout/AppSidebar.tsx` - badge naranja
 
