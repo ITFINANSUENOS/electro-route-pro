@@ -31,8 +31,8 @@ export interface RegionalHistorico {
   variacionAnioValor: number;
 }
 
-async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any): Promise<any[]> {
-  const pageSize = 1000;
+async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any, customPageSize = 5000): Promise<any[]> {
+  const pageSize = customPageSize;
   let all: any[] = [];
   let page = 0;
   let hasMore = true;
@@ -51,7 +51,7 @@ async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) =>
       break;
     }
     if (data && data.length > 0) {
-      all = [...all, ...data];
+      all = all.concat(data);
       hasMore = data.length === pageSize;
       page++;
     } else {
@@ -107,24 +107,26 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     retry: 2,
     queryFn: async () => {
       try {
-        // Fetch both ranges IN PARALLEL
+        // Fetch both ranges IN PARALLEL - use cod_region for direct regional mapping
         const [currentPrevData, prevYearData] = await Promise.all([
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
               .gte('fecha', prevStart)
               .lte('fecha', currentEnd)
               .neq('tipo_venta', 'OTROS')
+              .order('id', { ascending: true })
               .range(page * pageSize, (page + 1) * pageSize - 1)
           ),
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
               .gte('fecha', prevYearStart)
               .lte('fecha', prevYearEnd)
               .neq('tipo_venta', 'OTROS')
+              .order('id', { ascending: true })
               .range(page * pageSize, (page + 1) * pageSize - 1)
           ),
         ]);
@@ -179,7 +181,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     }
     const { currentPrevData, prevYearData } = salesData;
 
-    // Build lookup: codigo_asesor -> regional_id
+    // Build lookup: codigo_asesor -> regional_id (for metas mapping)
     const asesorToRegional = new Map<string, string>();
     profiles.forEach(p => {
       if (p.codigo_asesor && p.regional_id) {
@@ -187,7 +189,13 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       }
     });
 
-    // Aggregate sales by regional
+    // Build lookup: cod_region (number) -> regional id (uuid)
+    const codRegionToId = new Map<number, string>();
+    regionales.forEach(r => {
+      codRegionToId.set(r.codigo, r.id);
+    });
+
+    // Aggregate sales by regional using cod_region directly from ventas
     const regionalSales = new Map<string, { current: number; currentCount: number; previous: number; previousCount: number; prevYear: number; prevYearCount: number; desglose: Record<string, { valor: number; cantidad: number }>; prevDesglose: Record<string, { valor: number; cantidad: number }>; prevYearDesglose: Record<string, { valor: number; cantidad: number }> }>();
     
     regionales.forEach(r => {
@@ -195,7 +203,8 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     });
 
     currentPrevData.forEach(sale => {
-      const regionalId = asesorToRegional.get(sale.codigo_asesor);
+      // Use cod_region directly from ventas table for accurate regional mapping
+      const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
       const entry = regionalSales.get(regionalId);
       if (!entry) return;
@@ -221,9 +230,9 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       }
     });
 
-    // Aggregate prev year sales
+    // Aggregate prev year sales using cod_region
     prevYearData.forEach(sale => {
-      const regionalId = asesorToRegional.get(sale.codigo_asesor);
+      const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
       const entry = regionalSales.get(regionalId);
       if (!entry) return;
