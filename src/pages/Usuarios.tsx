@@ -226,6 +226,14 @@ export default function Usuarios() {
     fetchRegionales();
   }, []);
 
+  // Auto-open wizard if navigated with ?pendientes=true
+  useEffect(() => {
+    if (searchParams.get('pendientes') === 'true' && pendingCount > 0) {
+      setWizardOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, pendingCount]);
+
   const resetForm = () => {
     setFormData({
       email: '',
