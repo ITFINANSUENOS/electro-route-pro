@@ -136,6 +136,7 @@ function SidebarContent({
   signOut: () => void;
   onNavClick?: () => void;
   showActivityNotification?: boolean;
+  pendingAdvisorsCount?: number;
 }) {
   return (
     <div className="flex flex-col h-full">
