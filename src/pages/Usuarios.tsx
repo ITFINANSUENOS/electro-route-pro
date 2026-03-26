@@ -254,7 +254,7 @@ export default function Usuarios() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.email || !formData.password || !formData.cedula || !formData.nombre_completo || !formData.role) {
+    if (!formData.password || !formData.cedula || !formData.nombre_completo || !formData.role) {
       toast.error('Complete todos los campos requeridos');
       return;
     }
@@ -269,7 +269,7 @@ export default function Usuarios() {
 
       const response = await dataService.functions.invoke<{ error?: string; user?: { id: string } }>('create-user', {
         body: {
-          email: formData.email,
+          email: formData.email || undefined,
           password: formData.password,
           cedula: formData.cedula,
           nombre_completo: formData.nombre_completo,

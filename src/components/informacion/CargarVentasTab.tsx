@@ -510,10 +510,10 @@ export default function CargarVentasTab() {
     const lastDay = new Date(year, month, 0).getDate();
     const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    // Get all advisors from this period's sales grouped by codigo_asesor
+    // Get all advisors from this period's sales with extended fields
     const { data: salesAdvisors, error: salesErr } = await (dataService
       .from('ventas' as any)
-      .select('codigo_asesor, cedula_asesor, asesor_nombre, cod_region')
+      .select('codigo_asesor, cedula_asesor, asesor_nombre, cod_region, sede, regional, zona')
       .gte('fecha', monthStart)
       .lte('fecha', monthEnd)
       .not('codigo_asesor', 'is', null)
@@ -522,17 +522,25 @@ export default function CargarVentasTab() {
 
     if (salesErr || !salesAdvisors) return;
 
-    // Group by codigo_asesor and count
-    const grouped = new Map<string, { cedula: string; nombre: string; cod_region: number | null; count: number }>();
+    // Group by codigo_asesor and count, capturing mode of sede/regional/zona
+    const grouped = new Map<string, { cedula: string; nombre: string; cod_region: number | null; sede: string | null; regional_name: string | null; zona: string | null; count: number }>();
     for (const sale of salesAdvisors) {
       const existing = grouped.get(sale.codigo_asesor);
       if (existing) {
         existing.count++;
+        // Keep non-null values (last wins for simplicity)
+        if (sale.sede) existing.sede = sale.sede;
+        if (sale.regional) existing.regional_name = sale.regional;
+        if (sale.zona) existing.zona = sale.zona;
+        if (sale.cod_region) existing.cod_region = sale.cod_region;
       } else {
         grouped.set(sale.codigo_asesor, {
           cedula: sale.cedula_asesor || '',
           nombre: sale.asesor_nombre || '',
           cod_region: sale.cod_region,
+          sede: sale.sede || null,
+          regional_name: sale.regional || null,
+          zona: sale.zona || null,
           count: 1,
         });
       }
@@ -567,23 +575,40 @@ export default function CargarVentasTab() {
 
     if (newAdvisors.length === 0) return;
 
-    // Fetch regionales for mapping
-    const { data: regionalesData } = await (dataService.from('regionales').select('id, codigo').eq('activo', true) as any);
+    // Fetch regionales for mapping (by code and by name)
+    const { data: regionalesData } = await (dataService.from('regionales').select('id, codigo, nombre').eq('activo', true) as any);
     const codToRegionalId = new Map<number, string>();
-    (regionalesData || []).forEach((r: any) => codToRegionalId.set(r.codigo, r.id));
+    const nameToRegionalId = new Map<string, string>();
+    (regionalesData || []).forEach((r: any) => {
+      codToRegionalId.set(r.codigo, r.id);
+      nameToRegionalId.set(r.nombre.toUpperCase().trim(), r.id);
+    });
 
     // Insert into asesores_pendientes
-    const inserts = newAdvisors.map(a => ({
-      codigo_asesor: a.codigo_asesor,
-      cedula: a.cedula || null,
-      nombre_completo: a.nombre || null,
-      cod_region: a.cod_region,
-      regional_id: a.cod_region ? codToRegionalId.get(a.cod_region) || null : null,
-      num_ventas: a.count,
-      mes_deteccion: month,
-      anio_deteccion: year,
-      estado: 'pendiente',
-    }));
+    const inserts = newAdvisors.map(a => {
+      // Try to resolve regional_id: first by cod_region, then by regional name text
+      let resolvedRegionalId = a.cod_region ? codToRegionalId.get(a.cod_region) || null : null;
+      if (!resolvedRegionalId && a.regional_name) {
+        resolvedRegionalId = nameToRegionalId.get(a.regional_name.toUpperCase().trim()) || null;
+      }
+      if (!resolvedRegionalId && a.sede) {
+        // Try matching sede name against regionales
+        resolvedRegionalId = nameToRegionalId.get(a.sede.toUpperCase().trim()) || null;
+      }
+
+      return {
+        codigo_asesor: a.codigo_asesor,
+        cedula: a.cedula || null,
+        nombre_completo: a.nombre || null,
+        cod_region: a.cod_region,
+        regional_id: resolvedRegionalId,
+        sede: a.sede,
+        num_ventas: a.count,
+        mes_deteccion: month,
+        anio_deteccion: year,
+        estado: 'pendiente',
+      };
+    });
 
     await (dataService.from('asesores_pendientes' as any).insert(inserts) as any);
 

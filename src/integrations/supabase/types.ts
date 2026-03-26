@@ -31,6 +31,7 @@ export type Database = {
           regional_id: string | null
           resuelto_at: string | null
           resuelto_por: string | null
+          sede: string | null
           telefono: string | null
           tipo_asesor: string | null
         }
@@ -50,6 +51,7 @@ export type Database = {
           regional_id?: string | null
           resuelto_at?: string | null
           resuelto_por?: string | null
+          sede?: string | null
           telefono?: string | null
           tipo_asesor?: string | null
         }
@@ -69,6 +71,7 @@ export type Database = {
           regional_id?: string | null
           resuelto_at?: string | null
           resuelto_por?: string | null
+          sede?: string | null
           telefono?: string | null
           tipo_asesor?: string | null
         }

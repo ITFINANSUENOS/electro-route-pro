@@ -46,7 +46,7 @@ function sanitizeField(value: string | null | undefined, maxLength: number): str
 }
 
 interface CreateUserRequest {
-  email: string;
+  email?: string;
   password: string;
   cedula: string;
   nombre_completo: string;
@@ -109,16 +109,19 @@ serve(async (req) => {
     const body: CreateUserRequest = await req.json();
     const { email, password, cedula, nombre_completo, telefono, zona, role } = body;
 
-    // Validate required fields
-    if (!email || !password || !cedula || !nombre_completo || !role) {
+    // Validate required fields (email is now optional)
+    if (!password || !cedula || !nombre_completo || !role) {
       return new Response(
         JSON.stringify({ error: GENERIC_ERRORS.VALIDATION }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate email format
-    if (!validateEmail(email)) {
+    // Generate placeholder email if not provided
+    const effectiveEmail = email?.trim() || `${cedula.trim()}@placeholder.internal`;
+
+    // Validate email format only if a real email was provided
+    if (email?.trim() && !validateEmail(email)) {
       return new Response(
         JSON.stringify({ error: 'Formato de email inválido' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -134,9 +137,9 @@ serve(async (req) => {
     }
 
     // Validate password strength
-    if (password.length < 8) {
+    if (password.length < 6) {
       return new Response(
-        JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }),
+        JSON.stringify({ error: 'La contraseña debe tener al menos 6 caracteres' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -147,7 +150,7 @@ serve(async (req) => {
 
     // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email: email.trim().toLowerCase(),
+      email: effectiveEmail.trim().toLowerCase(),
       password,
       email_confirm: true,
       user_metadata: {
