@@ -181,6 +181,7 @@ function SidebarContent({
             const isActive = location.pathname === item.href;
             const Icon = item.icon;
             const showBadge = item.id === 'actividades' && showActivityNotification;
+            const showPendingBadge = item.id === 'usuarios' && (pendingAdvisorsCount || 0) > 0;
 
             return (
               <li key={item.href}>
@@ -198,6 +199,9 @@ function SidebarContent({
                     <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-secondary')} />
                     {showBadge && (
                       <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-destructive rounded-full animate-pulse" />
+                    )}
+                    {showPendingBadge && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
                     )}
                   </div>
                   <AnimatePresence>
