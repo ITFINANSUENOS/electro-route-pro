@@ -1058,6 +1058,12 @@ export default function CargarVentasTab() {
         </CardContent>
         </Card>
       </div>
+      {/* New Advisors Detected Dialog */}
+      <NewAdvisorsDetectedDialog
+        open={showNewAdvisorsDialog}
+        onOpenChange={setShowNewAdvisorsDialog}
+        advisors={detectedNewAdvisors}
+      />
     </>
   );
 }
