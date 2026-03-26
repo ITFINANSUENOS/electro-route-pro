@@ -13,6 +13,7 @@ export interface PendingAdvisor {
   anio_deteccion: number | null;
   estado: string;
   email: string | null;
+  sede: string | null;
   telefono: string | null;
   tipo_asesor: string | null;
   codigo_jefe: string | null;

@@ -1,0 +1,1 @@
+ALTER TABLE public.asesores_pendientes ADD COLUMN IF NOT EXISTS sede text;
