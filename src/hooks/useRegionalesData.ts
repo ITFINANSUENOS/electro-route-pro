@@ -31,8 +31,8 @@ export interface RegionalHistorico {
   variacionAnioValor: number;
 }
 
-async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any): Promise<any[]> {
-  const pageSize = 1000;
+async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any, customPageSize = 5000): Promise<any[]> {
+  const pageSize = customPageSize;
   let all: any[] = [];
   let page = 0;
   let hasMore = true;
@@ -51,7 +51,7 @@ async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) =>
       break;
     }
     if (data && data.length > 0) {
-      all = [...all, ...data];
+      all = all.concat(data);
       hasMore = data.length === pageSize;
       page++;
     } else {
@@ -107,24 +107,26 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     retry: 2,
     queryFn: async () => {
       try {
-        // Fetch both ranges IN PARALLEL
+        // Fetch both ranges IN PARALLEL - use cod_region for direct regional mapping
         const [currentPrevData, prevYearData] = await Promise.all([
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
               .gte('fecha', prevStart)
               .lte('fecha', currentEnd)
               .neq('tipo_venta', 'OTROS')
+              .order('id', { ascending: true })
               .range(page * pageSize, (page + 1) * pageSize - 1)
           ),
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
               .gte('fecha', prevYearStart)
               .lte('fecha', prevYearEnd)
               .neq('tipo_venta', 'OTROS')
+              .order('id', { ascending: true })
               .range(page * pageSize, (page + 1) * pageSize - 1)
           ),
         ]);
