@@ -126,6 +126,7 @@ function SidebarContent({
   signOut,
   onNavClick,
   showActivityNotification,
+  pendingAdvisorsCount,
 }: {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
