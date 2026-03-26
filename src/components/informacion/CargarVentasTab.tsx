@@ -556,13 +556,17 @@ export default function CargarVentasTab() {
       queryClient.invalidateQueries({ queryKey: ['sales-periods'] });
       queryClient.invalidateQueries({ queryKey: ['historic-period-status'] });
 
+      // Detect new advisors without profiles
+      try {
+        await detectNewAdvisors(uploadMonth, uploadYear);
+      } catch (e) {
+        console.error('Error detecting new advisors:', e);
+      }
+
       // During grace period and NOT historic mode: ask if this is the final report
       const now = new Date();
       const inGrace = isGracePeriod(now);
       if (inGrace && !historicMode && uploadMonth !== (now.getMonth() + 1)) {
-        // The upload was for the previous month during grace period - ask about closing
-        // We don't process via edge function again; the upload is already done
-        // Just show the close dialog
         setShowCloseDialog(true);
       }
 
