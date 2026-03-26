@@ -86,7 +86,8 @@ const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
 const REGIONALES_CON_JEFES = ['SANTANDER', 'POPAYAN', 'AMBIENTA', 'BORDO'];
 
 export default function Usuarios() {
-  const { role, profile } = useAuth();
+  const { role, profile, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [regionales, setRegionales] = useState<Regional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,10 @@ export default function Usuarios() {
   const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [pendingInterceptOpen, setPendingInterceptOpen] = useState(false);
+  
+  const { pendingCount, refetch: refetchPending } = usePendingAdvisors();
   
   // Check if user is admin (full access) or leader/coordinator (limited access)
   const isAdmin = role === 'administrador';
