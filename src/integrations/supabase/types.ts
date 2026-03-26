@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      asesores_pendientes: {
+        Row: {
+          anio_deteccion: number | null
+          cedula: string | null
+          cod_region: number | null
+          codigo_asesor: string
+          codigo_jefe: string | null
+          created_at: string
+          email: string | null
+          estado: string
+          id: string
+          mes_deteccion: number | null
+          nombre_completo: string | null
+          num_ventas: number | null
+          regional_id: string | null
+          resuelto_at: string | null
+          resuelto_por: string | null
+          telefono: string | null
+          tipo_asesor: string | null
+        }
+        Insert: {
+          anio_deteccion?: number | null
+          cedula?: string | null
+          cod_region?: number | null
+          codigo_asesor: string
+          codigo_jefe?: string | null
+          created_at?: string
+          email?: string | null
+          estado?: string
+          id?: string
+          mes_deteccion?: number | null
+          nombre_completo?: string | null
+          num_ventas?: number | null
+          regional_id?: string | null
+          resuelto_at?: string | null
+          resuelto_por?: string | null
+          telefono?: string | null
+          tipo_asesor?: string | null
+        }
+        Update: {
+          anio_deteccion?: number | null
+          cedula?: string | null
+          cod_region?: number | null
+          codigo_asesor?: string
+          codigo_jefe?: string | null
+          created_at?: string
+          email?: string | null
+          estado?: string
+          id?: string
+          mes_deteccion?: number | null
+          nombre_completo?: string | null
+          num_ventas?: number | null
+          regional_id?: string | null
+          resuelto_at?: string | null
+          resuelto_por?: string | null
+          telefono?: string | null
+          tipo_asesor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asesores_pendientes_regional_id_fkey"
+            columns: ["regional_id"]
+            isOneToOne: false
+            referencedRelation: "regionales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carga_archivos: {
         Row: {
           cargado_por: string | null

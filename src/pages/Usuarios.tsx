@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "react-router-dom";
 import { dataService } from "@/services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,8 @@ import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
+import { usePendingAdvisors } from "@/hooks/usePendingAdvisors";
+import PendingAdvisorsWizard from "@/components/usuarios/PendingAdvisorsWizard";
 
 interface UserWithRole {
   id: string;
@@ -83,7 +86,8 @@ const TIPOS_ASESOR = ['INTERNO', 'EXTERNO', 'CORRETAJE'];
 const REGIONALES_CON_JEFES = ['SANTANDER', 'POPAYAN', 'AMBIENTA', 'BORDO'];
 
 export default function Usuarios() {
-  const { role, profile } = useAuth();
+  const { role, profile, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [regionales, setRegionales] = useState<Regional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +95,10 @@ export default function Usuarios() {
   const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [pendingInterceptOpen, setPendingInterceptOpen] = useState(false);
+  
+  const { pendingCount, refetch: refetchPending } = usePendingAdvisors();
   
   // Check if user is admin (full access) or leader/coordinator (limited access)
   const isAdmin = role === 'administrador';
@@ -218,6 +226,14 @@ export default function Usuarios() {
     fetchRegionales();
   }, []);
 
+  // Auto-open wizard if navigated with ?pendientes=true
+  useEffect(() => {
+    if (searchParams.get('pendientes') === 'true' && pendingCount > 0) {
+      setWizardOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, pendingCount]);
+
   const resetForm = () => {
     setFormData({
       email: '',
@@ -299,6 +315,18 @@ export default function Usuarios() {
         if (updateError) {
           console.error('Error updating profile:', updateError);
         }
+      }
+
+      // Auto-resolve matching pending advisor by cedula
+      if (formData.cedula && user) {
+        try {
+          await (dataService
+            .from('asesores_pendientes' as any)
+            .update({ estado: 'creado', resuelto_por: user.id, resuelto_at: new Date().toISOString() })
+            .eq('cedula', formData.cedula)
+            .eq('estado', 'pendiente') as any);
+          refetchPending();
+        } catch { /* ignore */ }
       }
 
       toast.success('Usuario creado exitosamente');
@@ -560,9 +588,21 @@ export default function Usuarios() {
             </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" onClick={resetForm}>
+                <Button size="sm" onClick={(e) => {
+                  if (pendingCount > 0) {
+                    e.preventDefault();
+                    setPendingInterceptOpen(true);
+                  } else {
+                    resetForm();
+                  }
+                }} className="relative">
                   <Plus className="h-4 w-4 mr-1.5" />
                   Nuevo Usuario
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full bg-orange-500 text-white">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
@@ -1011,6 +1051,48 @@ export default function Usuarios() {
         regionales={regionales}
         onUserUpdated={fetchUsers}
         limitedEdit={isLeaderOrCoordinator}
+      />
+
+      {/* Pending Advisors Intercept Dialog */}
+      <Dialog open={pendingInterceptOpen} onOpenChange={setPendingInterceptOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold">
+                {pendingCount}
+              </span>
+              Asesores pendientes por crear
+            </DialogTitle>
+            <DialogDescription>
+              Existen {pendingCount} asesor(es) detectados en informes de ventas que aún no han sido registrados en el sistema. ¿Desea completar la creación?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => {
+              setPendingInterceptOpen(false);
+              resetForm();
+              setDialogOpen(true);
+            }}>
+              Continuar Después
+            </Button>
+            <Button onClick={() => {
+              setPendingInterceptOpen(false);
+              setWizardOpen(true);
+            }} className="bg-orange-600 hover:bg-orange-700 text-white">
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Advisors Wizard */}
+      <PendingAdvisorsWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onComplete={() => {
+          fetchUsers();
+          refetchPending();
+        }}
       />
     </div>
   );

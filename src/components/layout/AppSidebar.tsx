@@ -26,6 +26,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useActivityNotification } from '@/hooks/useActivityNotification';
+import { usePendingAdvisors } from '@/hooks/usePendingAdvisors';
 
 interface NavItem {
   id: string;
@@ -125,6 +126,7 @@ function SidebarContent({
   signOut,
   onNavClick,
   showActivityNotification,
+  pendingAdvisorsCount,
 }: {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
@@ -135,6 +137,7 @@ function SidebarContent({
   signOut: () => void;
   onNavClick?: () => void;
   showActivityNotification?: boolean;
+  pendingAdvisorsCount?: number;
 }) {
   return (
     <div className="flex flex-col h-full">
@@ -179,6 +182,7 @@ function SidebarContent({
             const isActive = location.pathname === item.href;
             const Icon = item.icon;
             const showBadge = item.id === 'actividades' && showActivityNotification;
+            const showPendingBadge = item.id === 'usuarios' && (pendingAdvisorsCount || 0) > 0;
 
             return (
               <li key={item.href}>
@@ -196,6 +200,9 @@ function SidebarContent({
                     <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'text-secondary')} />
                     {showBadge && (
                       <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-destructive rounded-full animate-pulse" />
+                    )}
+                    {showPendingBadge && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
                     )}
                   </div>
                   <AnimatePresence>
@@ -284,6 +291,7 @@ export function AppSidebar() {
   const { profile, role, signOut } = useAuth();
   const isMobile = useIsMobile();
   const { showNotification: showActivityNotification } = useActivityNotification();
+  const { pendingCount: pendingAdvisorsCount } = usePendingAdvisors();
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -342,6 +350,7 @@ export function AppSidebar() {
                 signOut={handleSignOut}
                 onNavClick={() => setMobileOpen(false)}
                 showActivityNotification={showActivityNotification}
+                pendingAdvisorsCount={pendingAdvisorsCount}
               />
             </SheetContent>
           </Sheet>
@@ -387,6 +396,7 @@ export function AppSidebar() {
         role={role}
         signOut={handleSignOut}
         showActivityNotification={showActivityNotification}
+        pendingAdvisorsCount={pendingAdvisorsCount}
       />
     </motion.aside>
   );
