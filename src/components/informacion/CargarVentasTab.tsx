@@ -120,6 +120,8 @@ export default function CargarVentasTab() {
   const [fewerRecordsInfo, setFewerRecordsInfo] = useState<{ previous: number; current: number } | null>(null);
   const [pendingUploadData, setPendingUploadData] = useState<{ csvContent: string; cargaId: string; effectiveMonth: number; effectiveYear: number } | null>(null);
   const [lastUploadEffectivePeriod, setLastUploadEffectivePeriod] = useState<{ month: number; year: number } | null>(null);
+  const [showNewAdvisorsDialog, setShowNewAdvisorsDialog] = useState(false);
+  const [detectedNewAdvisors, setDetectedNewAdvisors] = useState<{ codigo_asesor: string; cedula: string; nombre: string; num_ventas: number }[]>([]);
   
   // Historic mode state
   const [historicMode, setHistoricMode] = useState(false);
