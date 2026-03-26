@@ -588,9 +588,21 @@ export default function Usuarios() {
             </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" onClick={resetForm}>
+                <Button size="sm" onClick={(e) => {
+                  if (pendingCount > 0) {
+                    e.preventDefault();
+                    setPendingInterceptOpen(true);
+                  } else {
+                    resetForm();
+                  }
+                }} className="relative">
                   <Plus className="h-4 w-4 mr-1.5" />
                   Nuevo Usuario
+                  {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full bg-orange-500 text-white">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
