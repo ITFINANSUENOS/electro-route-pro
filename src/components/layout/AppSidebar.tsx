@@ -291,6 +291,7 @@ export function AppSidebar() {
   const { profile, role, signOut } = useAuth();
   const isMobile = useIsMobile();
   const { showNotification: showActivityNotification } = useActivityNotification();
+  const { pendingCount: pendingAdvisorsCount } = usePendingAdvisors();
 
   const handleSignOut = useCallback(async () => {
     await signOut();
@@ -349,6 +350,7 @@ export function AppSidebar() {
                 signOut={handleSignOut}
                 onNavClick={() => setMobileOpen(false)}
                 showActivityNotification={showActivityNotification}
+                pendingAdvisorsCount={pendingAdvisorsCount}
               />
             </SheetContent>
           </Sheet>
@@ -394,6 +396,7 @@ export function AppSidebar() {
         role={role}
         signOut={handleSignOut}
         showActivityNotification={showActivityNotification}
+        pendingAdvisorsCount={pendingAdvisorsCount}
       />
     </motion.aside>
   );
