@@ -317,6 +317,18 @@ export default function Usuarios() {
         }
       }
 
+      // Auto-resolve matching pending advisor by cedula
+      if (formData.cedula && user) {
+        try {
+          await (dataService
+            .from('asesores_pendientes' as any)
+            .update({ estado: 'creado', resuelto_por: user.id, resuelto_at: new Date().toISOString() })
+            .eq('cedula', formData.cedula)
+            .eq('estado', 'pendiente') as any);
+          refetchPending();
+        } catch { /* ignore */ }
+      }
+
       toast.success('Usuario creado exitosamente');
       setDialogOpen(false);
       resetForm();
