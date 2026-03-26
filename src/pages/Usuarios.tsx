@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "react-router-dom";
 import { dataService } from "@/services";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,8 @@ import { UserEditDialog } from "@/components/usuarios/UserEditDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
+import { usePendingAdvisors } from "@/hooks/usePendingAdvisors";
+import PendingAdvisorsWizard from "@/components/usuarios/PendingAdvisorsWizard";
 
 interface UserWithRole {
   id: string;
