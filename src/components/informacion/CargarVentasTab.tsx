@@ -504,6 +504,100 @@ export default function CargarVentasTab() {
     }
   };
 
+  /** Detect advisors in sales data that don't have a profile */
+  const detectNewAdvisors = async (month: number, year: number) => {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    // Get all advisors from this period's sales grouped by codigo_asesor
+    const { data: salesAdvisors, error: salesErr } = await (dataService
+      .from('ventas' as any)
+      .select('codigo_asesor, cedula_asesor, asesor_nombre, cod_region')
+      .gte('fecha', monthStart)
+      .lte('fecha', monthEnd)
+      .not('codigo_asesor', 'is', null)
+      .neq('codigo_asesor', '')
+      .neq('codigo_asesor', '00001') as any);
+
+    if (salesErr || !salesAdvisors) return;
+
+    // Group by codigo_asesor and count
+    const grouped = new Map<string, { cedula: string; nombre: string; cod_region: number | null; count: number }>();
+    for (const sale of salesAdvisors) {
+      const existing = grouped.get(sale.codigo_asesor);
+      if (existing) {
+        existing.count++;
+      } else {
+        grouped.set(sale.codigo_asesor, {
+          cedula: sale.cedula_asesor || '',
+          nombre: sale.asesor_nombre || '',
+          cod_region: sale.cod_region,
+          count: 1,
+        });
+      }
+    }
+
+    // Filter only those with >3 sales
+    const candidates = Array.from(grouped.entries())
+      .filter(([, v]) => v.count > 3)
+      .map(([codigo, v]) => ({ codigo_asesor: codigo, ...v }));
+
+    if (candidates.length === 0) return;
+
+    // Check which ones already have profiles
+    const codigosArr = candidates.map(c => c.codigo_asesor);
+    const { data: existingProfiles } = await (dataService
+      .from('profiles' as any)
+      .select('codigo_asesor')
+      .in('codigo_asesor', codigosArr) as any);
+
+    const profileCodigos = new Set((existingProfiles || []).map((p: any) => p.codigo_asesor));
+
+    // Check which ones are already in asesores_pendientes
+    const { data: existingPending } = await (dataService
+      .from('asesores_pendientes' as any)
+      .select('codigo_asesor')
+      .in('codigo_asesor', codigosArr) as any);
+
+    const pendingCodigos = new Set((existingPending || []).map((p: any) => p.codigo_asesor));
+
+    // New advisors = not in profiles AND not in pending
+    const newAdvisors = candidates.filter(c => !profileCodigos.has(c.codigo_asesor) && !pendingCodigos.has(c.codigo_asesor));
+
+    if (newAdvisors.length === 0) return;
+
+    // Fetch regionales for mapping
+    const { data: regionalesData } = await (dataService.from('regionales').select('id, codigo').eq('activo', true) as any);
+    const codToRegionalId = new Map<number, string>();
+    (regionalesData || []).forEach((r: any) => codToRegionalId.set(r.codigo, r.id));
+
+    // Insert into asesores_pendientes
+    const inserts = newAdvisors.map(a => ({
+      codigo_asesor: a.codigo_asesor,
+      cedula: a.cedula || null,
+      nombre_completo: a.nombre || null,
+      cod_region: a.cod_region,
+      regional_id: a.cod_region ? codToRegionalId.get(a.cod_region) || null : null,
+      num_ventas: a.count,
+      mes_deteccion: month,
+      anio_deteccion: year,
+      estado: 'pendiente',
+    }));
+
+    await (dataService.from('asesores_pendientes' as any).insert(inserts) as any);
+
+    // Show dialog
+    setDetectedNewAdvisors(newAdvisors.map(a => ({
+      codigo_asesor: a.codigo_asesor,
+      cedula: a.cedula,
+      nombre: a.nombre,
+      num_ventas: a.count,
+    })));
+    setShowNewAdvisorsDialog(true);
+    queryClient.invalidateQueries({ queryKey: ['asesores-pendientes'] });
+  };
+
   /** Process upload via edge function (uses service role for reliable delete) */
   const processUploadViaEdgeFunction = async (csvContent: string, cargaId: string, overrideMonth?: number, overrideYear?: number) => {
     const uploadMonth = overrideMonth ?? targetPeriod.month;
