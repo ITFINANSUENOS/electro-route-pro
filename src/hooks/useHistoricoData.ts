@@ -41,7 +41,7 @@ function normalizeTipo(raw: string | null): string {
   return raw;
 }
 
-async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any, customPageSize = 5000): Promise<any[]> {
+async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any, customPageSize = 1000): Promise<any[]> {
   const pageSize = customPageSize;
   let all: any[] = [];
   let page = 0;
