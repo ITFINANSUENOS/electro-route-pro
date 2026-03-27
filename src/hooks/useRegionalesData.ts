@@ -310,20 +310,27 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       regionalMetas.set(regionalId, (regionalMetas.get(regionalId) || 0) + m.valor_meta);
     });
 
-    // Build ranking
+    // Build ranking - use regionalValues for totals, regionalCounts for unique counts
     const ranking: RegionalData[] = regionales.map(r => {
-      const sales = regionalSales.get(r.id);
+      const vals = regionalValues.get(r.id);
+      const counts = regionalCounts.get(r.id);
       const meta = regionalMetas.get(r.id) || 0;
-      const ventaTotal = sales?.current || 0;
+      const ventaTotal = vals?.current || 0;
+      // Build desglose with valor from regionalValues and cantidad from regionalCounts
+      const desgloseKeys = new Set([...Object.keys(vals?.desglose || {}), ...Object.keys(counts?.desglose || {})]);
+      const desglose: Record<string, { valor: number; cantidad: number }> = {};
+      desgloseKeys.forEach(k => {
+        desglose[k] = { valor: vals?.desglose[k] || 0, cantidad: counts?.desglose[k] || 0 };
+      });
       return {
         id: r.id,
         nombre: r.nombre,
         codigo: r.codigo,
         ventaTotal,
-        cantidadVentas: sales?.currentCount || 0,
+        cantidadVentas: counts?.currentCount || 0,
         meta,
         cumplimiento: meta > 0 ? (ventaTotal / meta) * 100 : 0,
-        desglose: sales?.desglose || {},
+        desglose,
       };
     }).sort((a, b) => b.cumplimiento - a.cumplimiento);
 
@@ -339,13 +346,21 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
 
     // Build historico
     const historico: RegionalHistorico[] = regionales.map(r => {
-      const sales = regionalSales.get(r.id);
-      const curr = sales?.current || 0;
-      const prev = sales?.previous || 0;
-      const currCount = sales?.currentCount || 0;
-      const prevCount = sales?.previousCount || 0;
-      const prevYr = sales?.prevYear || 0;
-      const prevYrCount = sales?.prevYearCount || 0;
+      const vals = regionalValues.get(r.id);
+      const counts = regionalCounts.get(r.id);
+      const curr = vals?.current || 0;
+      const prev = vals?.previous || 0;
+      const currCount = counts?.currentCount || 0;
+      const prevCount = counts?.previousCount || 0;
+      const prevYr = vals?.prevYear || 0;
+      const prevYrCount = counts?.prevYearCount || 0;
+      // Build desgloses with valor + cantidad
+      const buildDesglose = (valMap: Record<string, number> | undefined, countMap: Record<string, number> | undefined) => {
+        const keys = new Set([...Object.keys(valMap || {}), ...Object.keys(countMap || {})]);
+        const result: Record<string, { valor: number; cantidad: number }> = {};
+        keys.forEach(k => { result[k] = { valor: valMap?.[k] || 0, cantidad: countMap?.[k] || 0 }; });
+        return result;
+      };
       return {
         id: r.id,
         nombre: r.nombre,
@@ -355,11 +370,11 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
         previousCount: prevCount,
         variacionValor: prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : curr > 0 ? 100 : 0,
         variacionCantidad: prevCount !== 0 ? ((currCount - prevCount) / prevCount) * 100 : currCount > 0 ? 100 : 0,
-        currentDesglose: sales?.desglose || {},
-        previousDesglose: sales?.prevDesglose || {},
+        currentDesglose: buildDesglose(vals?.desglose, counts?.desglose),
+        previousDesglose: buildDesglose(vals?.prevDesglose, counts?.prevDesglose),
         prevYearTotal: prevYr,
         prevYearCount: prevYrCount,
-        prevYearDesglose: sales?.prevYearDesglose || {},
+        prevYearDesglose: buildDesglose(vals?.prevYearDesglose, counts?.prevYearDesglose),
         variacionAnioValor: prevYr !== 0 ? ((curr - prevYr) / Math.abs(prevYr)) * 100 : curr > 0 ? 100 : 0,
       };
     }).sort((a, b) => b.currentTotal - a.currentTotal);
