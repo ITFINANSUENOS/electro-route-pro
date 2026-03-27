@@ -108,11 +108,11 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
     queryFn: async () => {
       try {
         // Fetch both ranges IN PARALLEL - use cod_region for direct regional mapping
-        const [currentPrevData, prevYearData] = await Promise.all([
+         const [currentPrevData, prevYearData] = await Promise.all([
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region, tipo_documento, numero_doc')
               .gte('fecha', prevStart)
               .lte('fecha', currentEnd)
               .neq('tipo_venta', 'OTROS')
@@ -122,7 +122,7 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
           fetchAllPaginated((page, pageSize) =>
             dataService
               .from('ventas')
-              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region')
+              .select('fecha, vtas_ant_i, codigo_asesor, tipo_venta, cod_region, tipo_documento, numero_doc')
               .gte('fecha', prevYearStart)
               .lte('fecha', prevYearEnd)
               .neq('tipo_venta', 'OTROS')
