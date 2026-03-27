@@ -218,88 +218,91 @@ export function useRegionalesData(selectedMonth: number, selectedYear: number, m
       return t === 'CONVENIO' ? 'ALIADOS' : (t === 'CREDITO' || t === 'CREDICONTADO') ? 'FINANSUENOS' : t;
     };
 
-    // Step 2: Accumulate raw values AND build document groups for current+prev month
-    const currentPrevDocGroups = new Map<string, { regionalId: string; tipo: string; period: 'current' | 'previous'; total: number }>();
-    
+    // Step 2: Build unique document groups for current+previous month
+    // Match Dashboard logic: group by tipo_documento + numero_doc + fecha, keep first tipo, count only if net > 0
+    const currentPrevDocGroups = new Map<string, { regionalId: string; period: 'current' | 'previous'; firstTipo: string; total: number }>();
+
     currentPrevData.forEach(sale => {
       const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
-      const vals = regionalValues.get(regionalId);
-      if (!vals) return;
 
-      const amount = sale.vtas_ant_i || 0;
-      const tipo = normTipo(sale.tipo_venta);
       const isCurrent = sale.fecha >= currentStart && sale.fecha <= currentEnd;
       const isPrev = sale.fecha >= prevStart && sale.fecha <= prevEnd;
       const period = isCurrent ? 'current' : isPrev ? 'previous' : null;
       if (!period) return;
 
-      // Raw value aggregation (always add for totals)
-      if (period === 'current') {
-        vals.current += amount;
-        vals.desglose[tipo] = (vals.desglose[tipo] || 0) + amount;
-      } else {
-        vals.previous += amount;
-        vals.prevDesglose[tipo] = (vals.prevDesglose[tipo] || 0) + amount;
-      }
+      const amount = sale.vtas_ant_i || 0;
+      const tipoDoc = (sale.tipo_documento || 'UNKNOWN').trim();
+      const numDoc = (sale.numero_doc || 'UNKNOWN').trim();
+      const docKey = `${regionalId}|${period}|${tipoDoc}|${numDoc}|${sale.fecha}`;
 
-      // Document grouping for unique count
-      const tipoDoc = (sale.tipo_documento || 'UNK').trim();
-      const numDoc = (sale.numero_doc || 'UNK').trim();
-      const docKey = `${regionalId}|${period}|${tipo}|${tipoDoc}|${numDoc}|${sale.fecha}`;
       const existing = currentPrevDocGroups.get(docKey);
       if (existing) {
         existing.total += amount;
       } else {
-        currentPrevDocGroups.set(docKey, { regionalId, tipo, period, total: amount });
+        currentPrevDocGroups.set(docKey, {
+          regionalId,
+          period,
+          firstTipo: normTipo(sale.tipo_venta),
+          total: amount,
+        });
       }
     });
 
-    // Count unique documents (only if net > 0)
-    currentPrevDocGroups.forEach(({ regionalId, tipo, period, total }) => {
+    // Apply grouped documents to values and counts (only net-positive unique sales)
+    currentPrevDocGroups.forEach(({ regionalId, period, firstTipo, total }) => {
       if (total <= 0) return;
+      const vals = regionalValues.get(regionalId);
       const counts = regionalCounts.get(regionalId);
-      if (!counts) return;
+      if (!vals || !counts) return;
+
       if (period === 'current') {
+        vals.current += total;
+        vals.desglose[firstTipo] = (vals.desglose[firstTipo] || 0) + total;
         counts.currentCount += 1;
-        counts.desglose[tipo] = (counts.desglose[tipo] || 0) + 1;
+        counts.desglose[firstTipo] = (counts.desglose[firstTipo] || 0) + 1;
       } else {
+        vals.previous += total;
+        vals.prevDesglose[firstTipo] = (vals.prevDesglose[firstTipo] || 0) + total;
         counts.previousCount += 1;
-        counts.prevDesglose[tipo] = (counts.prevDesglose[tipo] || 0) + 1;
+        counts.prevDesglose[firstTipo] = (counts.prevDesglose[firstTipo] || 0) + 1;
       }
     });
 
-    // Prev year: same pattern
-    const prevYearDocGroups = new Map<string, { regionalId: string; tipo: string; total: number }>();
-    
+    // Prev year: same dashboard grouping logic
+    const prevYearDocGroups = new Map<string, { regionalId: string; firstTipo: string; total: number }>();
+
     prevYearData.forEach(sale => {
       const regionalId = sale.cod_region ? codRegionToId.get(sale.cod_region) : null;
       if (!regionalId) return;
-      const vals = regionalValues.get(regionalId);
-      if (!vals) return;
-      const amount = sale.vtas_ant_i || 0;
-      const tipo = normTipo(sale.tipo_venta);
-      
-      vals.prevYear += amount;
-      vals.prevYearDesglose[tipo] = (vals.prevYearDesglose[tipo] || 0) + amount;
 
-      const tipoDoc = (sale.tipo_documento || 'UNK').trim();
-      const numDoc = (sale.numero_doc || 'UNK').trim();
-      const docKey = `${regionalId}|${tipo}|${tipoDoc}|${numDoc}|${sale.fecha}`;
+      const amount = sale.vtas_ant_i || 0;
+      const tipoDoc = (sale.tipo_documento || 'UNKNOWN').trim();
+      const numDoc = (sale.numero_doc || 'UNKNOWN').trim();
+      const docKey = `${regionalId}|${tipoDoc}|${numDoc}|${sale.fecha}`;
+
       const existing = prevYearDocGroups.get(docKey);
       if (existing) {
         existing.total += amount;
       } else {
-        prevYearDocGroups.set(docKey, { regionalId, tipo, total: amount });
+        prevYearDocGroups.set(docKey, {
+          regionalId,
+          firstTipo: normTipo(sale.tipo_venta),
+          total: amount,
+        });
       }
     });
 
-    prevYearDocGroups.forEach(({ regionalId, tipo, total }) => {
+    prevYearDocGroups.forEach(({ regionalId, firstTipo, total }) => {
       if (total <= 0) return;
+      const vals = regionalValues.get(regionalId);
       const counts = regionalCounts.get(regionalId);
-      if (!counts) return;
+      if (!vals || !counts) return;
+
+      vals.prevYear += total;
+      vals.prevYearDesglose[firstTipo] = (vals.prevYearDesglose[firstTipo] || 0) + total;
       counts.prevYearCount += 1;
-      counts.prevYearDesglose[tipo] = (counts.prevYearDesglose[tipo] || 0) + 1;
+      counts.prevYearDesglose[firstTipo] = (counts.prevYearDesglose[firstTipo] || 0) + 1;
     });
 
     // Aggregate metas by regional
