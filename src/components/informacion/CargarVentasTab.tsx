@@ -215,7 +215,7 @@ export default function CargarVentasTab() {
         .from('carga_archivos')
         .select('*')
         .eq('tipo', 'ventas')
-        .order('created_at', { ascending: isHistoric }) as any;
+        .order('created_at', { ascending: false }) as any;
 
       if (isHistoric) {
         query = query.eq('periodo_mes', selectedMonth).eq('periodo_anio', selectedYear);
