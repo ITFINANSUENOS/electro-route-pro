@@ -103,6 +103,13 @@ Acceso similar al Líder de Zona con visibilidad de múltiples regionales.
 - Activar/Desactivar usuarios
 - Sincronizar contraseñas masivamente
 
+#### Asesores Pendientes de Creación
+- **Detección automática**: Al cargar ventas del **mes vigente**, el sistema detecta asesores con >3 ventas que no tienen perfil en el sistema
+- **Solo mes en curso**: Los asesores de meses anteriores no se detectan como pendientes (pueden haber sido vendedores temporales)
+- **Normalización de códigos**: Se comparan códigos sin ceros a la izquierda (ej: `2923` = `02923`) y también por cédula
+- **Auto-resolución**: Los falsos positivos se resuelven automáticamente al detectar que ya existe un perfil coincidente
+- **Wizard de creación**: Permite crear usuarios uno a uno con datos pre-llenados desde las ventas
+
 #### Configuración
 - **Regionales**: Gestionar sedes
 - **Formas de Pago**: Clasificación de ventas
