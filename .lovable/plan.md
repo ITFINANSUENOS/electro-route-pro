@@ -1,63 +1,59 @@
 
 
-## Plan: Excel de pendientes + mejor análisis regional + email opcional
+## Plan: Detección de asesores pendientes solo para mes vigente + normalización de códigos
 
 ### Problema actual
-1. No hay forma de descargar Excel de asesores pendientes
-2. La detección solo captura `cod_region` del CSV, pero hay asesores con `cod_region = NULL` cuando el CSV tiene datos en columnas `sede`, `regional` (nombre), `zona`
-3. Email y contraseña son obligatorios en `create-user` edge function y en el wizard, pero no siempre se tienen estos datos
+
+1. **Detección acumulativa**: Se detectan asesores de cualquier mes cargado, incluyendo meses pasados donde los asesores pudieron haber sido vendedores temporales
+2. **Falsos positivos por ceros a la izquierda**: `2923` (CSV) no matchea con `02923` (perfil) — la comparación es exacta sin normalizar
+3. **No se cruza por cédula**: Si un asesor existe con cédula `1061691366` pero código diferente, no se detecta como existente
+4. **48 pendientes cuando solo deberían ser 3**: CAMAYO, MONTILLA y ZORRILLA
 
 ### Cambios por fases
 
 ---
 
-### FASE 1: Mejor análisis de datos del CSV en detección
+### FASE 1: Corregir detección — solo mes vigente + normalización
 
-**Archivo: `src/components/informacion/CargarVentasTab.tsx`**
-- En `detectNewAdvisors`, ampliar el select para traer también `sede`, `regional`, `zona`, `codigo_jefe`, `jefe_ventas`
-- Al agrupar por `codigo_asesor`, guardar el valor más frecuente (moda) de `sede`, `regional`, `zona`
-- Si `cod_region` es null pero `regional` (nombre texto) existe, buscar en tabla `regionales` por nombre para mapear
-- Guardar `sede` en el insert a `asesores_pendientes`
+**Archivo: `src/components/informacion/CargarVentasTab.tsx`** — función `detectNewAdvisors`
 
-**Migración SQL**: Agregar columna `sede` a tabla `asesores_pendientes`
+1. **Solo detectar para el mes en curso**: Antes de ejecutar la detección, comparar `month/year` con el mes actual del sistema. Si el archivo cargado es de un mes anterior, NO ejecutar detección (esos asesores ya no son relevantes)
+2. **Normalizar códigos al comparar**: Al consultar `profiles`, obtener todos los `codigo_asesor` y `cedula`, y comparar normalizando (quitando ceros a la izquierda con `replace(/^0+/, '')`)
+3. **Cruce secundario por cédula**: Si el código no matchea, verificar si la cédula del candidato existe en algún perfil
+4. **Excluir códigos genéricos**: Filtrar códigos que normalizados sean `1` (ej: `01`, `001`, `0001` = GENERAL MERCADEO)
 
-**Archivo: `src/hooks/usePendingAdvisors.ts`**: Agregar `sede` al tipo `PendingAdvisor`
-
----
-
-### FASE 2: Botón de descarga Excel en el wizard
-
-**Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
-- Agregar botón de descarga Excel al lado del badge "X / Y" en el header del wizard
-- El Excel incluirá columnas: Código Asesor, Cédula, Nombre, Regional, Sede, Cod Región, Ventas Detectadas, Estado
-- Usar ExcelJS (ya importado en el proyecto) para generar el archivo
-- Formato con headers estilizados, colores de marca
+**Lógica resumida**:
+```text
+candidatos del CSV (mes vigente)
+  → normalizar codigo_asesor (quitar ceros izq)
+  → comparar contra profiles normalizados
+  → comparar también por cedula
+  → excluir genéricos
+  → solo los que no matchean = verdaderos pendientes
+```
 
 ---
 
-### FASE 3: Email y teléfono opcionales en toda la lógica
+### FASE 2: Limpiar pendientes existentes (auto-resolución)
 
-**Archivo: `supabase/functions/create-user/index.ts`**
-- Hacer `email` opcional: si no se proporciona, generar un email placeholder usando la cédula (ej. `cedula@placeholder.internal`)
-- Esto permite crear el auth user sin email real
-- Mantener validación de email solo si se proporciona uno real
+**Archivo: `src/hooks/usePendingAdvisors.ts`**
 
-**Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
-- Quitar `*` de Email, hacerlo opcional
-- Actualizar `canSave`: solo requerir `password` y `tipo_asesor`
-- Si no hay email, enviar cedula como identificador al edge function
+- Al cargar la lista de pendientes, ejecutar verificación automática contra `profiles`
+- Para cada pendiente, comparar `codigo_asesor` normalizado y `cedula` contra perfiles existentes
+- Si hay match, marcar automáticamente como `creado` (auto-resuelto)
+- Esto limpia los ~45 falsos positivos actuales sin intervención manual
 
-**Archivo: `src/pages/Usuarios.tsx`**
-- En el formulario de creación manual: quitar `required` de email
-- Actualizar `handleSubmit` para permitir email vacío
+**Migración SQL**: Marcar como `descartado` el registro `codigo_asesor = '01'` (GENERAL MERCADEO) y todos los pendientes cuyo mes de detección NO sea el mes vigente actual (abril 2026)
 
 ---
 
-### FASE 4: Mostrar sede/regional en ficha del wizard
+### FASE 3: Actualizar wizard y documentación
 
 **Archivo: `src/components/usuarios/PendingAdvisorsWizard.tsx`**
-- En la sección readonly, mostrar también la columna `sede` del CSV
-- Si `regional_id` es null pero hay `sede` o `cod_region`, mostrar los datos disponibles para que el admin pueda identificar manualmente
+- Sin cambios funcionales, solo se beneficia de la lista ya filtrada
+
+**Archivo: `docs/USER_GUIDE.md`**
+- Actualizar sección de asesores pendientes indicando que solo se detectan para el mes en curso
 
 ---
 
@@ -65,12 +61,10 @@
 
 | Archivo | Cambio |
 |---------|--------|
-| Migración SQL | Agregar columna `sede` a `asesores_pendientes` |
-| `src/components/informacion/CargarVentasTab.tsx` | Capturar `sede`, `regional`, `zona` en detección |
-| `src/hooks/usePendingAdvisors.ts` | Agregar `sede` al tipo |
-| `src/components/usuarios/PendingAdvisorsWizard.tsx` | Botón Excel, email opcional, mostrar sede |
-| `supabase/functions/create-user/index.ts` | Email opcional con placeholder |
-| `src/pages/Usuarios.tsx` | Email opcional en formulario manual |
+| `src/components/informacion/CargarVentasTab.tsx` | Solo detectar mes vigente, normalizar códigos, cruzar por cédula |
+| `src/hooks/usePendingAdvisors.ts` | Auto-resolución de falsos positivos al cargar lista |
+| Migración SQL | Limpiar registros genéricos y de meses anteriores |
+| `docs/USER_GUIDE.md` | Actualizar documentación |
 
-**Total: 4 fases**
+**Total: 3 fases, resultado esperado: solo 3 asesores pendientes (CAMAYO, MONTILLA, ZORRILLA)**
 
