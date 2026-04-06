@@ -504,8 +504,20 @@ export default function CargarVentasTab() {
     }
   };
 
-  /** Detect advisors in sales data that don't have a profile */
+  /** Normalize advisor code by stripping leading zeros */
+  const normalizeCode = (code: string): string => code.replace(/^0+/, '') || '0';
+
+  /** Detect advisors in sales data that don't have a profile — ONLY for current month */
   const detectNewAdvisors = async (month: number, year: number) => {
+    // Only detect for the current system month — past months are irrelevant
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    if (month !== currentMonth || year !== currentYear) {
+      console.log(`Skipping advisor detection: uploaded ${month}/${year} but current is ${currentMonth}/${currentYear}`);
+      return;
+    }
+
     const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();
     const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -525,10 +537,13 @@ export default function CargarVentasTab() {
     // Group by codigo_asesor and count, capturing mode of sede/regional/zona
     const grouped = new Map<string, { cedula: string; nombre: string; cod_region: number | null; sede: string | null; regional_name: string | null; zona: string | null; count: number }>();
     for (const sale of salesAdvisors) {
+      // Exclude generic codes (normalize to check)
+      const normalized = normalizeCode(sale.codigo_asesor);
+      if (normalized === '1') continue; // Generic code like 01, 001, 0001
+
       const existing = grouped.get(sale.codigo_asesor);
       if (existing) {
         existing.count++;
-        // Keep non-null values (last wins for simplicity)
         if (sale.sede) existing.sede = sale.sede;
         if (sale.regional) existing.regional_name = sale.regional;
         if (sale.zona) existing.zona = sale.zona;
@@ -553,29 +568,47 @@ export default function CargarVentasTab() {
 
     if (candidates.length === 0) return;
 
-    // Check which ones already have profiles
-    const codigosArr = candidates.map(c => c.codigo_asesor);
-    const { data: existingProfiles } = await (dataService
+    // Get ALL profiles (codigo_asesor and cedula) for normalized comparison
+    const { data: allProfiles } = await (dataService
       .from('profiles' as any)
-      .select('codigo_asesor')
-      .in('codigo_asesor', codigosArr) as any);
+      .select('codigo_asesor, cedula') as any);
 
-    const profileCodigos = new Set((existingProfiles || []).map((p: any) => p.codigo_asesor));
+    const profileNormalizedCodes = new Set(
+      (allProfiles || [])
+        .filter((p: any) => p.codigo_asesor)
+        .map((p: any) => normalizeCode(p.codigo_asesor))
+    );
+    const profileCedulas = new Set(
+      (allProfiles || [])
+        .filter((p: any) => p.cedula)
+        .map((p: any) => p.cedula)
+    );
 
-    // Check which ones are already in asesores_pendientes
+    // Filter: candidate exists if normalized code matches OR cedula matches
+    const trulyNew = candidates.filter(c => {
+      const normCode = normalizeCode(c.codigo_asesor);
+      if (profileNormalizedCodes.has(normCode)) return false;
+      if (c.cedula && profileCedulas.has(c.cedula)) return false;
+      return true;
+    });
+
+    if (trulyNew.length === 0) return;
+
+    // Check which ones are already in asesores_pendientes (also normalize)
     const { data: existingPending } = await (dataService
       .from('asesores_pendientes' as any)
       .select('codigo_asesor')
-      .in('codigo_asesor', codigosArr) as any);
+      .eq('estado', 'pendiente') as any);
 
-    const pendingCodigos = new Set((existingPending || []).map((p: any) => p.codigo_asesor));
+    const pendingNormalizedCodes = new Set(
+      (existingPending || []).map((p: any) => normalizeCode(p.codigo_asesor))
+    );
 
-    // New advisors = not in profiles AND not in pending
-    const newAdvisors = candidates.filter(c => !profileCodigos.has(c.codigo_asesor) && !pendingCodigos.has(c.codigo_asesor));
+    const newAdvisors = trulyNew.filter(c => !pendingNormalizedCodes.has(normalizeCode(c.codigo_asesor)));
 
     if (newAdvisors.length === 0) return;
 
-    // Fetch regionales for mapping (by code and by name)
+    // Fetch regionales for mapping
     const { data: regionalesData } = await (dataService.from('regionales').select('id, codigo, nombre').eq('activo', true) as any);
     const codToRegionalId = new Map<number, string>();
     const nameToRegionalId = new Map<string, string>();
@@ -586,13 +619,11 @@ export default function CargarVentasTab() {
 
     // Insert into asesores_pendientes
     const inserts = newAdvisors.map(a => {
-      // Try to resolve regional_id: first by cod_region, then by regional name text
       let resolvedRegionalId = a.cod_region ? codToRegionalId.get(a.cod_region) || null : null;
       if (!resolvedRegionalId && a.regional_name) {
         resolvedRegionalId = nameToRegionalId.get(a.regional_name.toUpperCase().trim()) || null;
       }
       if (!resolvedRegionalId && a.sede) {
-        // Try matching sede name against regionales
         resolvedRegionalId = nameToRegionalId.get(a.sede.toUpperCase().trim()) || null;
       }
 
