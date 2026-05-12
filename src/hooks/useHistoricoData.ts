@@ -43,20 +43,25 @@ function normalizeTipo(raw: string | null): string {
 
 async function fetchAllPaginated(buildQuery: (page: number, pageSize: number) => any, customPageSize = 1000): Promise<any[]> {
   const pageSize = customPageSize;
+  const concurrency = 8; // peticiones paralelas
   let all: any[] = [];
   let page = 0;
-  let hasMore = true;
-  while (hasMore) {
+  let done = false;
+
+  while (!done) {
+    const batch = Array.from({ length: concurrency }, (_, i) => buildQuery(page + i, pageSize));
     try {
-      const { data, error } = await buildQuery(page, pageSize);
-      if (error) { console.error('fetchAllPaginated error:', error); break; }
-      if (data && data.length > 0) {
-        all = all.concat(data);
-        hasMore = data.length === pageSize;
-        page++;
-      } else {
-        hasMore = false;
+      const results = await Promise.all(batch);
+      for (const { data, error } of results) {
+        if (error) { console.error('fetchAllPaginated error:', error); done = true; break; }
+        if (data && data.length > 0) {
+          all = all.concat(data);
+          if (data.length < pageSize) done = true;
+        } else {
+          done = true;
+        }
       }
+      page += concurrency;
     } catch (err) {
       console.error('fetchAllPaginated catch:', err);
       break;
